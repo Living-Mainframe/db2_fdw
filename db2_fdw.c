@@ -802,11 +802,27 @@ db2GetForeignPaths (PlannerInfo * root, RelOptInfo * baserel, Oid foreigntableid
     fdwState->order_clause = orderedquery.data;
 
   /* add the only path */
-  add_path (baserel, (Path *) create_foreignscan_path (root, baserel,
-						       NULL,	/* default pathtarget */
-						       baserel->rows, fdwState->startup_cost, fdwState->total_cost, usable_pathkeys, NULL,
-						       NULL,	/* no extra plan */
-						       NIL)
+  add_path (baserel, (Path *) create_foreignscan_path (root,
+			                               baserel,
+#if PG_VERSION_NUM >= 90600
+					               NULL,  /* default pathtarget */
+#endif  /* PG_VERSION_NUM */
+						       baserel->rows,
+#if PG_VERSION_NUM >= 180000
+                                                       0,  /* no disabled plan nodes */
+#endif  /* PG_VERSION_NUM */
+						       fdwState->startup_cost,
+						       fdwState->total_cost,
+						       usable_pathkeys,
+                                                       baserel->lateral_relids,
+#if PG_VERSION_NUM >= 90500
+					               NULL,  /* no extra plan */
+#endif  /* PG_VERSION_NUM */
+#if PG_VERSION_NUM >= 170000
+					               NIL,   /* no fdw_restrictinfo */
+#endif  /* PG_VERSION_NUM */
+					               NIL
+						       )
     );
 }
 
@@ -888,11 +904,30 @@ db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInfo * o
   fdwState->total_cost = total_cost;
 
   /* create a new join path */
-  joinpath = create_foreignscan_path (root, joinrel, NULL,	/* default pathtarget */
-				      rows, startup_cost, total_cost, NIL,	/* no pathkeys */
-				      NULL,	/* no required_outer */
-				      NULL,	/* no epq_path */
-				      NIL);	/* no fdw_private */
+#if PG_VERSION_NUM < 120000
+  joinpath = create_foreignscan_path(
+#else
+  joinpath = create_foreign_join_path(
+#endif  /* PG_VERSION_NUM */
+									   root,
+									   joinrel,
+									   NULL,	/* default pathtarget */
+									   rows,
+#if PG_VERSION_NUM >= 180000
+									   0,	/* no disabled plan nodes */
+#endif  /* PG_VERSION_NUM */
+									   startup_cost,
+									   total_cost,
+									   NIL, 	/* no pathkeys */
+									   joinrel->lateral_relids,
+									   NULL,	/* no epq_path */
+#if PG_VERSION_NUM >= 170000
+									   NIL,		/* no fdw_restrictinfo */
+#endif  /* PG_VERSION_NUM */
+									   NIL);	/* no fdw_private */
+
+
+
 
   /* add generated path to joinrel */
   add_path (joinrel, (Path *) joinpath);
@@ -1388,30 +1423,55 @@ db2PlanForeignModify (PlannerInfo * root, ModifyTable * plan, Index resultRelati
   struct paramDesc *param;
   char paramName[10];
   TupleDesc tupdesc;
-  Bitmapset *tmpset;
+  Bitmapset *updated_cols;
   AttrNumber col;
+  int col_idx = -1;
 
-  /* we don't support INSERT ... ON CONFLICT */
+/*
+* Get the updated columns and the user for permission checks.
+* We put that here at the beginning, since the way to do that changed
+* considerably over the different PostgreSQL versions.
+*/
+#if PG_VERSION_NUM >= 160000
+  RTEPermissionInfo *perminfo = getRTEPermissionInfo(root->parse->rteperminfos, rte);
+  updated_cols = bms_copy(perminfo->updatedCols);
+#else
+#if PG_VERSION_NUM >= 90500
+  updated_cols = bms_copy(rte->updatedCols);
+#else
+  updated_cols = bms_copy(rte->modifiedCols);
+#endif  /* PG_VERSION_NUM >= 90500 */
+#endif  /* PG_VERSION_NUM >= 160000 */
+
+#if PG_VERSION_NUM >= 90500
+/* we don't support INSERT ... ON CONFLICT */
   if (plan->onConflictAction != ONCONFLICT_NONE)
-    ereport (ERROR, (errcode (ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION), errmsg ("INSERT with ON CONFLICT clause is not supported")));
+    ereport(ERROR, (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION), errmsg("INSERT with ON CONFLICT clause is not supported")));
+#endif  /* PG_VERSION_NUM */
 
-  /* check if the foreign table is scanned */
-  if (resultRelation < root->simple_rel_array_size && root->simple_rel_array[resultRelation] != NULL) {
-    /* if yes, copy the foreign table information from the associated RelOptInfo */
-    fdwState = copyPlanData ((struct DB2FdwState *) (root->simple_rel_array[resultRelation]->fdw_private));
+/* check if the foreign table is scanned and we already planned that scan */
+  if (resultRelation < root->simple_rel_array_size
+      && root->simple_rel_array[resultRelation] != NULL
+      && root->simple_rel_array[resultRelation]->fdw_private != NULL) {
+/* if yes, copy the foreign table information from the associated RelOptInfo */
+    fdwState = copyPlanData((struct DB2FdwState *)(root->simple_rel_array[resultRelation]->fdw_private));
+  } else {
+/*
+* If no, we have to construct the foreign table data ourselves.
+* To match what ExecCheckRTEPerms does, pass the user whose user mapping
+* should be used (if invalid, the current user is used).
+*/
+    fdwState = getFdwState(rte->relid, NULL);
   }
-  else {
-    /* if no, we have to construct it ourselves */
-    fdwState = getFdwState (rte->relid, NULL);
-  }
+  initStringInfo(&sql);
 
-  initStringInfo (&sql);
+/*
+* Core code already has some lock on each rel being planned, so we can
+* use NoLock here.
+*/
+    rel = table_open(rte->relid, NoLock);
 
-  /*
-   * Core code already has some lock on each rel being planned, so we can
-   * use NoLock here.
-   */
-  rel = table_open (rte->relid, NoLock); 
+/* figure out which attributes are affected and if there is a trigger */
 
   /* figure out which attributes are affected and if there is a trigger */
   switch (operation) {
@@ -1438,10 +1498,8 @@ db2PlanForeignModify (PlannerInfo * root, ModifyTable * plan, Index resultRelati
 
     break;
   case CMD_UPDATE:
-    tmpset = bms_copy (rte->updatedCols);
-
-    while ((col = bms_first_member (tmpset)) >= 0) {
-      col += FirstLowInvalidHeapAttributeNumber;
+    while ((col_idx = bms_next_member (updated_cols,col_idx)) >= 0) {
+      col = col_idx + FirstLowInvalidHeapAttributeNumber;
       if (col <= InvalidAttrNumber)	/* shouldn't happen */
 	elog (ERROR, "system-column update is not supported");
       targetAttrs = lappend_int (targetAttrs, col);
@@ -2081,6 +2139,7 @@ db2ImportForeignSchema (ImportForeignSchemaStmt * stmt, Oid serverOid)
       case SQL_TYPE_FLOAT:
       case SQL_TYPE_DECIMAL:
       case SQL_TYPE_DOUBLE:
+      case SQL_TYPE_REAL:
 	if (typeprec < 54)
           if (typeprec == 0)
 	    appendStringInfo (&buf, "float(1)");
@@ -4158,7 +4217,7 @@ checkDataType (db2Type db2type, int scale, Oid pgtype, const char *tablename, co
     return;
 
   /* all numeric DB2 types can be transformed to floating point types */
-  if ((db2type == SQL_TYPE_INTEGER || db2type == SQL_TYPE_SMALL || db2type == SQL_TYPE_BIG || db2type == SQL_TYPE_FLOAT || db2type == SQL_TYPE_DOUBLE || db2type == SQL_TYPE_DECIMAL)
+  if ((db2type == SQL_TYPE_INTEGER || db2type == SQL_TYPE_SMALL || db2type == SQL_TYPE_BIG || db2type == SQL_TYPE_FLOAT || db2type == SQL_TYPE_DOUBLE || db2type == SQL_TYPE_REAL || db2type == SQL_TYPE_DECIMAL)
       && (pgtype == NUMERICOID || pgtype == FLOAT4OID || pgtype == FLOAT8OID))
     return;
 
@@ -5182,6 +5241,7 @@ convertTuple (struct DB2FdwState *fdw_state, Datum * values, bool * nulls, bool 
     else if(fdw_state->db2Table->cols[index]->db2type ==  SQL_TYPE_FLOAT
 	    || fdw_state->db2Table->cols[index]->db2type == SQL_TYPE_DECIMAL
 	    || fdw_state->db2Table->cols[index]->db2type == SQL_TYPE_INTEGER
+	    || fdw_state->db2Table->cols[index]->db2type == SQL_TYPE_REAL
 	    || fdw_state->db2Table->cols[index]->db2type == SQL_TYPE_DOUBLE) {
       value = fdw_state->db2Table->cols[index]->val;
       value_len = fdw_state->db2Table->cols[index]->val_len;
@@ -5328,9 +5388,7 @@ void
 db2RegisterCallback (void *arg)
 {
   RegisterXactCallback (transactionCallback, arg);
-#ifdef WRITE_API
   RegisterSubXactCallback (subtransactionCallback, arg);
-#endif /* WRITE_API */
 }
 
 /*
@@ -5341,9 +5399,7 @@ void
 db2UnregisterCallback (void *arg)
 {
   UnregisterXactCallback (transactionCallback, arg);
-#ifdef WRITE_API
   UnregisterSubXactCallback (subtransactionCallback, arg);
-#endif /* WRITE_API */
 }
 
 /*

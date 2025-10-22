@@ -15,7 +15,7 @@
 #include <sys/types.h>
 
 /* db2_fdw version */
-#define DB2_FDW_VERSION "5.0.0"
+#define DB2_FDW_VERSION "6.0.1"
 
 #ifdef OCI_ORACLE
 /*
@@ -85,6 +85,7 @@ typedef enum
   SQL_TYPE_GRAPHIC,
   SQL_TYPE_VARGRAPHIC,
   SQL_TYPE_DOUBLE,
+  SQL_TYPE_REAL,
   SQL_TYPE_FLOAT,
   SQL_TYPE_BOOLEAN,
   SQL_TYPE_OTHER

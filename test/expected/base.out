@@ -1,7 +1,7 @@
 \set ECHO all
 CREATE EXTENSION db2_fdw;
 CREATE SERVER sample FOREIGN DATA WRAPPER db2_fdw OPTIONS (dbserver 'SAMPLE');
-CREATE USER MAPPING FOR PUBLIC SERVER sample OPTIONS (user 'dbtest', password 'start123');
+CREATE USER MAPPING FOR PUBLIC SERVER sample OPTIONS (user 'db2inst1', password 'first');
 -- CREATE USER MAPPING FOR PUBLIC SERVER sample OPTIONS (user '', password '');
 IMPORT FOREIGN SCHEMA "DB2INST1" FROM SERVER sample INTO public;
 \c contrib_regression
@@ -24,7 +24,7 @@ insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(51,'Plains'
 insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(66,'Pacific',270,'Western','San Francisco');
 insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(84,'Mountain',290,'Western','Denver');
 select * from org;
- deptnumb |    deptname    | manager | division  |   location
+ deptnumb |    deptname    | manager | division  |   location    
 ----------+----------------+---------+-----------+---------------
        10 | Head Office    |     160 | Corporate | New York
        15 | New England    |      50 | Eastern   | Boston
