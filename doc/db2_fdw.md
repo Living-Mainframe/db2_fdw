@@ -21,16 +21,16 @@ Usage
 Support
 -------
 
-    [GitHub Link to db2_fdw](https://github.com/wolfgangbrandl/db2_fdw)
+    [GitHub Link to db2_fdw](https://github.com/Living-Mainframe/db2_fdw)
 
-    [email](wolfgang.brandl@brz.gv.at)
+    [email](thomas.muenz@living-mainframe.de)
 
 Author
 ------
 
-[Ing. Wolfgang Brandl](wolfgang.brandl@brz.gv.at)
+[Thomas Muenz](thomas.muenz@living-mainframe.de)
 
 Copyright and License
 ---------------------
 
-Copyright (c) 2018 Ing Wolfgang Brandl.
+Copyright (c) 2025 Thomas Muenz, Living-Mainframe GmbH
