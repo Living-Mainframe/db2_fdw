@@ -22,7 +22,7 @@
         "type": "git"
       }
    },
-    "generated_by": "Wolfgang Brandl",
+    "generated_by": "Thomas Muenz",
     "meta-spec": {
         "version": "1.0.0",
         "url": "http://pgxn.org/meta/spec.txt"
