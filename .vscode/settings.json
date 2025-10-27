@@ -1,0 +1,33 @@
+{
+    "C_Cpp.default.includePath": [
+        "~/sqllib/include",
+        "/usr/include/pgsql/server/"
+    ],
+    "makefile.makefilePath": "~/db2_xa_fdw",
+    "files.associations": {
+        "sql.h": "c",
+        "sqlcli1.h": "c",
+        "types.h": "c",
+        "stdlib.h": "c",
+        "stddef.h": "c",
+        "sqlsystm.h": "c",
+        "compare": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "string.h": "c",
+        "nodetags.h": "c",
+        "catcache.h": "c",
+        "db2_fdw.h": "c",
+        "db2_pg.h": "c",
+        "postgres.h": "c",
+        "rel.h": "c",
+        "memutils.h": "c",
+        "memnodes.h": "c",
+        "nodes.h": "c",
+        "palloc.h": "c",
+        "pqsignal.h": "c",
+        "db2fdwstate.h": "c",
+        "paramdesc.h": "c",
+        "db2fdwoption.h": "c"
+    }
+}
