@@ -67,7 +67,7 @@ REGRESS_OPTS = --inputdir=test
 # to your extention.
 #
 #MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
-PG_CPPFLAGS  = -Wno-suggest-attribute=format -g -fPIC -I$(DB2_HOME)/include -I./include
+PG_CPPFLAGS  = -g -fPIC -I$(DB2_HOME)/include -I./include
 SHLIB_LINK   = -fPIC -L$(DB2_HOME)/lib64 -L$(DB2_HOME)/bin  -ldb2
 PG_CONFIG    = pg_config
 
@@ -75,15 +75,15 @@ PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 
-checkin: clean
-	git remote set-url origin git@github.com:temuenz/db2_xa_fdw.git
-	git add --all
-	git commit -m "postgres 17 "
+#checkin: clean
+#	git remote set-url origin git@github.com:Living-Mainframe/db2_fdw.git
+#	git add --all
+#	git commit -m "postgres 17 "
 #	git commit -m "`date`"
-	git push -u origin master
+#	git push -u origin master
 
-reset:
-	git reset --hard origin/master
+#reset:
+#	git reset --hard origin/master
 
 archive:
 	git archive --format zip --prefix=db2_fdw-$(RELEASE)/ --output ../db2_fdw-$(RELEASE).zip master
