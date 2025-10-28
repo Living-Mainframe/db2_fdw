@@ -41,7 +41,7 @@ void db2Error_d (db2error sqlstate, const char *message, const char *detail, ...
   /* if the backend was terminated, report that rather than the DB2 error */
   CHECK_FOR_INTERRUPTS ();
   va_start(arg_marker, detail);
-  vsprintf(cBuffer, detail, arg_marker);
+  vsnprintf(cBuffer, sizeof(cBuffer), detail, arg_marker);
   ereport (ERROR, (errcode (to_sqlstate (sqlstate)), errmsg ("%s", message), errdetail ("%s", cBuffer)));
   va_end  (arg_marker);
 }
@@ -65,7 +65,7 @@ void db2Debug1(const char* message, ...) {
   char cBuffer [4000];
   va_list arg_marker;
   va_start (arg_marker, message);
-  vsprintf (cBuffer, message, arg_marker);
+  vsnprintf (cBuffer, sizeof(cBuffer),  message, arg_marker);
   elog (DEBUG1, "%s", cBuffer);
   va_end   (arg_marker);
 }
@@ -76,7 +76,7 @@ void db2Debug2(const char* message, ...) {
   char cBuffer [4000];
   va_list arg_marker;
   va_start (arg_marker, message);
-  vsprintf (cBuffer, message, arg_marker);
+  vsnprintf (cBuffer, sizeof(cBuffer),  message, arg_marker);
   elog (DEBUG2, "%s", cBuffer);
   va_end   (arg_marker);
 }
@@ -87,7 +87,7 @@ void db2Debug3(const char* message, ...) {
   char cBuffer [4000];
   va_list arg_marker;
   va_start (arg_marker, message);
-  vsprintf (cBuffer, message, arg_marker);
+  vsnprintf (cBuffer, sizeof(cBuffer),  message, arg_marker);
   elog (DEBUG3, "%s", cBuffer);
   va_end   (arg_marker);
 }
@@ -98,7 +98,7 @@ void db2Debug4(const char* message, ...) {
   char cBuffer [4000];
   va_list arg_marker;
   va_start (arg_marker, message);
-  vsprintf (cBuffer, message, arg_marker);
+  vsnprintf (cBuffer, sizeof(cBuffer),  message, arg_marker);
   elog (DEBUG4, "%s", cBuffer);
   va_end   (arg_marker);
 }
@@ -109,7 +109,7 @@ void db2Debug5(const char* message, ...) {
   char cBuffer [4000];
   va_list arg_marker;
   va_start (arg_marker, message);
-  vsprintf (cBuffer, message, arg_marker);
+  vsnprintf (cBuffer, sizeof(cBuffer),  message, arg_marker);
   elog (DEBUG5, "%s", cBuffer);
   va_end   (arg_marker);
 }
