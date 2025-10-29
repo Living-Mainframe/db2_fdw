@@ -1,7 +1,7 @@
 {
     "C_Cpp.default.includePath": [
         "~/sqllib/include",
-        "/usr/include/pgsql/server/"
+        "/usr/pgsql-18/include/server/"
     ],
     "makefile.makefilePath": "~/db2_xa_fdw",
     "files.associations": {
