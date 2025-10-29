@@ -38,39 +38,39 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
   memset (db2Message,0x00,sizeof(db2Message));
   switch (status) {
     case SQL_INVALID_HANDLE: {
-      sprintf(db2Message,"-CI INVALID HANDLE-----\nline=%d\nfile=%s\n",line,file);
+      snprintf(db2Message,sizeof(db2Message),"-CI INVALID HANDLE-----\nline=%d\nfile=%s\n",line,file);
       err_code = -1;
     }
     break;
     case SQL_ERROR: {
       SQLCHAR     message    [SQL_MAX_MESSAGE_LENGTH];
-      SQLCHAR     submessage [200];
-      SQLCHAR     sqlstate   [6];
+      SQLCHAR     submessage [SUBMESSAGE_LEN];
+      SQLCHAR     sqlstate   [SQLSTATE_LEN];
       SQLINTEGER  sqlcode;
       SQLSMALLINT msgLen;
       int         i = 1;
 
-      memset(submessage,0x00,sizeof(submessage));
-      memset(message   ,0x00,sizeof(message));
+      memset(submessage,0x00,SUBMESSAGE_LEN);
+      memset(message   ,0x00,SQL_MAX_MESSAGE_LENGTH);
  
-      while (SQL_SUCCEEDED(SQLGetDiagRec(handleType,handle,i,sqlstate,&sqlcode,message,sizeof(message),&msgLen))) {
+      while (SQL_SUCCEEDED(SQLGetDiagRec(handleType,handle,i,sqlstate,&sqlcode,message,SQL_MAX_MESSAGE_LENGTH,&msgLen))) {
         db2Debug2("  SQLCODE :  %d ",sqlcode);
         db2Debug2("  SQLSTATE:  %d ",sqlstate);
         db2Debug2("  MESSAGE : '%s'",message);
-        sprintf((char*)submessage,"SQLSTATE = %s  SQLCODE = %d\nline=%d\nfile=%s\n", sqlstate,sqlcode,line,file);
+        snprintf((char*)submessage, SUBMESSAGE_LEN, "SQLSTATE = %s  SQLCODE = %d\nline=%d\nfile=%s\n", sqlstate,sqlcode,line,file);
         if ((sizeof(db2Message) - strlen((char*)db2Message)) > strlen((char*)submessage) + 1) {
-          strcat ((char*)db2Message,(char*)submessage);
+          strncat ((char*)db2Message,(char*)submessage, SUBMESSAGE_LEN);
         }
         if ((sizeof(db2Message) - strlen((char*)db2Message)) > strlen((char*)message) + 2) {
-          strcat ((char*)db2Message,(char*)message);
-          strcat ((char*)db2Message,"\n");
+          strncat ((char*)db2Message,(char*)message,SQL_MAX_MESSAGE_LENGTH);
+          strncat ((char*)db2Message,"\n",strlen("\n"));
         }
         if (i == 1) {
           err_code = ((sqlcode == -911 || sqlcode == -913) && strcmp((char*)sqlstate,"40001") == 0) ? 8177 : abs(sqlcode);
         }
         i++;
-        memset(submessage,0x00,sizeof(submessage));
-        memset(message   ,0x00,sizeof(message));
+        memset(submessage,0x00,SUBMESSAGE_LEN);
+        memset(message   ,0x00,SQL_MAX_MESSAGE_LENGTH);
       }
     }
     break;
@@ -80,7 +80,7 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
     }
     break;
     case SQL_NO_DATA: {
-      strcpy (db2Message, "SQL0100W: no data found");
+      strncpy (db2Message, "SQL0100W: no data found", sizeof(db2Message));
       err_code = 100;
     }
     break;

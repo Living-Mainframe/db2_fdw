@@ -70,15 +70,15 @@ void db2Explain (void* fdw, ExplainState* es) {
   memset(execution_cmd,0x00,sizeof(execution_cmd));
   if (es->verbose) {
     if (strlen(fdw_state->user)){
-      sprintf(execution_cmd,"db2expln -t -d %s -u %s %s -q \"%s\" ",fdw_state->dbserver,fdw_state->user,fdw_state->password,tempQuery);
+      snprintf(execution_cmd,sizeof(execution_cmd),"db2expln -t -d %s -u %s %s -q \"%s\" ",fdw_state->dbserver,fdw_state->user,fdw_state->password,tempQuery);
     } else {
-      sprintf(execution_cmd,"db2expln -t -d %s -q \"%s\" ",fdw_state->dbserver,tempQuery);
+      snprintf(execution_cmd,sizeof(execution_cmd),"db2expln -t -d %s -q \"%s\" ",fdw_state->dbserver,tempQuery);
     }
   } else {
     if (strlen(fdw_state->user)){
-      sprintf(execution_cmd,"db2expln -t -d %s -u %s %s -q \"%s\" |grep -E \"Estimated Cost|Estimated Cardinality\" ",fdw_state->dbserver,fdw_state->user,fdw_state->password,tempQuery);
+      snprintf(execution_cmd,sizeof(execution_cmd),"db2expln -t -d %s -u %s %s -q \"%s\" |grep -E \"Estimated Cost|Estimated Cardinality\" ",fdw_state->dbserver,fdw_state->user,fdw_state->password,tempQuery);
     } else {
-      sprintf(execution_cmd,"db2expln -t -d %s -q \"%s\" |grep -E \"Estimated Cost|Estimated Cardinality\" ",fdw_state->dbserver,tempQuery);
+      snprintf(execution_cmd,sizeof(execution_cmd),"db2expln -t -d %s -q \"%s\" |grep -E \"Estimated Cost|Estimated Cardinality\" ",fdw_state->dbserver,tempQuery);
     }
   }
   db2Debug2("  execution_cmd: '%s'",execution_cmd);

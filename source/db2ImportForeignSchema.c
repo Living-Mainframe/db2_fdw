@@ -36,9 +36,9 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   ForeignServer*      server;
   UserMapping*        mapping;
   ForeignDataWrapper* wrapper;
-  char                tabname   [129] = { '\0' };
-  char                colname   [129] = { '\0' };
-  char                oldtabname[129] = { '\0' };
+  char                tabname   [TABLE_NAME_LEN] = { '\0' };
+  char                colname   [COLUMN_NAME_LEN] = { '\0' };
+  char                oldtabname[TABLE_NAME_LEN] = { '\0' };
   char*               foldedname;
   char*               nls_lang  = NULL;
   char*               user      = NULL;
@@ -183,7 +183,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       pfree (foldedname);
 
       firstcol = true;
-      strcpy (oldtabname, tabname);
+      strncpy (oldtabname, tabname, sizeof(oldtabname));
     }
 
     if (rc == 1) {

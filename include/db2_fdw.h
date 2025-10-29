@@ -79,9 +79,13 @@
 /* number of bytes to read per LOB chunk */
 #define LOB_CHUNK_SIZE    8192
 #define ERRBUFSIZE        2000
+#define SUBMESSAGE_LEN    200
 #define EXPLAIN_LINE_SIZE 1000
 #define DEFAULT_MAX_LONG  32767
 #define DEFAULT_PREFETCH  200
+#define TABLE_NAME_LEN    129
+#define COLUMN_NAME_LEN   129
+#define SQLSTATE_LEN      6
 
 #ifdef SQL_H_SQLCLI1
 #include "HdlEntry.h"

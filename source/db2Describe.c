@@ -63,10 +63,10 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   tablename = db2Alloc (length + 1);
   tablename[0] = '\0';		/* empty */
   if (schema != NULL) {
-    strcat (tablename, qschema);
-    strcat (tablename, ".");
+    strncat (tablename, qschema,length);
+    strncat (tablename, ".",length);
   }
-  strcat (tablename, qtable);
+  strncat (tablename, qtable,length);
   db2Free (qtable);
   if (schema != NULL)
     db2Free (qschema);
