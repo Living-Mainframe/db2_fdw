@@ -30,9 +30,9 @@ int                 db2GetImportColumn   (DB2Session* session, char* schema, cha
  */
 int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int list_type, char* tabname, char* colName, short* colType, size_t* colLen, short* colScale, short* colNulls, int* key, int* cp) {
   /* the static variables will contain data returned to the caller */
-  SQLCHAR      tab_buf [129];
+  SQLCHAR      tab_buf [TABLE_NAME_LEN];
   SQLLEN       ind_tab;
-  SQLCHAR      col_buf [129];
+  SQLCHAR      col_buf [COLUMN_NAME_LEN];
   SQLLEN       ind_col;
   SQLCHAR      typ_buf [19];
   SQLLEN       ind_typ;
@@ -131,24 +131,27 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
         char* query_str = "SELECT T.TABNAME, C.COLNAME, C.TYPENAME, C.LENGTH, C.SCALE, C.NULLS, COALESCE(C.KEYSEQ, 0) AS KEY, C.CODEPAGE"
                           " FROM SYSCAT.TABLES T JOIN SYSCAT.COLUMNS C ON T.TABSCHEMA = C.TABSCHEMA AND T.TABNAME   = C.TABNAME"
                           " WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') ORDER BY T.TABNAME, C.COLNO";
-        column_query = db2Alloc(strlen(query_str) + 1);
-        strcpy(column_query,query_str);
+        int   s_len     = strlen(query_str)+1;
+        column_query = db2Alloc(s_len);
+        strncpy(column_query,query_str,s_len);
       }
       break;
       case 1: {   /* FDW_IMPORT_SCHEMA_LIMIT_TO */
         char* query_str = "SELECT T.TABNAME, C.COLNAME, C.TYPENAME, C.LENGTH, C.SCALE, C.NULLS, COALESCE(C.KEYSEQ, 0) AS KEY, C.CODEPAGE"
                           " FROM SYSCAT.TABLES T JOIN SYSCAT.COLUMNS C ON T.TABSCHEMA = C.TABSCHEMA AND T.TABNAME   = C.TABNAME"
                           " WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') AND T.TABNAME IN (%s) ORDER BY T.TABNAME, C.COLNO";
-        column_query = db2Alloc(strlen(query_str) + strlen(table_list) + 1);
-        sprintf(column_query,query_str,table_list);
+        int   s_len     = strlen(query_str) + strlen(table_list) + 1;
+        column_query = db2Alloc(s_len);
+        snprintf(column_query,s_len,query_str,table_list);
       }
       break;
       case 2: {   /* FDW_IMPORT_SCHEMA_EXCEPT   */
         char* query_str = "SELECT T.TABNAME, C.COLNAME, C.TYPENAME, C.LENGTH, C.SCALE, C.NULLS, COALESCE(C.KEYSEQ, 0) AS KEY, C.CODEPAGE"
                           " FROM SYSCAT.TABLES T JOIN SYSCAT.COLUMNS C ON T.TABSCHEMA = C.TABSCHEMA AND T.TABNAME   = C.TABNAME"
                           " WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') AND T.TABNAME NOT IN (%s) ORDER BY T.TABNAME, C.COLNO";
-        column_query = db2Alloc(strlen(query_str) + strlen(table_list) + 1);
-        sprintf(column_query,query_str,table_list);
+        int   s_len     = strlen(query_str) + strlen(table_list) + 1;
+        column_query = db2Alloc(s_len);
+        snprintf(column_query,s_len,query_str,table_list);
       }
       break;
       default:
@@ -272,11 +275,11 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
     if (ind_tab == SQL_NULL_DATA)
       tabname[0] = '\0';
     else
-      strcpy(tabname, (char*)tab_buf);
+      strncpy(tabname, (char*)tab_buf, TABLE_NAME_LEN);
     if (ind_col == SQL_NULL_DATA)
       colName[0] = '\0';
     else
-      strcpy(colName, (char*)col_buf);
+      strncpy(colName, (char*)col_buf, COLUMN_NAME_LEN);
     *colLen    = (ind_len   == SQL_NULL_DATA) ? 0 : (size_t) len_val;
     *colScale  = (ind_scale == SQL_NULL_DATA) ? 0 : (short) scale_val;
     *colNulls  = (ind_nulls == SQL_NULL_DATA) ? 0 : (nulls_val == 'Y');
