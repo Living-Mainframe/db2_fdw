@@ -210,6 +210,8 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
           break;
         case DB2_LONGVARCHAR:
         case DB2_CLOB:
+        case DB2_VARGRAPHIC:
+        case DB2_GRAPHIC:
         case DB2_DBCLOB:
           appendStringInfo (&buf, "text");
           break;
@@ -248,8 +250,6 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
         case DB2_BINARY:
         case DB2_VARBINARY:
         case DB2_LONGVARBINARY:
-        case DB2_VARGRAPHIC:
-        case DB2_GRAPHIC:
         case DB2_BLOB:
           appendStringInfo (&buf, "bytea");
           break;
