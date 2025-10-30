@@ -1,6 +1,6 @@
 #include <postgres.h>
 #include <commands/explain.h>
-#if PG_VERSION_NUM >= 18000
+#if PG_VERSION_NUM >= 180000
 #include <commands/explain_state.h>
 #include <commands/explain_format.h>
 #endif
