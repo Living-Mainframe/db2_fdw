@@ -1,12 +1,83 @@
-\set ECHO all
-CREATE EXTENSION db2_fdw;
-CREATE SERVER sample FOREIGN DATA WRAPPER db2_fdw OPTIONS (dbserver 'SAMPLE');
-CREATE USER MAPPING FOR PUBLIC SERVER sample OPTIONS (user 'db2inst1', password 'first');
+CREATE DATABASE regtest;
+CREATE DATABASE
+GRANT ALL PRIVILEGES ON DATABASE regtest to postgres;
+GRANT
+\c regtest
+Sie sind jetzt verbunden mit der Datenbank »regtest« als Benutzer »postgres«.
+-- Install extension
+CREATE EXTENSION IF NOT EXISTS db2_fdw;
+CREATE EXTENSION
+-- Install FDW Server
+CREATE SERVER IF NOT EXISTS sample FOREIGN DATA WRAPPER db2_fdw OPTIONS (dbserver 'SAMPLE');
+CREATE SERVER
+-- Map a user
+CREATE USER MAPPING FOR PUBLIC SERVER sample OPTIONS (user 'db2inst1', password 'db2inst1');
+CREATE USER MAPPING
 -- CREATE USER MAPPING FOR PUBLIC SERVER sample OPTIONS (user '', password '');
-IMPORT FOREIGN SCHEMA "DB2INST1" FROM SERVER sample INTO public;
-\c contrib_regression
-drop foreign table org;
-CREATE FOREIGN TABLE org (
+-- Prepare a local schema
+CREATE SCHEMA IF NOT EXISTS sample;
+CREATE SCHEMA
+-- Import the complete sample db into the local schema
+IMPORT FOREIGN SCHEMA "DB2INST1" FROM SERVER sample INTO sample;
+IMPORT FOREIGN SCHEMA
+-- list imported tables
+\detr+ sample.*
+                                      Liste der Fremdtabellen
+ Schema |     Tabelle     | Server |                  FDW-Optionen                  | Beschreibung 
+--------+-----------------+--------+------------------------------------------------+--------------
+ sample | act             | sample | (schema 'DB2INST1', "table" 'ACT')             | 
+ sample | bintypes        | sample | (schema 'DB2INST1', "table" 'BINTYPES')        | 
+ sample | catalog         | sample | (schema 'DB2INST1', "table" 'CATALOG')         | 
+ sample | cl_sched        | sample | (schema 'DB2INST1', "table" 'CL_SCHED')        | 
+ sample | customer        | sample | (schema 'DB2INST1', "table" 'CUSTOMER')        | 
+ sample | department      | sample | (schema 'DB2INST1', "table" 'DEPARTMENT')      | 
+ sample | emp_photo       | sample | (schema 'DB2INST1', "table" 'EMP_PHOTO')       | 
+ sample | emp_resume      | sample | (schema 'DB2INST1', "table" 'EMP_RESUME')      | 
+ sample | employee        | sample | (schema 'DB2INST1', "table" 'EMPLOYEE')        | 
+ sample | empmdc          | sample | (schema 'DB2INST1', "table" 'EMPMDC')          | 
+ sample | empprojact      | sample | (schema 'DB2INST1', "table" 'EMPPROJACT')      | 
+ sample | in_tray         | sample | (schema 'DB2INST1', "table" 'IN_TRAY')         | 
+ sample | inventory       | sample | (schema 'DB2INST1', "table" 'INVENTORY')       | 
+ sample | numerictypes    | sample | (schema 'DB2INST1', "table" 'NUMERICTYPES')    | 
+ sample | org             | sample | (schema 'DB2INST1', "table" 'ORG')             | 
+ sample | product         | sample | (schema 'DB2INST1', "table" 'PRODUCT')         | 
+ sample | productsupplier | sample | (schema 'DB2INST1', "table" 'PRODUCTSUPPLIER') | 
+ sample | projact         | sample | (schema 'DB2INST1', "table" 'PROJACT')         | 
+ sample | project         | sample | (schema 'DB2INST1', "table" 'PROJECT')         | 
+ sample | purchaseorder   | sample | (schema 'DB2INST1', "table" 'PURCHASEORDER')   | 
+ sample | sales           | sample | (schema 'DB2INST1', "table" 'SALES')           | 
+ sample | staff           | sample | (schema 'DB2INST1', "table" 'STAFF')           | 
+ sample | staffg          | sample | (schema 'DB2INST1', "table" 'STAFFG')          | 
+ sample | suppliers       | sample | (schema 'DB2INST1', "table" 'SUPPLIERS')       | 
+ sample | timetypes       | sample | (schema 'DB2INST1', "table" 'TIMETYPES')       | 
+ sample | tm2acct         | sample | (schema 'DB2INST1', "table" 'TM2ACCT')         | 
+ sample | vact            | sample | (schema 'DB2INST1', "table" 'VACT')            | 
+ sample | vastrde1        | sample | (schema 'DB2INST1', "table" 'VASTRDE1')        | 
+ sample | vastrde2        | sample | (schema 'DB2INST1', "table" 'VASTRDE2')        | 
+ sample | vdepmg1         | sample | (schema 'DB2INST1', "table" 'VDEPMG1')         | 
+ sample | vdept           | sample | (schema 'DB2INST1', "table" 'VDEPT')           | 
+ sample | vemp            | sample | (schema 'DB2INST1', "table" 'VEMP')            | 
+ sample | vempdpt1        | sample | (schema 'DB2INST1', "table" 'VEMPDPT1')        | 
+ sample | vemplp          | sample | (schema 'DB2INST1', "table" 'VEMPLP')          | 
+ sample | vempprojact     | sample | (schema 'DB2INST1', "table" 'VEMPPROJACT')     | 
+ sample | vforpla         | sample | (schema 'DB2INST1', "table" 'VFORPLA')         | 
+ sample | vhdept          | sample | (schema 'DB2INST1', "table" 'VHDEPT')          | 
+ sample | vm2acct         | sample | (schema 'DB2INST1', "table" 'VM2ACCT')         | 
+ sample | vphone          | sample | (schema 'DB2INST1', "table" 'VPHONE')          | 
+ sample | vproj           | sample | (schema 'DB2INST1', "table" 'VPROJ')           | 
+ sample | vprojact        | sample | (schema 'DB2INST1', "table" 'VPROJACT')        | 
+ sample | vprojre1        | sample | (schema 'DB2INST1', "table" 'VPROJRE1')        | 
+ sample | vpstrde1        | sample | (schema 'DB2INST1', "table" 'VPSTRDE1')        | 
+ sample | vpstrde2        | sample | (schema 'DB2INST1', "table" 'VPSTRDE2')        | 
+ sample | vstafac1        | sample | (schema 'DB2INST1', "table" 'VSTAFAC1')        | 
+ sample | vstafac2        | sample | (schema 'DB2INST1', "table" 'VSTAFAC2')        | 
+(46 Zeilen)
+
+-- drop an imported table
+DROP FOREIGN TABLE IF EXISTS sample.org;
+DROP FOREIGN TABLE
+-- recreate it manually
+CREATE FOREIGN TABLE sample.org (
                   DEPTNUMB SMALLINT OPTIONS (key 'yes') NOT NULL ,
                   DEPTNAME VARCHAR(14) ,
                   MANAGER SMALLINT ,
@@ -14,119 +85,166 @@ CREATE FOREIGN TABLE org (
                   LOCATION VARCHAR(13)
                    )
       SERVER sample OPTIONS (schema 'DB2INST1',table 'ORG');
-delete from org;
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(10,'Head Office',160,'Corporate','New York');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(15,'New England',50,'Eastern','Boston');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(20,'Mid Atlantic',10,'Eastern','Washington');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(38,'South Atlantic',30,'Eastern','Atlanta');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(42,'Great Lakes',100,'Midwest','Chicago');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(51,'Plains',140,'Midwest','Dallas');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(66,'Pacific',270,'Western','San Francisco');
-insert into org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(84,'Mountain',290,'Western','Denver');
-select * from org;
+CREATE FOREIGN TABLE
+-- remove its content
+delete from sample.org;
+DELETE 8
+-- repopulate the content
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(10,'Head Office',160,'Corporate','New York');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(15,'New England',50,'Eastern','Boston');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(20,'Mid Atlantic',10,'Eastern','Washington');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(38,'South Atlantic',30,'Eastern','Atlanta');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(42,'Great Lakes',100,'Midwest','Chicago');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(51,'Plains',140,'Midwest','Dallas');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(66,'Pacific',270,'Western','San Francisco');
+INSERT 0 1
+insert into sample.org (DEPTNUMB,DEPTNAME,MANAGER,DIVISION,LOCATION) values(84,'Mountain',290,'Western','Denver');
+INSERT 0 1
+-- inquire the content
+select * from sample.org;
  deptnumb |    deptname    | manager | division  |   location    
 ----------+----------------+---------+-----------+---------------
-       10 | Head Office    |     160 | Corporate | New York
-       15 | New England    |      50 | Eastern   | Boston
-       20 | Mid Atlantic   |      10 | Eastern   | Washington
-       38 | South Atlantic |      30 | Eastern   | Atlanta
-       42 | Great Lakes    |     100 | Midwest   | Chicago
-       51 | Plains         |     140 | Midwest   | Dallas
-       66 | Pacific        |     270 | Western   | San Francisco
-       84 | Mountain       |     290 | Western   | Denver
-(8 rows)
+      160 | Head Office    |     160 | Corporate | New York
+       50 | New England    |      50 | Eastern   | Boston
+       10 | Mid Atlantic   |      10 | Eastern   | Washington
+       30 | South Atlantic |      30 | Eastern   | Atlanta
+      100 | Great Lakes    |     100 | Midwest   | Chicago
+      140 | Plains         |     140 | Midwest   | Dallas
+      270 | Pacific        |     270 | Western   | San Francisco
+      290 | Mountain       |     290 | Western   | Denver
+(8 Zeilen)
 
-select * from sales;
+select * from sample.sales;
  sales_date | sales_person |    region     | sales 
 ------------+--------------+---------------+-------
- 12-31-2005 | LUCCHESSI    | Ontario-South |     1
- 12-31-2005 | LEE          | Ontario-South |     3
- 12-31-2005 | LEE          | Quebec        |     1
- 12-31-2005 | LEE          | Manitoba      |     2
- 12-31-2005 | GOUNOT       | Quebec        |     1
- 03-29-2006 | LUCCHESSI    | Ontario-South |     3
- 03-29-2006 | LUCCHESSI    | Quebec        |     1
- 03-29-2006 | LEE          | Ontario-South |     2
- 03-29-1996 | LEE          | Ontario-North |     2
- 03-29-2006 | LEE          | Quebec        |     3
- 03-29-2006 | LEE          | Manitoba      |     5
- 03-29-2006 | GOUNOT       | Ontario-South |     3
- 03-29-2006 | GOUNOT       | Quebec        |     1
- 03-29-2006 | GOUNOT       | Manitoba      |     7
- 03-30-2006 | LUCCHESSI    | Ontario-South |     1
- 03-30-2006 | LUCCHESSI    | Quebec        |     2
- 03-30-2006 | LUCCHESSI    | Manitoba      |     1
- 03-30-2006 | LEE          | Ontario-South |     7
- 03-30-2006 | LEE          | Ontario-North |     3
- 03-30-2006 | LEE          | Quebec        |     7
- 03-30-2006 | LEE          | Manitoba      |     4
- 03-30-2006 | GOUNOT       | Ontario-South |     2
- 03-30-2006 | GOUNOT       | Quebec        |    18
- 03-31-2006 | GOUNOT       | Manitoba      |     1
- 03-31-2006 | LUCCHESSI    | Manitoba      |     1
- 03-31-2006 | LEE          | Ontario-South |    14
- 03-31-2006 | LEE          | Ontario-North |     3
- 03-31-2006 | LEE          | Quebec        |     7
- 03-31-2006 | LEE          | Manitoba      |     3
- 03-31-2006 | GOUNOT       | Ontario-South |     2
- 03-31-2006 | GOUNOT       | Quebec        |     1
- 04-01-2006 | LUCCHESSI    | Ontario-South |     3
- 04-01-2006 | LUCCHESSI    | Manitoba      |     1
- 04-01-2006 | LEE          | Ontario-South |     8
- 04-01-2006 | LEE          | Ontario-North |      
- 04-01-2006 | LEE          | Quebec        |     8
- 04-01-2006 | LEE          | Manitoba      |     9
- 04-01-2006 | GOUNOT       | Ontario-South |     3
- 04-01-2006 | GOUNOT       | Ontario-North |     1
- 04-01-2006 | GOUNOT       | Quebec        |     3
- 04-01-2006 | GOUNOT       | Manitoba      |     7
-(41 rows)
+ 2005-12-31 | LUCCHESSI    | Ontario-South |     1
+ 2005-12-31 | LEE          | Ontario-South |     3
+ 2005-12-31 | LEE          | Quebec        |     1
+ 2005-12-31 | LEE          | Manitoba      |     2
+ 2005-12-31 | GOUNOT       | Quebec        |     1
+ 2006-03-29 | LUCCHESSI    | Ontario-South |     3
+ 2006-03-29 | LUCCHESSI    | Quebec        |     1
+ 2006-03-29 | LEE          | Ontario-South |     2
+ 1996-03-29 | LEE          | Ontario-North |     2
+ 2006-03-29 | LEE          | Quebec        |     3
+ 2006-03-29 | LEE          | Manitoba      |     5
+ 2006-03-29 | GOUNOT       | Ontario-South |     3
+ 2006-03-29 | GOUNOT       | Quebec        |     1
+ 2006-03-29 | GOUNOT       | Manitoba      |     7
+ 2006-03-30 | LUCCHESSI    | Ontario-South |     1
+ 2006-03-30 | LUCCHESSI    | Quebec        |     2
+ 2006-03-30 | LUCCHESSI    | Manitoba      |     1
+ 2006-03-30 | LEE          | Ontario-South |     7
+ 2006-03-30 | LEE          | Ontario-North |     3
+ 2006-03-30 | LEE          | Quebec        |     7
+ 2006-03-30 | LEE          | Manitoba      |     4
+ 2006-03-30 | GOUNOT       | Ontario-South |     2
+ 2006-03-30 | GOUNOT       | Quebec        |    18
+ 2006-03-31 | GOUNOT       | Manitoba      |     1
+ 2006-03-31 | LUCCHESSI    | Manitoba      |     1
+ 2006-03-31 | LEE          | Ontario-South |    14
+ 2006-03-31 | LEE          | Ontario-North |     3
+ 2006-03-31 | LEE          | Quebec        |     7
+ 2006-03-31 | LEE          | Manitoba      |     3
+ 2006-03-31 | GOUNOT       | Ontario-South |     2
+ 2006-03-31 | GOUNOT       | Quebec        |     1
+ 2006-04-01 | LUCCHESSI    | Ontario-South |     3
+ 2006-04-01 | LUCCHESSI    | Manitoba      |     1
+ 2006-04-01 | LEE          | Ontario-South |     8
+ 2006-04-01 | LEE          | Ontario-North |      
+ 2006-04-01 | LEE          | Quebec        |     8
+ 2006-04-01 | LEE          | Manitoba      |     9
+ 2006-04-01 | GOUNOT       | Ontario-South |     3
+ 2006-04-01 | GOUNOT       | Ontario-North |     1
+ 2006-04-01 | GOUNOT       | Quebec        |     3
+ 2006-04-01 | GOUNOT       | Manitoba      |     7
+(41 Zeilen)
 
-select * from employee a, sales b where a.lastname = b.sales_person;
+-- test a simple join
+select * from sample.employee a, sample.sales b where a.lastname = b.sales_person;
  empno  | firstnme | midinit | lastname  | workdept | phoneno |  hiredate  |   job    | edlevel | sex | birthdate  |  salary  | bonus  |  comm   | sales_date | sales_person |    region     | sales 
 --------+----------+---------+-----------+----------+---------+------------+----------+---------+-----+------------+----------+--------+---------+------------+--------------+---------------+-------
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 04-01-2006 | LUCCHESSI    | Manitoba      |     1
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 04-01-2006 | LUCCHESSI    | Ontario-South |     3
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 03-31-2006 | LUCCHESSI    | Manitoba      |     1
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 03-30-2006 | LUCCHESSI    | Manitoba      |     1
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 03-30-2006 | LUCCHESSI    | Quebec        |     2
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 03-30-2006 | LUCCHESSI    | Ontario-South |     1
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 03-29-2006 | LUCCHESSI    | Quebec        |     1
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 03-29-2006 | LUCCHESSI    | Ontario-South |     3
- 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 05-16-1988 | SALESREP |      19 | M   | 11-05-1959 | 66500.00 | 900.00 | 3720.00 | 12-31-2005 | LUCCHESSI    | Ontario-South |     1
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 04-01-2006 | LEE          | Manitoba      |     9
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 04-01-2006 | LEE          | Quebec        |     8
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 04-01-2006 | LEE          | Ontario-North |      
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 04-01-2006 | LEE          | Ontario-South |     8
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-31-2006 | LEE          | Manitoba      |     3
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-31-2006 | LEE          | Quebec        |     7
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-31-2006 | LEE          | Ontario-North |     3
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-31-2006 | LEE          | Ontario-South |    14
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-30-2006 | LEE          | Manitoba      |     4
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-30-2006 | LEE          | Quebec        |     7
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-30-2006 | LEE          | Ontario-North |     3
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-30-2006 | LEE          | Ontario-South |     7
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-29-2006 | LEE          | Manitoba      |     5
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-29-2006 | LEE          | Quebec        |     3
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-29-1996 | LEE          | Ontario-North |     2
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 03-29-2006 | LEE          | Ontario-South |     2
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 12-31-2005 | LEE          | Manitoba      |     2
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 12-31-2005 | LEE          | Quebec        |     1
- 000330 | WING     |         | LEE       | E21      | 2103    | 02-23-2006 | FIELDREP |      14 | M   | 07-18-1971 | 45370.00 | 500.00 | 2030.00 | 12-31-2005 | LEE          | Ontario-South |     3
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 04-01-2006 | GOUNOT       | Manitoba      |     7
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 04-01-2006 | GOUNOT       | Quebec        |     3
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 04-01-2006 | GOUNOT       | Ontario-North |     1
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 04-01-2006 | GOUNOT       | Ontario-South |     3
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-31-2006 | GOUNOT       | Quebec        |     1
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-31-2006 | GOUNOT       | Ontario-South |     2
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-31-2006 | GOUNOT       | Manitoba      |     1
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-30-2006 | GOUNOT       | Quebec        |    18
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-30-2006 | GOUNOT       | Ontario-South |     2
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-29-2006 | GOUNOT       | Manitoba      |     7
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-29-2006 | GOUNOT       | Quebec        |     1
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 03-29-2006 | GOUNOT       | Ontario-South |     3
- 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 05-05-1977 | FIELDREP |      16 | M   | 05-17-1956 | 43840.00 | 500.00 | 1907.00 | 12-31-2005 | GOUNOT       | Quebec        |     1
-(41 rows)
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-04-01 | LUCCHESSI    | Manitoba      |     1
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-04-01 | LUCCHESSI    | Ontario-South |     3
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-03-31 | LUCCHESSI    | Manitoba      |     1
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-03-30 | LUCCHESSI    | Manitoba      |     1
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-03-30 | LUCCHESSI    | Quebec        |     2
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-03-30 | LUCCHESSI    | Ontario-South |     1
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-03-29 | LUCCHESSI    | Quebec        |     1
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2006-03-29 | LUCCHESSI    | Ontario-South |     3
+ 000110 | VINCENZO | G       | LUCCHESSI | A00      | 3490    | 1988-05-16 | SALESREP |      19 | M   | 1959-11-05 | 66500.00 | 900.00 | 3720.00 | 2005-12-31 | LUCCHESSI    | Ontario-South |     1
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-04-01 | LEE          | Manitoba      |     9
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-04-01 | LEE          | Quebec        |     8
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-04-01 | LEE          | Ontario-North |      
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-04-01 | LEE          | Ontario-South |     8
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-31 | LEE          | Manitoba      |     3
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-31 | LEE          | Quebec        |     7
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-31 | LEE          | Ontario-North |     3
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-31 | LEE          | Ontario-South |    14
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-30 | LEE          | Manitoba      |     4
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-30 | LEE          | Quebec        |     7
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-30 | LEE          | Ontario-North |     3
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-30 | LEE          | Ontario-South |     7
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-29 | LEE          | Manitoba      |     5
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-29 | LEE          | Quebec        |     3
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 1996-03-29 | LEE          | Ontario-North |     2
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2006-03-29 | LEE          | Ontario-South |     2
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2005-12-31 | LEE          | Manitoba      |     2
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2005-12-31 | LEE          | Quebec        |     1
+ 000330 | WING     |         | LEE       | E21      | 2103    | 2006-02-23 | FIELDREP |      14 | M   | 1971-07-18 | 45370.00 | 500.00 | 2030.00 | 2005-12-31 | LEE          | Ontario-South |     3
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-04-01 | GOUNOT       | Manitoba      |     7
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-04-01 | GOUNOT       | Quebec        |     3
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-04-01 | GOUNOT       | Ontario-North |     1
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-04-01 | GOUNOT       | Ontario-South |     3
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-31 | GOUNOT       | Quebec        |     1
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-31 | GOUNOT       | Ontario-South |     2
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-31 | GOUNOT       | Manitoba      |     1
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-30 | GOUNOT       | Quebec        |    18
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-30 | GOUNOT       | Ontario-South |     2
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-29 | GOUNOT       | Manitoba      |     7
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-29 | GOUNOT       | Quebec        |     1
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2006-03-29 | GOUNOT       | Ontario-South |     3
+ 000340 | JASON    | R       | GOUNOT    | E21      | 5698    | 1977-05-05 | FIELDREP |      16 | M   | 1956-05-17 | 43840.00 | 500.00 | 1907.00 | 2005-12-31 | GOUNOT       | Quebec        |     1
+(41 Zeilen)
 
-create table orgcopy as select * from org;
-drop table orgcopy;
+-- create a local table importing its structure and content from an fdw table
+create table sample.orgcopy as select * from sample.org;
+SELECT 8
+\d+ sample.org*
+                                                         Fremdtabelle »sample.org«
+  Spalte  |          Typ          | Sortierfolge | NULL erlaubt? | Vorgabewert | FDW-Optionen | Speicherung | Statistikziel | Beschreibung 
+----------+-----------------------+--------------+---------------+-------------+--------------+-------------+---------------+--------------
+ deptnumb | smallint              |              | not null      |             | (key 'yes')  | plain       |               | 
+ deptname | character varying(14) |              |               |             |              | extended    |               | 
+ manager  | smallint              |              |               |             |              | plain       |               | 
+ division | character varying(10) |              |               |             |              | extended    |               | 
+ location | character varying(13) |              |               |             |              | extended    |               | 
+Not-Null-Constraints:
+    "org_deptnumb_not_null" NOT NULL "deptnumb"
+Server: sample
+FDW-Optionen: (schema 'DB2INST1', "table" 'ORG')
+
+                                                         Tabelle »sample.orgcopy«
+  Spalte  |          Typ          | Sortierfolge | NULL erlaubt? | Vorgabewert | Speicherung | Kompression | Statistikziel | Beschreibung 
+----------+-----------------------+--------------+---------------+-------------+-------------+-------------+---------------+--------------
+ deptnumb | smallint              |              |               |             | plain       |             |               | 
+ deptname | character varying(14) |              |               |             | extended    |             |               | 
+ manager  | smallint              |              |               |             | plain       |             |               | 
+ division | character varying(10) |              |               |             | extended    |             |               | 
+ location | character varying(13) |              |               |             | extended    |             |               | 
+Zugriffsmethode: heap
+
+drop table sample.orgcopy;
+DROP TABLE
+-- cleanup
+\c postgres
+Sie sind jetzt verbunden mit der Datenbank »postgres« als Benutzer »postgres«.
+DROP DATABASE regtest;
+DROP DATABASE
+--
