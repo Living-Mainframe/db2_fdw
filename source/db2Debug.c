@@ -25,12 +25,12 @@
 
 /** local prototype */
 void db2Error  (db2error sqlstate, const char* message);
-void db2Error_d(db2error sqlstate, const char* message, const char* detail, ...);
-void db2Debug1 (const char* message, ...);
-void db2Debug2 (const char* message, ...);
-void db2Debug3 (const char* message, ...);
-void db2Debug4 (const char* message, ...);
-void db2Debug5 (const char* message, ...);
+void db2Error_d(db2error sqlstate, const char* message, const char* detail, ...) __attribute__ ((format (gnu_printf, 2, 0)));
+void db2Debug1 (const char* message, ...)__attribute__ ((format (gnu_printf, 1, 0)));
+void db2Debug2 (const char* message, ...)__attribute__ ((format (gnu_printf, 1, 0)));
+void db2Debug3 (const char* message, ...)__attribute__ ((format (gnu_printf, 1, 0)));
+void db2Debug4 (const char* message, ...)__attribute__ ((format (gnu_printf, 1, 0)));
+void db2Debug5 (const char* message, ...)__attribute__ ((format (gnu_printf, 1, 0)));
 
 /** db2Error_d
  *    Report a PostgreSQL error with a detail message.

@@ -10,6 +10,10 @@
 #include <catalog/pg_foreign_table.h>
 #include <catalog/pg_user_mapping.h>
 #include <commands/explain.h>
+#if PG_VERSION_NUM >= 18000
+#include <commands/explain_state.h>
+#include <commands/explain_format.h>
+#endif
 #include <foreign/fdwapi.h>
 #include <foreign/foreign.h>
 #include <miscadmin.h>
@@ -108,7 +112,7 @@ extern TupleTableSlot* db2ExecForeignInsert      (EState* estate, ResultRelInfo*
 extern TupleTableSlot* db2ExecForeignUpdate      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern TupleTableSlot* db2ExecForeignDelete      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern void            db2EndForeignModify       (EState* estate, ResultRelInfo* rinfo);
-extern void            db2ExplainForeignModify   (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, struct ExplainState* es);
+extern void            db2ExplainForeignModify   (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, ExplainState* es);
 extern int             db2IsForeignRelUpdatable  (Relation rel);
 extern List*           db2ImportForeignSchema    (ImportForeignSchemaStmt* stmt, Oid serverOid);
 

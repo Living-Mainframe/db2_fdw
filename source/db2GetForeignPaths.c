@@ -60,7 +60,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
       /* expressions of a type different from this are not safe to push down into ORDER BY clauses */
       if (em_type != INT8OID   && em_type != INT2OID    && em_type  != INT4OID    && em_type != OIDOID       &&  em_type != FLOAT4OID
       &&  em_type != FLOAT8OID && em_type != NUMERICOID && em_type  != DATEOID    && em_type != TIMESTAMPOID && em_type  != TIMESTAMPTZOID
-      && em_type  != TIMEOID   && em_type != TIMETZOID  &&  em_type != INTERVALOID)
+      &&  em_type != TIMEOID   && em_type != TIMETZOID  &&  em_type != INTERVALOID)
         can_pushdown = false;
     }
 
@@ -73,7 +73,11 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
       appendStringInfoString (&orderedquery, sort_clause);
       delim = ", ";
 
+      #if PG_VERSION_NUM >= 18000
+      appendStringInfoString (&orderedquery, (pathkey->pk_cmptype == COMPARE_LT) ? " ASC" : " DESC");
+      #else
       appendStringInfoString (&orderedquery, (pathkey->pk_strategy == BTLessStrategyNumber) ? " ASC" : " DESC");
+      #endif
       appendStringInfoString (&orderedquery, (pathkey->pk_nulls_first) ? " NULLS FIRST" : " NULLS LAST");
     } else {
       /*

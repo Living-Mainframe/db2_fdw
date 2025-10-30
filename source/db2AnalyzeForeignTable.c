@@ -135,7 +135,11 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
   /* loop through query results */
   while (db2IsStatementOpen (fdw_state->session) ? db2FetchNext (fdw_state->session) : (db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, fdw_state->prefetch), db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList))) {
     /* allow user to interrupt ANALYZE */
+    #if PG_VERSION_NUM >= 18000
+    vacuum_delay_point (true);
+    #else
     vacuum_delay_point ();
+    #endif
 
     ++fdw_state->rowcount;
 

@@ -67,7 +67,7 @@ REGRESS_OPTS = --inputdir=test
 # to your extention.
 #
 #MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
-PG_CPPFLAGS  = -Wno-suggest-attribute=format -g -fPIC -I$(DB2_HOME)/include -I./include
+PG_CPPFLAGS  = -g -fPIC -I$(DB2_HOME)/include -I./include
 SHLIB_LINK   = -fPIC -L$(DB2_HOME)/lib64 -L$(DB2_HOME)/bin  -ldb2
 PG_CONFIG    = pg_config
 

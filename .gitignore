@@ -2,3 +2,4 @@
 *.so
 test.bash
 *.bc
+.vscode/settings.json

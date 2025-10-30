@@ -1,5 +1,9 @@
 #include <postgres.h>
 #include <commands/explain.h>
+#if PG_VERSION_NUM >= 18000
+#include <commands/explain_state.h>
+#include <commands/explain_format.h>
+#endif
 #if PG_VERSION_NUM < 120000
 #include <nodes/relation.h>
 #include <optimizer/var.h>
