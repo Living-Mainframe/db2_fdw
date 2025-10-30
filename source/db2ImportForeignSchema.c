@@ -208,10 +208,10 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
         case DB2_VARCHAR:
           appendStringInfo (&buf, "character varying(%ld)", colSize);
           break;
-        case DB2_VARGRAPHIC:
-        case DB2_GRAPHIC:
         case DB2_LONGVARCHAR:
         case DB2_CLOB:
+        case DB2_VARGRAPHIC:
+        case DB2_GRAPHIC:
         case DB2_DBCLOB:
           appendStringInfo (&buf, "text");
           break;
