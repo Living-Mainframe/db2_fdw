@@ -73,7 +73,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
       appendStringInfoString (&orderedquery, sort_clause);
       delim = ", ";
 
-      #if PG_VERSION_NUM >= 18000
+      #if PG_VERSION_NUM >= 180000
       appendStringInfoString (&orderedquery, (pathkey->pk_cmptype == COMPARE_LT) ? " ASC" : " DESC");
       #else
       appendStringInfoString (&orderedquery, (pathkey->pk_strategy == BTLessStrategyNumber) ? " ASC" : " DESC");
