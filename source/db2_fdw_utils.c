@@ -1284,7 +1284,7 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
       case DB2_CLOB: {
         db2Debug3("  DB2_BLOB or DB2CLOB");
         /* for LOBs, get the actual LOB contents (palloc'ed), truncated if desired */
-        db2GetLob (fdw_state->session, fdw_state->db2Table->cols[index], index+1, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
+        db2GetLob (fdw_state->session, fdw_state->db2Table->cols[index], index, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
       }
       break;
       case DB2_LONGVARBINARY: {
