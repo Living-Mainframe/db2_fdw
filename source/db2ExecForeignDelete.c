@@ -164,11 +164,10 @@ void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleT
         }
         /* detoast it if necessary */
         datum = (Datum) PG_DETOAST_DATUM (datum);
-        value_len = VARSIZE (datum) - VARHDRSZ;
         /* the first 4 bytes contain the length */
-        param->value = palloc (value_len + 4);
-        memcpy (param->value, (const char *) &value_len, 4);
-        memcpy (param->value + 4, VARDATA (datum), value_len);
+        value_len = VARSIZE (datum) - VARHDRSZ;
+        param->value = palloc (value_len);
+        memcpy (param->value, VARDATA(datum), value_len);
       break;
       case BIND_OUTPUT:
       break;
