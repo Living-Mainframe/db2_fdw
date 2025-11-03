@@ -43,42 +43,46 @@ void db2GetLob (DB2Session* session, DB2Column* column, int cidx, char** value, 
     if (rc == SQL_ERROR) {
       db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error fetching result: SQLGetData failed to read LOB chunk", db2Message);
     }
-    switch(ind) {
-      case SQL_NULL_DATA:
-        db2Debug3("  data length is null (SQL_NULL_DATA)");
-        extend = 0;
-      break;
-      case SQL_NO_TOTAL:
-        db2Debug3("  undefined data length (SQL_NO_TOTAL)");
-        extend = LOB_CHUNK_SIZE;
-      break;
-      default:
-        db2Debug3("  length of data read: %d", ind);
-        extend = ind;
-      break;
-    }
-    /* extend result buffer by ind */
-    db2Debug2("  value_len: %ld", *value_len);
-    db2Debug2("  extend   : %d", extend);
-    if (*value_len == 0) {
-      if (extend > 0) {
-        *value = db2Alloc (*value_len + extend + 1);
-      } else {
-        *value = NULL;
-        db2Debug3("  not allocating space since the LOB value is apparently NULL");
+    if (rc != 100) {
+      switch(ind) {
+        case SQL_NULL_DATA:
+          db2Debug3("  data length is null (SQL_NULL_DATA)");
+          extend = 0;
+        break;
+        case SQL_NO_TOTAL:
+          db2Debug3("  undefined data length (SQL_NO_TOTAL)");
+          extend = LOB_CHUNK_SIZE;
+        break;
+        default:
+          db2Debug3("  bytes still remaining: %d", ind);
+          extend = (ind < LOB_CHUNK_SIZE) ? ind : LOB_CHUNK_SIZE;
+        break;
       }
-    } else {
-      // do not add another 0 termination byte, since we already have one
-      *value = db2Realloc (*value, *value_len + extend);
-    }
-    // append the buffer read to the value excluding 0 termination byte
-    db2Debug2("  *value: %x", *value);
-    if (*value != NULL) {
-      memcpy(*value + *value_len, buf, extend);
-      /* update LOB length */
-      *value_len += extend;
-    } else {
-      db2Debug3("  skipping value copy, since value is NULL");
+      /* extend result buffer by ind */
+      db2Debug2("  value_len: %ld", *value_len);
+      db2Debug2("  extend   : %d", extend);
+      if (*value_len == 0) {
+        if (extend > 0) {
+          *value = db2Alloc (*value_len + extend + 1);
+        } else {
+          *value = NULL;
+          db2Debug3("  not allocating space since the LOB value is apparently NULL");
+        }
+      } else {
+        // do not add another 0 termination byte, since we already have one
+        *value = db2Realloc (*value, *value_len + extend);
+      }
+      // append the buffer read to the value excluding 0 termination byte
+      db2Debug2("  *value    : %x", *value);
+      db2Debug2("  *value_len: %x", *value_len);
+      if (*value != NULL) {
+        db2Debug3("  memcpy(%x,%x,%d)",*value+*value_len,buf,extend);
+        memcpy(*value + *value_len, buf, extend);
+        /* update LOB length */
+        *value_len += extend;
+      } else {
+        db2Debug3("  skipping value copy, since value is NULL");
+      }
     }
   } while (rc == SQL_SUCCESS_WITH_INFO);
 
