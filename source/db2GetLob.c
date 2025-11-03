@@ -13,6 +13,7 @@ extern void*        db2Alloc             (size_t size);
 extern void*        db2Realloc           (void* p, size_t size);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
+extern void         db2Debug3            (const char* message, ...);
 extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void         db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 
@@ -44,30 +45,51 @@ void db2GetLob (DB2Session* session, DB2Column* column, int cidx, char** value, 
     }
     switch(ind) {
       case SQL_NULL_DATA:
+        db2Debug3("  data length is null (SQL_NULL_DATA)");
+        extend = 0;
       break;
       case SQL_NO_TOTAL:
+        db2Debug3("  undefined data length (SQL_NO_TOTAL)");
         extend = LOB_CHUNK_SIZE;
       break;
       default:
+        db2Debug3("  length of data read: %d", ind);
         extend = ind;
       break;
     }
     /* extend result buffer by ind */
+    db2Debug2("  value_len: %ld", *value_len);
+    db2Debug2("  extend   : %d", extend);
     if (*value_len == 0) {
-      *value = db2Alloc (*value_len + extend + 1);
+      if (extend > 0) {
+        *value = db2Alloc (*value_len + extend + 1);
+      } else {
+        *value = NULL;
+        db2Debug3("  not allocating space since the LOB value is apparently NULL");
+      }
     } else {
       // do not add another 0 termination byte, since we already have one
       *value = db2Realloc (*value, *value_len + extend);
     }
     // append the buffer read to the value excluding 0 termination byte
-    memcpy(*value + *value_len, buf, extend);
-    /* update LOB length */
-    *value_len += ind;
+    db2Debug2("  *value: %x", *value);
+    if (*value != NULL) {
+      memcpy(*value + *value_len, buf, extend);
+      /* update LOB length */
+      *value_len += extend;
+    } else {
+      db2Debug3("  skipping value copy, since value is NULL");
+    }
   } while (rc == SQL_SUCCESS_WITH_INFO);
 
   /* string end for CLOBs */
-  (*value)[*value_len] = '\0';
-  db2Debug2("  value_len    : %ld", *value_len);
-  db2Debug2("  strlen of lob: %ld", strlen(*value));
+  db2Debug2("  *value   : %x" , *value);
+  db2Debug2("  value_len: %ld", *value_len);
+  if (*value != NULL) {
+    (*value)[*value_len] = '\0';
+    db2Debug2("  strlen of lob: %ld", strlen(*value));
+  } else {
+    db2Debug2("  strlen of lob: 0 since *value is NULL");
+  }
   db2Debug1("< db2GetLob");
 }

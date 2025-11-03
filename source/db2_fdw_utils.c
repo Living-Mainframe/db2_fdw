@@ -1323,7 +1323,10 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
       }
       break;
     }
-    db2Debug2("  value    : '%s'", value);
+    db2Debug2("  value    : '%x'", value);
+    if (value != NULL) {
+      db2Debug2("  value    : '%s'", value);
+    }
     db2Debug2("  value_len: %ld" , value_len);
     db2Debug2("  fdw_state->db2Table->cols[%d]->val_null : %d",index,fdw_state->db2Table->cols[index]->val_len );
     db2Debug2("  fdw_state->db2Table->cols[%d]->val_null : %d",index,fdw_state->db2Table->cols[index]->val_null);
@@ -1334,7 +1337,7 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
     /* fill the TupleSlot with the data (after conversion if necessary) */
     if (pgtype == BYTEAOID) {
       /* binary columns are not converted */
-      bytea *result = (bytea *) palloc (value_len + VARHDRSZ);
+      bytea* result = (bytea*) palloc (value_len + VARHDRSZ);
       memcpy (VARDATA (result), value, value_len);
       SET_VARSIZE (result, value_len + VARHDRSZ);
 
@@ -1394,7 +1397,12 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
     /* free the data buffer for LOBs */
     db2Type = c2dbType(fdw_state->db2Table->cols[index]->colType);
     if (db2Type == DB2_BLOB || db2Type == DB2_CLOB) {
-      pfree (value);
+      db2Debug2("  value before pfree: %x",value);
+      if (value != NULL) {
+        pfree (value);
+      } else {
+        db2Debug2("  not freeing value, since it is null");
+      }
     }
   }
   db2Debug1("< %s::convertTuple",__FILE__);
