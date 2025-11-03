@@ -1254,6 +1254,7 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
   for (j = 0; j < fdw_state->db2Table->npgcols; ++j) {
     short db2Type;
     db2Debug2("  start processing column %d of %d",j + 1, fdw_state->db2Table->npgcols);
+    db2Debug2("  index: %d",index);
     /* for dropped columns, insert a NULL */
     if ((index + 1 < fdw_state->db2Table->ncols) && (fdw_state->db2Table->cols[index + 1]->pgattnum > j + 1)) {
       nulls[j] = true;
@@ -1262,6 +1263,7 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
     } else {
       ++index;
     }
+    db2Debug2("  index: %d",index);
     /*
      * Columns exceeding the length of the DB2 table will be NULL,
      * as well as columns that are not used in the query.
@@ -1284,7 +1286,8 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
       case DB2_CLOB: {
         db2Debug3("  DB2_BLOB or DB2CLOB");
         /* for LOBs, get the actual LOB contents (palloc'ed), truncated if desired */
-        db2GetLob (fdw_state->session, fdw_state->db2Table->cols[index], index, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
+        /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
+        db2GetLob (fdw_state->session, fdw_state->db2Table->cols[index], index+1, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
       }
       break;
       case DB2_LONGVARBINARY: {
