@@ -28,10 +28,14 @@ void db2EndTransaction (void* arg, int is_commit, int noerror) {
   int           found = 0;
   SQLRETURN     rc    = 0;
 
-  db2Debug1("> db2EndTransaction");
+  db2Debug1("> db2EndTransaction(arg:%x, is_commit:%d, noerror:%d)",arg,is_commit,noerror);
   /* do nothing if there is no transaction */
-  if (((DB2ConnEntry*) arg)->xact_level == 0)
+  if (((DB2ConnEntry*) arg)->xact_level == 0) {
+    db2Debug2("  there is no transaction - return");
+    db2Debug2("  ((DB2ConnEntry*) arg)->xact_level: %d",((DB2ConnEntry*) arg)->xact_level);
+    db2Debug1("< db2EndTransaction");
     return;
+  }
 
   /* find the cached handles for the argument */
   envp = rootenvEntry;
@@ -47,20 +51,20 @@ void db2EndTransaction (void* arg, int is_commit, int noerror) {
     /* print this trace hint, since the code will abend due to connp = NULL*/
     db2Error (FDW_ERROR, "db2EndTransaction internal error: handle not found in cache");
 
-  /* free all handles of this connectoin, if any*/
+  /* free all handles of this connection, if any*/
   while (connp->handlelist != NULL)
     db2FreeStmtHdl(connp->handlelist, connp);
 
   /* commit or rollback */
   if (is_commit) {
-    db2Debug2("  db2xa_fdw::db2EndTransaction: commit remote transaction");
+    db2Debug2("  db2_fdw::db2EndTransaction: commit remote transaction");
     rc = SQLEndTran(SQL_HANDLE_DBC, connp->hdbc, SQL_COMMIT);
     rc = db2CheckErr(rc, connp->hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
     if (rc  != SQL_SUCCESS && !noerror) {
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error committing transaction: SQLEndTran failed", db2Message);
     }
   } else {
-    db2Debug2("  db2xa_fdw::db2EndTransaction: roll back remote transaction");
+    db2Debug2("  db2_fdw::db2EndTransaction: roll back remote transaction");
     rc = SQLEndTran(SQL_HANDLE_DBC, connp->hdbc, SQL_ROLLBACK);
     rc = db2CheckErr(rc, connp->hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS && !noerror) {

@@ -12,6 +12,7 @@ extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 
 /** external prototypes */
 extern void      db2Debug1            (const char* message, ...);
+extern void      db2Debug2            (const char* message, ...);
 extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
@@ -47,21 +48,29 @@ void db2FreeConnHdl(DB2EnvEntry* envp, DB2ConnEntry* connp){
   int        result = 0;
 
   db2Debug1("> db2FreeConnHdl");
+  db2Debug2("  envp : %x, ->henv: %d, ->connlist: %x",envp,envp->henv,envp->connlist);
+  db2Debug2("  connp: %x, ->hdbc: %d, ->handlelist: %x",connp,connp->hdbc,connp->handlelist);
   if (connp == NULL) {
     if (silent) return;
     else db2Error (FDW_ERROR, "closeSession internal error: connp is null");
   }
 
   /* terminate the session */
+  db2Debug2("  connp->hdbc: %x",connp->hdbc);
   rc = SQLDisconnect(connp->hdbc);
+  db2Debug3("  SQLDisconnect.rc: %d",rc);
   rc = db2CheckErr(rc, connp->hdbc,SQL_HANDLE_DBC,__LINE__,__FILE__);
   if (rc != SQL_SUCCESS && !silent) {
     db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error closing session: SQLDisconnect failed to terminate session", db2Message);
   }
 
   /* free the session handle */
-  (void) SQLFreeHandle(connp->hdbc, SQL_HANDLE_DBC);
-
+  db2Debug2("  connp->hdbc: %x",connp->hdbc);
+  rc = SQLFreeHandle(SQL_HANDLE_DBC, connp->hdbc);
+  db2Debug3("  SQLFreeHandle.rc: %d",rc);
+  if (rc != SQL_SUCCESS && !silent) {
+    db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error freeing session handle: SQLFreeHandle failed", db2Message);
+  }
   /* unregister callback for rolled back transactions */
   db2UnregisterCallback (connp);
 
@@ -71,9 +80,6 @@ void db2FreeConnHdl(DB2EnvEntry* envp, DB2ConnEntry* connp){
     envp->connlist = NULL;
     db2Debug3("  envp->connlist: %x",envp->connlist);
   }
-
-  /* connp should be freed already*/
-  //free(connp);
 
   db2Debug1("< db2FreeConnHdl");
 }
@@ -90,12 +96,12 @@ int deleteconnEntry(DB2ConnEntry* start, DB2ConnEntry* node) {
     if (step == node) {
       db2Debug3("  step == node: start: %x, step: %x, node %x", start, step, node);
       if (step->left == NULL && step->right == NULL){
-        db2Debug3(" step left and right is null: start: %x, step: %x",start,step);
+        db2Debug3("  step left and right is null: start: %x, step: %x",start,step);
       } else if (step->left == NULL) {
-        db2Debug3(" step left null");
+        db2Debug3("  step left null");
         step->right->left = NULL;
       } else if (step->right == NULL) {
-        db2Debug3(" step right null");
+        db2Debug3("  step right null");
         step->left->right = NULL;
       } else {
         step->left->right = step->right;

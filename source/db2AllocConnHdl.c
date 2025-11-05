@@ -29,6 +29,7 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
   db2Debug1("> db2AllocConnHdl(envp: %x, srvname: %s, user: %s, password: %s, nls_lang: %s)", envp, srvname,user, password, nls_lang);
   if (nls_lang != NULL) {
     rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
+    db2Debug1("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
     rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllocHandle failed to allocate hdbc handle", db2Message);
@@ -42,12 +43,14 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
     if (connp == NULL) {
       /* create connection handle */
       rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
+      db2Debug1("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
       rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
       if (rc  != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllochHandle failed to allocate hdbc handle", db2Message);
       }
       /* connect to the database */
       rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)user, SQL_NTS, (SQLCHAR*)password, SQL_NTS);
+      db2Debug1("  connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
       rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
       if (rc != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection User: %s ,%s"            , user    , db2Message);

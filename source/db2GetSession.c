@@ -39,7 +39,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, cons
   /* search environment and server handle in cache */
   envp = findenvEntry (rootenvEntry, nls_lang);
   if (envp != NULL) {
-    db2Debug2("  db2xa_fdw::db2GetSession: envp: %x, envp->henv: %x",envp,envp->henv);
+    db2Debug2("  db2_fdw::db2GetSession: envp: %x, envp->henv: %x",envp,envp->henv);
     connp = db2AllocConnHdl(envp, srvname, user, password, nls_lang);
   }
   if (envp == NULL) {
@@ -49,7 +49,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, cons
     connp = db2AllocConnHdl(envp, srvname, user, password, NULL);
   }
   if (connp->xact_level <= 0) {
-    db2Debug2("  db2xa_fdw::db2GetSession: begin serializable remote transaction");
+    db2Debug2("  db2_fdw::db2GetSession: begin serializable remote transaction");
     connp->xact_level = 1;
   }
 

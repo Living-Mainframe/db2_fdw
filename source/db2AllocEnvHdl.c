@@ -41,6 +41,7 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
 
   /* create environment handle */
   rc = SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &henv);
+  db2Debug1("  allocate env handle - rc: %d, henv: %d",rc, henv);
   rc = db2CheckErr(rc, henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS) {
     free (nlscopy);
@@ -52,6 +53,7 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
   db2Debug2("  sql_initialized: %d",sql_initialized);
 
   rc = SQLSetEnvAttr(henv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0);
+  db2Debug1("  set env attributes odbcv3 - rc: %d, henv: %d",rc, henv);
   rc = db2CheckErr(rc, henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS) {
     free (nlscopy);
@@ -66,9 +68,6 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
   db2SetHandlers ();
   /* add handles to cache */
   envp = insertenvEntry(rootenvEntry, nlscopy, henv);
-  if (envp  == NULL) {
-    db2Error_d (FDW_OUT_OF_MEMORY, "error connecting to DB2:"," failed to allocate %d bytes of memory", sizeof (DB2EnvEntry));
-  }
   if ( rootenvEntry == NULL) {
     rootenvEntry = envp;
   }
@@ -145,19 +144,27 @@ DB2EnvEntry* insertenvEntry(DB2EnvEntry* start, const char* nlslang, SQLHENV hen
   DB2EnvEntry* step = NULL;
   DB2EnvEntry* new  = NULL;
   db2Debug1("> insertenvEntry");
-  if (start == NULL){ /* first entry in list */
-    new = malloc(sizeof(DB2EnvEntry));
-    new->right = new->left = NULL; 
-  } else {
-    for (step = start; step->right != NULL; step = step->right){ }
-    new = malloc(sizeof(DB2EnvEntry));
-    step->right = new; 
-    new->left = step;
-    new->right = NULL;
+
+  /* allocate a  new DB2EnvEntry and initialize it*/
+  new = malloc(sizeof(DB2EnvEntry));
+  if (new  == NULL) {
+    db2Error_d (FDW_OUT_OF_MEMORY, "error connecting to DB2:"," failed to allocate %d bytes of memory", sizeof (DB2EnvEntry));
   }
   new->nls_lang = strdup(nlslang);
   new->henv     = henv;
   new->connlist = NULL;
+  new->left     = NULL;
+  new->right    = NULL;
+
+  // adding the first element to the list is done outside of this fuunction
+  if (start != NULL) {
+    // scroll forward to the last element of the list
+    for (step = start; step->right != NULL; step = step->right){ }
+    step->right = new;
+    new->left  = step;
+    new->right = NULL;
+  }
+  db2Debug2("  new: %x ->henv: %d, ->connlist: %x, ->left: %x, ->right: %x, ->nls_lang: '%s'",new,new->henv,new->connlist,new->left,new->right,new->nls_lang);
   db2Debug1("< insertenvEntry - returns: %x", new);
   return new; 
 } 

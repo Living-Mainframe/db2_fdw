@@ -20,16 +20,20 @@ void subtransactionCallback(SubXactEvent event, SubTransactionId mySubid, SubTra
  *   Register a callback for PostgreSQL transaction events.
  */
 void db2RegisterCallback (void *arg) {
+  db2Debug1("> db2RegisterCallback(%x)",arg);
   RegisterXactCallback (transactionCallback, arg);
   RegisterSubXactCallback (subtransactionCallback, arg);
+  db2Debug1("< db2RegisterCallback");
 }
 
 /** db2UnregisterCallback
  *   Unregister a callback for PostgreSQL transaction events.
  */
 void db2UnregisterCallback (void *arg) {
+  db2Debug1("> db2UnregisterCallback(%x)",arg);
   UnregisterXactCallback (transactionCallback, arg);
   UnregisterSubXactCallback (subtransactionCallback, arg);
+  db2Debug1("< db2UnregisterCallback");
 }
 
 /** transactionCallback

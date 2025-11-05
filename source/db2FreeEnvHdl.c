@@ -43,7 +43,8 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
     }
   } else {
     /* free environment handle */
-    rc = SQLFreeHandle( SQL_HANDLE_ENV, envp->henv);
+    rc = SQLFreeHandle(SQL_HANDLE_ENV, envp->henv);
+    db2Debug2("  free env handle - rc: %d, henv: %d", rc, envp->henv);
     rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV,__LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
       db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot free environment handle","%s", db2Message);
