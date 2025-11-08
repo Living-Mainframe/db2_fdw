@@ -40,7 +40,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, cons
   envp = findenvEntry (rootenvEntry, nls_lang);
   if (envp != NULL) {
     db2Debug2("  db2_fdw::db2GetSession: envp: %x, envp->henv: %x",envp,envp->henv);
-    connp = db2AllocConnHdl(envp, srvname, user, password, nls_lang);
+    connp = db2AllocConnHdl(envp, srvname, user, password, NULL);
   }
   if (envp == NULL) {
     envp = db2AllocEnvHdl(nls_lang);
