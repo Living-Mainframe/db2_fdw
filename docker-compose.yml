@@ -1,0 +1,48 @@
+services:
+  db2:
+    image: icr.io/db2_community/db2
+    platform: linux/amd64
+    privileged: true
+    environment:
+      LICENSE: accept
+      DB2INST1_PASSWORD: db2fdw
+      DBNAME: testdb
+    volumes:
+      - db2-data:/database
+  builder:
+    image: builder
+    environment:
+      DB2_HOME: /opt/ibm/db2/V12.1
+    build:
+      context: docker/builder
+      args:
+        - PGVERSION=${PGVERSION}
+    platform: linux/amd64
+    volumes:
+      - ./:/host
+    command: /scripts/build_rpm.sh
+  postgres:
+    build:
+      context: docker/postgres
+    environment:
+      LD_LIBRARY_PATH: /opt/ibm/db2/V12.1/lib64
+  #rpmsigner:
+  #  image: builder
+  #  command:
+  #    - /host/scripts/sign_rpms.sh
+  #  volumes:
+  #    - ./:/host
+  #  environment:
+  #    - GPG_PASSPHRASE
+  #    - GPG_KEY_B64
+  #dev:
+  #  image: builder
+  #  platform: linux/amd64
+  #  volumes:
+  #    - ./:/host
+  #  command:
+  #    - /bin/bash
+  #    - -c
+  #    - while sleep 1; do echo -n .; done
+volumes:
+  db2-data:

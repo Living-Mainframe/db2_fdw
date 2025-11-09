@@ -1,0 +1,74 @@
+name: Minimal workflow for CI/CD
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  integration_tests:
+    strategy:
+      matrix:
+        pgversion:
+          #- 14
+          #- 15
+          #- 16
+          - 17
+          #- 18
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: update to docker-compose v2
+        run: |
+          sudo apt-get install -y curl
+          sudo curl -SL https://github.com/docker/compose/releases/download/v2.34.0/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
+
+      - name: start DB2 (background)
+        run: |
+          docker-compose up db2 -d
+        env:
+          PGVERSION: ${{ matrix.pgversion }}
+
+      - name: create rpms folder
+        run: |
+          mkdir -p rpms
+          chmod 777 rpms
+
+      - name: build rpm
+        run: |
+          docker-compose up builder --exit-code-from builder
+        env:
+          PGVERSION: ${{ matrix.pgversion }}
+
+      - name: copy rpm to postgres context
+        run: |
+          cp -av rpms docker/postgres/
+
+      - name: start postgres
+        run: |
+          docker-compose up postgres -d
+        env:
+          PGVERSION: ${{ matrix.pgversion }}
+
+      - name: wait for db2 and postgres
+        run: |
+          set -x
+          for ((i=0;i<60;i++)); do
+            docker-compose exec postgres /usr/pgsql-${{ matrix.pgversion }}/bin/pg_isready && break
+            sleep 1
+          done
+          for ((i=0;i<60;i++)); do
+            docker-compose exec db2 ls /database/config/db2inst1/sqllib/ctrl/db2strst.lck
+            sleep 1
+          done
+          docker-compose logs db2
+          docker-compose exec db2 -- ps -ef
+        env:
+          PGVERSION: ${{ matrix.pgversion }}
