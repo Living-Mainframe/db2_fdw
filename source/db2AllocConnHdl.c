@@ -56,12 +56,38 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
         /* JWT token authentication */
         db2Debug1("  using JWT token authentication");
 
-        /* For DB2 11.5 LUW, JWT token is passed as the password parameter */
-        /* Some installations may require a specific user like "token" or empty string */
-        /* The actual authentication is handled by the DB2 authentication plugin */
-        const char* jwt_user = (user != NULL && user[0] != '\0') ? user : "";
+        /* For DB2 11.5 LUW with JWT, use SQLDriverConnect with connection string */
+        /* This is more flexible and better supported than SQLConnect for JWT */
+        char connStr[4096];
+        int connStrLen;
 
-        rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)jwt_user, SQL_NTS, (SQLCHAR*)jwt_token, SQL_NTS);
+        /* Build connection string with JWT token */
+        if (user != NULL && user[0] != '\0') {
+          /* With username */
+          connStrLen = snprintf(connStr, sizeof(connStr),
+                               "DSN=%s;UID=%s;PWD=%s;",
+                               srvname, user, jwt_token);
+        } else {
+          /* Without username (token-only authentication) */
+          connStrLen = snprintf(connStr, sizeof(connStr),
+                               "DSN=%s;PWD=%s;",
+                               srvname, jwt_token);
+        }
+
+        if (connStrLen >= sizeof(connStr)) {
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "connection string too long", " connection to foreign DB2 server");
+        }
+
+        db2Debug1("  connecting with connection string (token hidden)");
+
+        /* Use SQLDriverConnect instead of SQLConnect */
+        SQLCHAR outConnStr[1024];
+        SQLSMALLINT outConnStrLen;
+
+        rc = SQLDriverConnect(hdbc, NULL, (SQLCHAR*)connStr, SQL_NTS,
+                             outConnStr, sizeof(outConnStr), &outConnStrLen,
+                             SQL_DRIVER_NOPROMPT);
+
         db2Debug1("  connect to database(%s) with JWT token - rc: %d, hdbc: %d", srvname, rc, hdbc);
         rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
         if (rc != SQL_SUCCESS) {
