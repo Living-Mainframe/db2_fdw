@@ -54,24 +54,15 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
       /* Check if JWT token authentication is used */
       if (jwt_token != NULL && jwt_token[0] != '\0') {
         /* JWT token authentication */
-        /* SQL_ATTR_ACCESS_TOKEN_STR = 2530 for DB2 CLI */
-        #ifndef SQL_ATTR_ACCESS_TOKEN_STR
-        #define SQL_ATTR_ACCESS_TOKEN_STR 2530
-        #endif
-
         db2Debug1("  using JWT token authentication");
 
-        /* Set the JWT access token attribute before connecting */
-        rc = SQLSetConnectAttr(hdbc, SQL_ATTR_ACCESS_TOKEN_STR, (SQLPOINTER)jwt_token, SQL_NTS);
-        db2Debug1("  set JWT token attribute - rc: %d", rc);
-        rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
-        if (rc != SQL_SUCCESS) {
-          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot set JWT token attribute", " connection to foreign DB2 server,%s", db2Message);
-        }
+        /* For DB2 11.5 LUW, JWT token is passed as the password parameter */
+        /* Some installations may require a specific user like "token" or empty string */
+        /* The actual authentication is handled by the DB2 authentication plugin */
+        const char* jwt_user = (user != NULL && user[0] != '\0') ? user : "";
 
-        /* Connect to the database using JWT token (no user/password needed) */
-        rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, NULL, 0, NULL, 0);
-        db2Debug1("  connect to database(%s) with JWT - rc: %d, hdbc: %d", srvname, rc, hdbc);
+        rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)jwt_user, SQL_NTS, (SQLCHAR*)jwt_token, SQL_NTS);
+        db2Debug1("  connect to database(%s) with JWT token - rc: %d, hdbc: %d", srvname, rc, hdbc);
         rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
         if (rc != SQL_SUCCESS) {
           db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate with JWT token", " connection connectstring: %s ,%s", srvname, db2Message);
