@@ -8,6 +8,8 @@ extern char      db2Message[ERRBUFSIZE];/* contains DB2 error messages, set by d
 
 /** external prototypes */
 extern void      db2Debug1            (const char* message, ...);
+extern void      db2Debug2            (const char* message, ...);
+extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern void      db2RegisterCallback  (void* arg);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -29,7 +31,7 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
   db2Debug1("> db2AllocConnHdl(envp: %x, srvname: %s, user: %s, password: %s, nls_lang: %s)", envp, srvname,user, password, nls_lang);
   if (nls_lang != NULL) {
     rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
-    db2Debug1("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
+    db2Debug3("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
     rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllocHandle failed to allocate hdbc handle", db2Message);
@@ -43,14 +45,14 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
     if (connp == NULL) {
       /* create connection handle */
       rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
-      db2Debug1("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
+      db2Debug3("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
       rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
       if (rc  != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllochHandle failed to allocate hdbc handle", db2Message);
       }
       /* connect to the database */
       rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)user, SQL_NTS, (SQLCHAR*)password, SQL_NTS);
-      db2Debug1("  connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
+      db2Debug3("  connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
       rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
       if (rc != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection User: %s ,%s"            , user    , db2Message);
@@ -81,13 +83,13 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
  */
 DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char* user) {
   DB2ConnEntry* step = NULL;
-  db2Debug1("> findconnEntry");
+  db2Debug2("  > findconnEntry");
   for (step = start; step != NULL; step = step->right){
     if (strcmp(step->srvname, srvname) == 0 && strcmp(step->uid, user) == 0) {
       break;
     }
   }
-  db2Debug1("< findconnEntry - returns: %x", step);
+  db2Debug2("  < findconnEntry - returns: %x", step);
   return step;
 }
 
@@ -98,7 +100,7 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   DB2ConnEntry* step = NULL;
   DB2ConnEntry* new  = NULL;
   
-  db2Debug1("> insertconnEntry");
+  db2Debug2("  > insertconnEntry");
   if (start == NULL){ /* first entry in list */
     new = malloc(sizeof(DB2ConnEntry));
     new->right = new->left = NULL;
@@ -115,6 +117,6 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   new->handlelist = NULL;
   new->hdbc       = hdbc;
   new->xact_level = 0;
-  db2Debug1("< insertconnEntry - returns: %x",new);
+  db2Debug2("  < insertconnEntry - returns: %x",new);
   return new;
 }

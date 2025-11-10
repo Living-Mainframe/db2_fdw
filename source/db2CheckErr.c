@@ -11,7 +11,6 @@ char                db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 /** external variables */
 
 /** external prototypes */
-extern void      db2Debug1            (const char* message, ...);
 extern void      db2Debug2            (const char* message, ...);
 
 /** local prototypes */
@@ -34,7 +33,7 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
  *  @since  1.0.0
  */
 SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file) {
-  db2Debug1("> db2CheckErr");
+  db2Debug2("> db2CheckErr");
   memset (db2Message,0x00,sizeof(db2Message));
   switch (status) {
     case SQL_INVALID_HANDLE: {
@@ -87,6 +86,6 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
   }
   db2Debug2("  db2Message: '%s'",db2Message);
   db2Debug2("  err_code  :  %d ",err_code);
-  db2Debug1("< db2CheckErr - returns: %d",status);
+  db2Debug2("< db2CheckErr - returns: %d",status);
   return status;
 }

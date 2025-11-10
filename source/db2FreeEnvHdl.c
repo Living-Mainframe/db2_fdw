@@ -44,7 +44,7 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
   } else {
     /* free environment handle */
     rc = SQLFreeHandle(SQL_HANDLE_ENV, envp->henv);
-    db2Debug2("  free env handle - rc: %d, henv: %d", rc, envp->henv);
+    db2Debug3("  free env handle - rc: %d, henv: %d", rc, envp->henv);
     rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV,__LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
       db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot free environment handle","%s", db2Message);
@@ -54,7 +54,7 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
     }
     deleteenvEntry(rootenvEntry,envp);
     sql_initialized = 0;
-    db2Debug2("  sql_initialized: %d",sql_initialized);
+    db2Debug3("  sql_initialized: %d",sql_initialized);
   }
   db2Debug1("< db2FreeEnvHdl");
 }
@@ -65,7 +65,7 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
 int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
   int          result = 1;
   DB2EnvEntry* step   = NULL;
-  db2Debug1("> deleteenvEntry");
+  db2Debug2("  > deleteenvEntry");
   for (step = start; step != NULL; step = step->right){
     if (step == node) {
       free (step->nls_lang);
@@ -92,7 +92,7 @@ int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
       break;
     }
   }
-  db2Debug1("< deleteenvEntry - returns: %d",result);
+  db2Debug2("  < deleteenvEntry - returns: %d",result);
   return result;
 }
 
@@ -102,7 +102,7 @@ int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
 int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
   int          result = 1;
   DB2EnvEntry *step = NULL;
-  db2Debug1("> deleteenvEntryLang");
+  db2Debug2("  > deleteenvEntryLang");
   for (step = start; step != NULL; step = step->right){
     if (strcmp (step->nls_lang, nlslang) == 0) {
       free (step->nls_lang);
@@ -128,7 +128,7 @@ int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
       break;
     }
   }
-  db2Debug1("< deleteenvEntryLang - returns: %d",result);
+  db2Debug2("  < deleteenvEntryLang - returns: %d",result);
   return result;
 }
 
@@ -137,13 +137,13 @@ int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
  */
 DB2EnvEntry* findenvEntryHandle (DB2EnvEntry* start, SQLHENV henv) {
   DB2EnvEntry* step = NULL;
-  db2Debug1("> findenvEntryHandle");
+  db2Debug2("  > findenvEntryHandle");
   for (step = start; step != NULL; step = step->right){
     if (step->henv == henv) {
       break;
     }
   }
-  db2Debug1("< findenvEntryHandle - returns: %x",step);
+  db2Debug2("  < findenvEntryHandle - returns: %x",step);
   return step;
 }
 
@@ -152,12 +152,12 @@ DB2EnvEntry* findenvEntryHandle (DB2EnvEntry* start, SQLHENV henv) {
  */
 DB2EnvEntry* findenvEntry(DB2EnvEntry* start, const char* nlslang) {
   DB2EnvEntry* step = NULL;
-  db2Debug1("> findenvEntry");
+  db2Debug2("  > findenvEntry");
   for (step = start; step != NULL; step = step->right){
     if (strcmp (step->nls_lang, nlslang) == 0) {
       break;
     }
   }
-  db2Debug1("< findenvEntry - returns: %x",step);
+  db2Debug2("  < findenvEntry - returns: %x",step);
   return step;
 }

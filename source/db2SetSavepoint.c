@@ -25,7 +25,7 @@ void                 db2SetSavepoint      (DB2Session* session, int nest_level);
 void db2SetSavepoint (DB2Session* session, int nest_level) {
   SQLRETURN rc    = 0;
   HdlEntry* hstmt = NULL;
-  db2Debug1("> db2SetSavepoint(nest_level %d)",nest_level);
+  db2Debug1("> db2SetSavepoint(session, nest_level %d)",nest_level);
   db2Debug2("  xact_level: %d",session->connp->xact_level);
   while (session->connp->xact_level < nest_level) {
     SQLCHAR query[40];

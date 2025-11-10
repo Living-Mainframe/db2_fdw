@@ -7,6 +7,7 @@
 /** external prototypes */
 extern void      db2Debug1            (const char* message, ...);
 extern void      db2Debug2            (const char* message, ...);
+extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 
@@ -22,14 +23,14 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
   HdlEntry* prev_entryp = NULL;
   SQLRETURN rc          = 0;
 
-  db2Debug1("> db2FreeStmtHdl");
-  db2Debug2("  handlep: %x ->hsql: %d ->type: %d ->next: %x", handlep, handlep->hsql, handlep->type, handlep->next);
-  db2Debug2("  connp  : %x ->handlelist: %x", connp, connp->handlelist);
+  db2Debug1("> db2FreeStmtHdl(handlep,connp)");
+  db2Debug1("  handlep: %x ->hsql: %d ->type: %d ->next: %x", handlep, handlep->hsql, handlep->type, handlep->next);
+  db2Debug1("  connp  : %x ->handlelist: %x", connp, connp->handlelist);
 
   /* find the predecessor of handlep in the list of handles starting from connp->handlelist*/
   prev_entryp = findhdlEntry(connp->handlelist, handlep->hsql);
   /* remember prev_entryp might be actually the root element at conp->handlelist*/
-  db2Debug2("  prev_entryp: %x ->hsql : %d ->type : %d->next : %x", prev_entryp, prev_entryp->hsql, prev_entryp->type, prev_entryp->next);
+  db2Debug3("  prev_entryp: %x ->hsql : %d ->type : %d->next : %x", prev_entryp, prev_entryp->hsql, prev_entryp->type, prev_entryp->next);
 
   /* free the handle */
   rc = SQLFreeHandle(handlep->type, handlep->hsql);
@@ -40,14 +41,14 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
     /* we closed the one and only element of connp->handlelist */
     /* entryp->next must be NULL, so it is safe to assign it to connp->handlelist*/
     connp->handlelist = entryp->next;
-    db2Debug2("  connp->handlelist: '%x'", connp->handlelist);
+    db2Debug3("  connp->handlelist: '%x'", connp->handlelist);
   } else {
     /* we closed one element of connp->handlelist */
     /* here we need to set handlep->next to prev_entryp->next isolating entryp for subsequent free*/
     prev_entryp->next = handlep->next;
-    db2Debug2("  prev_entryp->next: '%x'", prev_entryp->next);
+    db2Debug3("  prev_entryp->next: '%x'", prev_entryp->next);
   }
-  db2Debug2("  free(entryp): '%x'", entryp);
+  db2Debug3("  free(entryp): '%x'", entryp);
   free (entryp);
   db2Debug1("< db2FreeStmtHdl");
 }
@@ -58,13 +59,13 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
 HdlEntry* findhdlEntry (HdlEntry* start, SQLHANDLE hsql) {
   HdlEntry* step = NULL;
   HdlEntry* prev = start;
-  db2Debug1("> findhdlEntry");
+  db2Debug2("  > findhdlEntry");
   for (step = start; step != NULL; step = step->next){
     if (step->hsql == hsql) {
       break;
     }
     prev = step;
   }
-  db2Debug1("< findhdlEntry - returns: %x", prev);
+  db2Debug2("  < findhdlEntry - returns: %x", prev);
   return prev;
 }
