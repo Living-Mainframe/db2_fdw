@@ -42,6 +42,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   char*               nls_lang  = NULL;
   char*               user      = NULL;
   char*               password  = NULL;
+  char*               jwt_token = NULL;
   char*               dbserver  = NULL;
   short               colType;
   size_t              colSize;
@@ -71,7 +72,6 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   options = list_concat (options, server->options);
   options = list_concat (options, mapping->options);
 
-  char* jwt_token = NULL;
   foreach (cell, options) {
     DefElem *def = (DefElem *) lfirst (cell);
     if (strcmp (def->defname, OPT_NLS_LANG) == 0)

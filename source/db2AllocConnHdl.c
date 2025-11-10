@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include <sqlcli1.h>
 #include <postgres_ext.h>
 #include "db2_fdw.h"
@@ -43,6 +44,12 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
     /* search user session for this server in cache */
     connp = findconnEntry(envp->connlist, srvname, user);
     if (connp == NULL) {
+      /* Declare all variables at beginning for C90 compatibility */
+      char connStr[4096];
+      int connStrLen;
+      SQLCHAR outConnStr[1024];
+      SQLSMALLINT outConnStrLen;
+
       /* create connection handle */
       rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
       db2Debug3("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
@@ -58,8 +65,6 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
 
         /* For DB2 11.5 LUW with JWT, use SQLDriverConnect with connection string */
         /* This is more flexible and better supported than SQLConnect for JWT */
-        char connStr[4096];
-        int connStrLen;
 
         /* Build connection string with JWT token */
         if (user != NULL && user[0] != '\0') {
@@ -81,9 +86,6 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
         db2Debug1("  connecting with connection string (token hidden)");
 
         /* Use SQLDriverConnect instead of SQLConnect */
-        SQLCHAR outConnStr[1024];
-        SQLSMALLINT outConnStrLen;
-
         rc = SQLDriverConnect(hdbc, NULL, (SQLCHAR*)connStr, SQL_NTS,
                              outConnStr, sizeof(outConnStr), &outConnStrLen,
                              SQL_DRIVER_NOPROMPT);
