@@ -63,21 +63,15 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
         /* JWT token authentication */
         db2Debug1("  using JWT token authentication");
 
-        /* For DB2 11.5 LUW with JWT, use SQLDriverConnect with connection string */
-        /* This is more flexible and better supported than SQLConnect for JWT */
+        /* For DB2 11.5.4+ with JWT, use SQLDriverConnect with AUTHENTICATION=TOKEN */
+        /* Requires: DB2 client 11.5.4+, server configured with db2token.cfg */
+        /* and SRVCON_AUTH set to SERVER_ENCRYPT_TOKEN or similar */
 
-        /* Build connection string with JWT token */
-        if (user != NULL && user[0] != '\0') {
-          /* With username */
-          connStrLen = snprintf(connStr, sizeof(connStr),
-                               "DSN=%s;UID=%s;PWD=%s;",
-                               srvname, user, jwt_token);
-        } else {
-          /* Without username (token-only authentication) */
-          connStrLen = snprintf(connStr, sizeof(connStr),
-                               "DSN=%s;PWD=%s;",
-                               srvname, jwt_token);
-        }
+        /* Build connection string with JWT token using DB2 TOKEN authentication keywords */
+        /* JWT tokens contain identity information, so UID is typically not required */
+        connStrLen = snprintf(connStr, sizeof(connStr),
+                             "DSN=%s;AUTHENTICATION=TOKEN;ACCESSTOKEN=%s;ACCESSTOKENTYPE=JWT;",
+                             srvname, jwt_token);
 
         if (connStrLen >= sizeof(connStr)) {
           db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "connection string too long", " connection to foreign DB2 server");
