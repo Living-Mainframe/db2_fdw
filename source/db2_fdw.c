@@ -61,8 +61,9 @@ bool dml_in_transaction = false;
 DB2FdwOption valid_options[] = {
   {OPT_NLS_LANG         , ForeignDataWrapperRelationId, false},
   {OPT_DBSERVER         , ForeignServerRelationId     , true },
-  {OPT_USER             , UserMappingRelationId       , true },
-  {OPT_PASSWORD         , UserMappingRelationId       , true },
+  {OPT_USER             , UserMappingRelationId       , false},
+  {OPT_PASSWORD         , UserMappingRelationId       , false},
+  {OPT_JWT_TOKEN        , UserMappingRelationId       , false},
   {OPT_SCHEMA           , ForeignTableRelationId      , false},
   {OPT_TABLE            , ForeignTableRelationId      , true },
   {OPT_MAX_LONG         , ForeignTableRelationId      , false},
@@ -83,7 +84,7 @@ regproc* output_funcs;
 
 /** db2_utils
  */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
+extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern void            db2CloseConnections       (void);
 extern void            db2ClientVersion          (DB2Session* session, char* version);
 extern void            db2ServerVersion          (DB2Session* session, char* version);
@@ -274,6 +275,44 @@ PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
               );
     }
   }
+
+  /* For UserMapping: check that either (user AND password) OR jwt_token is provided */
+  if (catalog == UserMappingRelationId) {
+    bool has_user = false;
+    bool has_password = false;
+    bool has_jwt_token = false;
+
+    for (i = 0; i < option_count; ++i) {
+      if (option_given[i] && catalog == valid_options[i].optcontext) {
+        if (strcmp(valid_options[i].optname, OPT_USER) == 0)
+          has_user = true;
+        if (strcmp(valid_options[i].optname, OPT_PASSWORD) == 0)
+          has_password = true;
+        if (strcmp(valid_options[i].optname, OPT_JWT_TOKEN) == 0)
+          has_jwt_token = true;
+      }
+    }
+
+    /* Validate authentication method */
+    if (has_jwt_token && (has_user || has_password)) {
+      ereport ( ERROR
+              , ( errcode (ERRCODE_FDW_INVALID_OPTION_NAME)
+                , errmsg ("cannot specify both jwt_token and user/password authentication")
+                , errhint ("Use either jwt_token OR user and password, not both.")
+                )
+              );
+    }
+
+    if (!has_jwt_token && (!has_user || !has_password)) {
+      ereport ( ERROR
+              , ( errcode (ERRCODE_FDW_OPTION_NAME_NOT_FOUND)
+                , errmsg ("authentication credentials missing")
+                , errhint ("Specify either jwt_token OR both user and password.")
+                )
+              );
+    }
+  }
+
   PG_RETURN_VOID ();
 }
 
@@ -363,17 +402,19 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
     options = wrapper->options;
     options = list_concat (options, server->options);
     options = list_concat (options, mapping->options);
+    char* jwt_token = NULL;
     foreach (cell, options) {
       DefElem *def = (DefElem *) lfirst (cell);
-      nls_lang = (strcmp (def->defname, OPT_NLS_LANG) == 0) ? STRVAL(def->arg) : nls_lang;
-      dbserver = (strcmp (def->defname, OPT_DBSERVER) == 0) ? STRVAL(def->arg) : dbserver;
-      user     = (strcmp (def->defname, OPT_USER)     == 0) ? STRVAL(def->arg) : user;
-      password = (strcmp (def->defname, OPT_PASSWORD) == 0) ? STRVAL(def->arg) : password;
+      nls_lang  = (strcmp (def->defname, OPT_NLS_LANG)  == 0) ? STRVAL(def->arg) : nls_lang;
+      dbserver  = (strcmp (def->defname, OPT_DBSERVER)  == 0) ? STRVAL(def->arg) : dbserver;
+      user      = (strcmp (def->defname, OPT_USER)      == 0) ? STRVAL(def->arg) : user;
+      password  = (strcmp (def->defname, OPT_PASSWORD)  == 0) ? STRVAL(def->arg) : password;
+      jwt_token = (strcmp (def->defname, OPT_JWT_TOKEN) == 0) ? STRVAL(def->arg) : jwt_token;
     }
     /* guess a good NLS_LANG environment setting */
     nls_lang = guessNlsLang (nls_lang);
     /* connect to DB2 database */
-    session = db2GetSession (dbserver, user, password, nls_lang, 1);
+    session = db2GetSession (dbserver, user, password, jwt_token, nls_lang, 1);
     /* get the client version */
 
     db2ClientVersion (session, cli_version);

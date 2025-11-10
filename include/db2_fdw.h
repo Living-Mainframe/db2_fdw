@@ -145,6 +145,7 @@ typedef enum {
 #define OPT_DBSERVER          "dbserver"
 #define OPT_USER              "user"
 #define OPT_PASSWORD          "password"
+#define OPT_JWT_TOKEN         "jwt_token"
 #define OPT_SCHEMA            "schema"
 #define OPT_TABLE             "table"
 #define OPT_MAX_LONG          "max_long"

@@ -16,19 +16,19 @@ extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSM
 extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
 
 /** local prototypes */
-DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, const char* nls_lang);
+DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
 DB2ConnEntry*    findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user);
-DB2ConnEntry*    insertconnEntry      (DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, SQLHDBC hdbc);
+DB2ConnEntry*    insertconnEntry      (DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc);
 
 /** db2AllocConnHdl
- * 
+ *
  */
-DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user, char* password, const char* nls_lang) {
+DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang) {
   DB2ConnEntry* connp   = NULL;
   SQLRETURN     rc      = 0;
   SQLHDBC       hdbc    = SQL_NULL_HDBC;
 
-  db2Debug1("> db2AllocConnHdl(envp: %x, srvname: %s, user: %s, password: %s, nls_lang: %s)", envp, srvname,user, password, nls_lang);
+  db2Debug1("> db2AllocConnHdl(envp: %x, srvname: %s, user: %s, password: %s, jwt_token: %s, nls_lang: %s)", envp, srvname,user, password, jwt_token ? "***" : "NULL", nls_lang);
   if (nls_lang != NULL) {
     rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
     db2Debug3("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
@@ -50,18 +50,50 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
       if (rc  != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllochHandle failed to allocate hdbc handle", db2Message);
       }
-      /* connect to the database */
-      rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)user, SQL_NTS, (SQLCHAR*)password, SQL_NTS);
-      db2Debug3("  connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
-      rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
-      if (rc != SQL_SUCCESS) {
-        db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection User: %s ,%s"            , user    , db2Message);
-        db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection password: %s ,%s"        , password, db2Message);
-        db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection connectstring: %s ,%s"   , srvname , db2Message);
-        db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection to foreign DB2 server,%s"          , db2Message);
+
+      /* Check if JWT token authentication is used */
+      if (jwt_token != NULL && jwt_token[0] != '\0') {
+        /* JWT token authentication */
+        /* SQL_ATTR_ACCESS_TOKEN_STR = 2530 for DB2 CLI */
+        #ifndef SQL_ATTR_ACCESS_TOKEN_STR
+        #define SQL_ATTR_ACCESS_TOKEN_STR 2530
+        #endif
+
+        db2Debug1("  using JWT token authentication");
+
+        /* Set the JWT access token attribute before connecting */
+        rc = SQLSetConnectAttr(hdbc, SQL_ATTR_ACCESS_TOKEN_STR, (SQLPOINTER)jwt_token, SQL_NTS);
+        db2Debug1("  set JWT token attribute - rc: %d", rc);
+        rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
+        if (rc != SQL_SUCCESS) {
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot set JWT token attribute", " connection to foreign DB2 server,%s", db2Message);
+        }
+
+        /* Connect to the database using JWT token (no user/password needed) */
+        rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, NULL, 0, NULL, 0);
+        db2Debug1("  connect to database(%s) with JWT - rc: %d, hdbc: %d", srvname, rc, hdbc);
+        rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
+        if (rc != SQL_SUCCESS) {
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate with JWT token", " connection connectstring: %s ,%s", srvname, db2Message);
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate", " connection to foreign DB2 server,%s", db2Message);
+        }
       } else {
+        /* Traditional user/password authentication */
+        db2Debug1("  using user/password authentication");
+        rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)user, SQL_NTS, (SQLCHAR*)password, SQL_NTS);
+        db2Debug1("  connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
+        rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
+        if (rc != SQL_SUCCESS) {
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection User: %s ,%s"            , user    , db2Message);
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection password: %s ,%s"        , password, db2Message);
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection connectstring: %s ,%s"   , srvname , db2Message);
+          db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection to foreign DB2 server,%s"          , db2Message);
+        }
+      }
+
+      if (rc == SQL_SUCCESS) {
         /* add session handle to cache */
-        envp->connlist = connp = insertconnEntry (envp->connlist, srvname, user, password, hdbc);
+        envp->connlist = connp = insertconnEntry (envp->connlist, srvname, user, password, jwt_token, hdbc);
 
         /* set Autocommit off */
         rc = SQLSetConnectAttr(hdbc, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_OFF, SQL_IS_UINTEGER);
@@ -94,13 +126,18 @@ DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char
 }
 
 /** insertconnEntry
- * 
+ *
  */
-DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, SQLHDBC hdbc) {
+DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc) {
   DB2ConnEntry* step = NULL;
   DB2ConnEntry* new  = NULL;
+<<<<<<< HEAD
   
   db2Debug2("  > insertconnEntry");
+=======
+
+  db2Debug1("> insertconnEntry");
+>>>>>>> c2a54a9 (Add JWT token authentication support as alternative to user/password)
   if (start == NULL){ /* first entry in list */
     new = malloc(sizeof(DB2ConnEntry));
     new->right = new->left = NULL;
@@ -114,6 +151,7 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   new->srvname    = strdup(srvname);
   new->uid        = strdup(uid);
   new->pwd        = strdup(pwd);
+  new->jwt_token  = (jwt_token && jwt_token[0] != '\0') ? strdup(jwt_token) : NULL;
   new->handlelist = NULL;
   new->hdbc       = hdbc;
   new->xact_level = 0;

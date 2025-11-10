@@ -18,10 +18,11 @@ typedef struct connEntry {
   char*               srvname;    // Server Name or IP Address
   char*               uid;        // Userid
   char*               pwd;        // Password
+  char*               jwt_token;  // JWT token for authentication
   SQLHDBC             hdbc;       // SQL DB connect handle
   ULONG               conAttr;    // connection attributes
   HdlEntry*           handlelist; // linked list of statement handles
-  int                 xact_level; // transaction level 0 = none, 1 = main, else subtransaction 
+  int                 xact_level; // transaction level 0 = none, 1 = main, else subtransaction
   struct connEntry*   left;       // preceeding connection
   struct connEntry*   right;      // following connection
 } DB2ConnEntry;

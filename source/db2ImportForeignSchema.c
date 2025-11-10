@@ -15,7 +15,7 @@
 #include "db2_fdw.h"
 
 /** external prototypes */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
+extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern int             db2GetImportColumn        (DB2Session* session, char* stmt, char* table_list, int list_type, char* tabname, char* colname, short* colType, size_t* colLen, short* typescale, short* nullable, int* key, int* cp);
 extern char*           guessNlsLang              (char* nls_lang);
 extern void            db2Debug1                 (const char* message, ...);
@@ -71,6 +71,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   options = list_concat (options, server->options);
   options = list_concat (options, mapping->options);
 
+  char* jwt_token = NULL;
   foreach (cell, options) {
     DefElem *def = (DefElem *) lfirst (cell);
     if (strcmp (def->defname, OPT_NLS_LANG) == 0)
@@ -81,6 +82,8 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       user = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_PASSWORD) == 0)
       password = STRVAL(def->arg);
+    if (strcmp (def->defname, OPT_JWT_TOKEN) == 0)
+      jwt_token = STRVAL(def->arg);
   }
 
   /* process the options of the IMPORT FOREIGN SCHEMA command */
@@ -120,7 +123,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   nls_lang = guessNlsLang (nls_lang);
 
   /* connect to DB2 database */
-  session = db2GetSession (dbserver, user, password, nls_lang, 1);
+  session = db2GetSession (dbserver, user, password, jwt_token, nls_lang, 1);
 
   initStringInfo (&buf);
   db2Debug2("  stmt->list_type    : %d  ",stmt->list_type);
