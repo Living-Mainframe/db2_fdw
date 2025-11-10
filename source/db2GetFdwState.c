@@ -10,7 +10,6 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 #include "ParamDesc.h"
 #include "DB2FdwState.h"
@@ -21,6 +20,8 @@ extern void         db2GetOptions             (Oid foreigntableid, List** option
 extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
 extern DB2Table*    db2Describe               (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr);
 extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug3                 (const char* message, ...);
 
 /** local prototypes */
 DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent);
@@ -124,7 +125,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   TupleDesc tupdesc;
   int i, index;
 
-  db2Debug1("> getColumnData");
+  db2Debug2("  > getColumnData");
   rel = table_open (foreigntableid, NoLock);
   tupdesc = rel->rd_att;
 
@@ -168,7 +169,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   }
 
   table_close (rel, NoLock);
-  db2Debug1("< getColumnData");
+  db2Debug2("  < getColumnData");
 }
 
 #ifndef OLD_FDW_API
@@ -177,9 +178,9 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
  */
 bool optionIsTrue (const char *value) {
   bool result = false;
-  db2Debug1("> optionIsTrue(value: '%s')",value);
+  db2Debug3("    > optionIsTrue(value: '%s')",value);
   result = (pg_strcasecmp (value, "on") == 0 || pg_strcasecmp (value, "yes") == 0 || pg_strcasecmp (value, "true") == 0);
-  db2Debug1("< optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
+  db2Debug3("    < optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
   return result;
 }
 #endif /* OLD_FDW_API */

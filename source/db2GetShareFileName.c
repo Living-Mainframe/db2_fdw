@@ -10,7 +10,6 @@
 #include <access/heapam.h>
 #endif
 #include <string.h>
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 
 /** external prototypes */

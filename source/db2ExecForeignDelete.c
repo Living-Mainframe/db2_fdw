@@ -9,7 +9,6 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 #include "ParamDesc.h"
 #include "DB2FdwState.h"
