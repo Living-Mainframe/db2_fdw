@@ -144,13 +144,8 @@ DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char
 DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc) {
   DB2ConnEntry* step = NULL;
   DB2ConnEntry* new  = NULL;
-<<<<<<< HEAD
-  
-  db2Debug2("  > insertconnEntry");
-=======
 
-  db2Debug1("> insertconnEntry");
->>>>>>> c2a54a9 (Add JWT token authentication support as alternative to user/password)
+  db2Debug3("> insertconnEntry");
   if (start == NULL){ /* first entry in list */
     new = malloc(sizeof(DB2ConnEntry));
     new->right = new->left = NULL;
