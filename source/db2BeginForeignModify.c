@@ -20,7 +20,7 @@
 extern regproc* output_funcs;
 
 /** external prototypes */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
+extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern void            db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
@@ -55,7 +55,7 @@ void db2BeginForeignModify (ModifyTableState * mtstate, ResultRelInfo * rinfo, L
   rinfo->ri_FdwState = fdw_state;
 
   /* connect to DB2 database */
-  fdw_state->session = db2GetSession (fdw_state->dbserver, fdw_state->user, fdw_state->password, fdw_state->nls_lang, GetCurrentTransactionNestLevel ());
+  fdw_state->session = db2GetSession (fdw_state->dbserver, fdw_state->user, fdw_state->password, fdw_state->jwt_token, fdw_state->nls_lang, GetCurrentTransactionNestLevel ());
   db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, 0);
 
   /* get the type output functions for the parameters */

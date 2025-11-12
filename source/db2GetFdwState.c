@@ -17,7 +17,7 @@
 /** external prototypes */
 extern char*        guessNlsLang              (char* nls_lang);
 extern void         db2GetOptions             (Oid foreigntableid, List** options);
-extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
+extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern DB2Table*    db2Describe               (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
@@ -61,6 +61,8 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
       fdwState->user = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_PASSWORD) == 0)
       fdwState->password = STRVAL(def->arg);
+    if (strcmp (def->defname, OPT_JWT_TOKEN) == 0)
+      fdwState->jwt_token = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_SCHEMA) == 0)
       schema = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_TABLE) == 0)
@@ -103,7 +105,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
   fdwState->nls_lang = guessNlsLang (fdwState->nls_lang);
 
   /* connect to DB2 database */
-  fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
+  fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->jwt_token, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
 
   /* get remote table description */
   fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr);
