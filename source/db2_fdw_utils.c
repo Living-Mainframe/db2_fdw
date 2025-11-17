@@ -1207,7 +1207,11 @@ char* deparseInterval (Datum datum) {
   idx += tm.tm_mday;
   if (tm.tm_hour > 0) {
     appendStringInfo(&s," %s ",(idx > 0 ) ? sign : "");
+    #if PG_VERSION_NUM >= 150000
     appendStringInfo(&s, ((tm.tm_hour > 1) ? "%ld HOURS" : "%ld HOUR"),tm.tm_hour);
+    #else
+    appendStringInfo(&s, ((tm.tm_hour > 1) ? "%d HOURS" : "%d HOUR"),tm.tm_hour);
+    #endif
   }
   idx += tm.tm_hour;
   if (tm.tm_min > 0) {
