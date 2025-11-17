@@ -371,10 +371,11 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
     ForeignDataWrapper* wrapper;
     List*               options;
     ListCell*           cell;
-    char*               nls_lang = NULL;
-    char*               user     = NULL;
-    char*               password = NULL;
-    char*               dbserver = NULL;
+    char*               nls_lang  = NULL;
+    char*               user      = NULL;
+    char*               password  = NULL;
+    char*               dbserver  = NULL;
+    char*               jwt_token = NULL;
     char srv_version[256];
     char cli_version[256];
 
@@ -402,7 +403,6 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
     options = wrapper->options;
     options = list_concat (options, server->options);
     options = list_concat (options, mapping->options);
-    char* jwt_token = NULL;
     foreach (cell, options) {
       DefElem *def = (DefElem *) lfirst (cell);
       nls_lang  = (strcmp (def->defname, OPT_NLS_LANG)  == 0) ? STRVAL(def->arg) : nls_lang;
