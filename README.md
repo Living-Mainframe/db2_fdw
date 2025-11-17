@@ -607,5 +607,5 @@ If that causes an error, please also include the output of
     SELECT DB2_diag();
 
 If you have a problem or question or any kind of feedback, the preferred
-option is to open an issue on [GitHub](https://github.com/wolfgangbrandl/db2_fdw)
+option is to open an issue on [GitHub](https://github.com/Living-Mainframe/db2_fdw)
 This requires a GitHub account.
