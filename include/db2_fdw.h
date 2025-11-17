@@ -75,7 +75,7 @@
 */
 
 /* db2_fdw version */
-#define DB2_FDW_VERSION "18.0.1"
+#define DB2_FDW_VERSION "18.1.0"
 /* number of bytes to read per LOB chunk */
 #define LOB_CHUNK_SIZE    8192
 #define ERRBUFSIZE        2000
