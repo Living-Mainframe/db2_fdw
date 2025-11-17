@@ -349,7 +349,7 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
   pgversion = GetConfigOptionByName ("server_version", NULL);
 
   initStringInfo (&version);
-  appendStringInfo (&version, "db2xa_fdw %s, PostgreSQL %s", DB2_FDW_VERSION, pgversion);
+  appendStringInfo (&version, "db2_fdw %s, PostgreSQL %s", DB2_FDW_VERSION, pgversion);
 
   if (PG_ARGISNULL (0)) {
     /* display some important DB2 environment variables */
