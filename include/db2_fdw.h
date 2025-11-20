@@ -119,10 +119,6 @@ typedef enum {
   BIND_OUTPUT
 } db2BindType;
 
-/*
-#include "ParamDesc.h"
-*/
-
 /* PostgreSQL error messages we need */
 typedef enum {
   FDW_ERROR,

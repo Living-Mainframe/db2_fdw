@@ -14,7 +14,6 @@
 #include <access/heapam.h>
 #endif
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */

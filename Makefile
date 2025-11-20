@@ -13,11 +13,15 @@ OBJS         = source/db2_fdw.o\
                source/db2ReScanForeignScan.o\
                source/db2AddForeignUpdateTargets.o\
                source/db2PlanForeignModify.o\
+               source/db2BeginForeignModifyCommon.o\
                source/db2BeginForeignModify.o\
+               source/db2BeginForeignInsert.o\
                source/db2ExecForeignInsert.o\
                source/db2ExecForeignUpdate.o\
                source/db2ExecForeignDelete.o\
+               source/db2EndForeignModifyCommon.o\
                source/db2EndForeignModify.o\
+               source/db2EndForeignInsert.o\
                source/db2ExplainForeignModify.o\
                source/db2IsForeignRelUpdatable.o\
                source/db2ImportForeignSchema.o\
@@ -42,6 +46,7 @@ OBJS         = source/db2_fdw.o\
                source/db2GetImportColumn.o\
                source/db2PrepareQuery.o\
                source/db2ExecuteQuery.o\
+               source/db2ExecuteInsert.o\
                source/db2FetchNext.o\
                source/db2GetLob.o\
                source/db2SetSavepoint.o\

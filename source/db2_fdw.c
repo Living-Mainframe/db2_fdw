@@ -108,10 +108,12 @@ extern void            db2AddForeignUpdateTargets(PlannerInfo* root, Index rtind
 #endif
 extern List*           db2PlanForeignModify      (PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
 extern void            db2BeginForeignModify     (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, int eflags);
+extern void            db2BeginForeignInsert     (ModifyTableState* mtstate, ResultRelInfo* rinfo);
 extern TupleTableSlot* db2ExecForeignInsert      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern TupleTableSlot* db2ExecForeignUpdate      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern TupleTableSlot* db2ExecForeignDelete      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern void            db2EndForeignModify       (EState* estate, ResultRelInfo* rinfo);
+extern void            db2EndForeignInsert       (EState* estate, ResultRelInfo* rinfo);
 extern void            db2ExplainForeignModify   (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, ExplainState* es);
 extern int             db2IsForeignRelUpdatable  (Relation rel);
 extern List*           db2ImportForeignSchema    (ImportForeignSchemaStmt* stmt, Oid serverOid);
@@ -147,6 +149,8 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
   fdwroutine->ExplainForeignModify    = db2ExplainForeignModify;
   fdwroutine->IsForeignRelUpdatable   = db2IsForeignRelUpdatable;
   fdwroutine->ImportForeignSchema     = db2ImportForeignSchema;
+  fdwroutine->BeginForeignInsert      = db2BeginForeignInsert;
+  fdwroutine->EndForeignInsert        = db2EndForeignInsert;
 
   PG_RETURN_POINTER (fdwroutine);
 }
