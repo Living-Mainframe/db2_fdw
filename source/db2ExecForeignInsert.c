@@ -17,7 +17,7 @@
 extern bool dml_in_transaction;
 
 /** external prototypes */
-extern int             db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
+extern int             db2ExecuteInsert          (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern void            db2Debug1                 (const char* message, ...);
 #ifdef WRITE_API
 extern void            setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
@@ -49,7 +49,7 @@ TupleTableSlot* db2ExecForeignInsert (EState* estate, ResultRelInfo* rinfo, Tupl
   setModifyParameters (fdw_state->paramList, slot, planSlot, fdw_state->db2Table, fdw_state->session);
 
   /* execute the INSERT statement and store RETURNING values in db2Table's columns */
-  rows = db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList);
+  rows = db2ExecuteInsert (fdw_state->session, fdw_state->db2Table, fdw_state->paramList);
 
   if (rows != 1)
     ereport (ERROR, (errcode (ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION), errmsg ("INSERT on DB2 table added %d rows instead of one in iteration %lu", rows, fdw_state->rowcount)));
