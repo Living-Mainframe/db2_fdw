@@ -1,6 +1,10 @@
 #ifndef DB2FDWSTATE_H
 #define DB2FDWSTATE_H
 
+#ifndef PARAMDESC_H
+#include "ParamDesc.h"
+#endif
+
 /** DB2FdwState
  *  FDW-specific information for RelOptInfo.fdw_private and ForeignScanState.fdw_state.
  *  The same structure is used to hold information for query planning and execution.
