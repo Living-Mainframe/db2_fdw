@@ -13,18 +13,18 @@
 #include <access/heapam.h>
 #endif
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external variables */
 extern regproc* output_funcs;
 
 /** external prototypes */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern void            db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern char*           c2name                    (short fcType);
+extern DB2Session*  db2GetSession              (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern void         db2PrepareQuery            (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
+extern void         db2Debug1                  (const char* message, ...);
+extern void         db2Debug2                  (const char* message, ...);
+extern char*        c2name                     (short fcType);
+extern void         db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan);
 
 /** local prototypes */
 void         db2BeginForeignModify(ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, int eflags);
@@ -40,49 +40,17 @@ long         deserializeLong      (Const* constant);
  */
 void db2BeginForeignModify (ModifyTableState * mtstate, ResultRelInfo * rinfo, List * fdw_private, int subplan_index, int eflags) {
   DB2FdwState* fdw_state = deserializePlanData (fdw_private);
-  EState*      estate    = mtstate->ps.state;
-  ParamDesc*   param     = NULL;
-  HeapTuple    tuple;
-  int          i         = 0;
-  #if PG_VERSION_NUM < 140000
-  Plan*        subplan   = mtstate->mt_plans[subplan_index]->plan;
-  #else
-  Plan*        subplan   = outerPlanState(mtstate)->plan;
-  #endif
+  Plan        *subplan   = NULL;
 
   db2Debug1("> db2BeginForeignModify");
   db2Debug2("  relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
-  rinfo->ri_FdwState = fdw_state;
+  #if PG_VERSION_NUM < 140000
+  subplan   = mtstate->mt_plans[subplan_index]->plan;
+  #else
+  subplan   = outerPlanState(mtstate)->plan;
+  #endif
 
-  /* connect to DB2 database */
-  fdw_state->session = db2GetSession (fdw_state->dbserver, fdw_state->user, fdw_state->password, fdw_state->jwt_token, fdw_state->nls_lang, GetCurrentTransactionNestLevel ());
-  db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, 0);
-
-  /* get the type output functions for the parameters */
-  output_funcs = (regproc *) palloc0 (fdw_state->db2Table->ncols * sizeof (regproc *));
-  for (param = fdw_state->paramList; param != NULL; param = param->next) {
-    /* ignore output parameters */
-    if (param->bindType == BIND_OUTPUT)
-      continue;
-
-    tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (fdw_state->db2Table->cols[param->colnum]->pgtype));
-    if (!HeapTupleIsValid (tuple))
-      elog (ERROR, "cache lookup failed for type %u", fdw_state->db2Table->cols[param->colnum]->pgtype);
-    output_funcs[param->colnum] = ((Form_pg_type) GETSTRUCT (tuple))->typoutput;
-    ReleaseSysCache (tuple);
-  }
-
-  /* loop through table columns */
-  for (i = 0; i < fdw_state->db2Table->ncols; ++i) {
-    if (!fdw_state->db2Table->cols[i]->colPrimKeyPart)
-      continue;
-    /* for primary key columns, get the resjunk attribute number and store it in "pkey" */
-    fdw_state->db2Table->cols[i]->pkey = ExecFindJunkAttributeInTlist (subplan->targetlist, fdw_state->db2Table->cols[i]->pgname);
-  }
-
-  /* create a memory context for short-lived memory */
-  fdw_state->temp_cxt = AllocSetContextCreate (estate->es_query_cxt, "db2_fdw temporary data", ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_SMALL_MAXSIZE);
-  db2Debug1("< db2BeginForeignModify");
+  db2BeginForeignModifyCommon(mtstate, rinfo, fdw_state, subplan);
 }
 
 /** deserializePlanData
