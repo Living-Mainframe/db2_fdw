@@ -53,7 +53,7 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
   for (param = paramList; param; param = param->next) {
     ++param_count;
     db2Debug2("  paramcount      : %d",param_count);
-    db2Debug2("  param->value    : %x",param->value);
+    db2Debug2("  param->value    : %s",param->value);
     db2Debug2("  param->colnum   : %d",param->colnum);
     db2Debug2("  param->bindType : %d",param->bindType);
     db2Debug2("  param_count     : %d",param_count);
@@ -67,6 +67,8 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
           case SQL_SMALLINT:{
             char* end = NULL;
             SQLSMALLINT sqlint = strtol(param->value,&end,10);
+            db2Debug2("  sqlint: %d",sqlint);
+            db2Debug2("  param->bindType: SQL_SMALLINT");
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -83,6 +85,8 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
           case SQL_INTEGER: {
             char* end = NULL;
             SQLINTEGER sqlint = strtol(param->value,&end,10);
+            db2Debug2("  sqlint: %d",sqlint);
+            db2Debug2("  param->bindType: SQL_INTEGER");
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -99,6 +103,7 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
           default: {
             SQL_NUMERIC_STRUCT num = {0};
             parse2num_struct(param->value, &num);
+            db2Debug2("  param->bindType: SQL_NUMERIC");
             db2Debug2("  num: '%s'",num);
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count

@@ -145,7 +145,7 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   DB2ConnEntry* step = NULL;
   DB2ConnEntry* new  = NULL;
 
-  db2Debug3("> insertconnEntry");
+  db2Debug2("  > insertconnEntry");
   if (start == NULL){ /* first entry in list */
     new = malloc(sizeof(DB2ConnEntry));
     new->right = new->left = NULL;

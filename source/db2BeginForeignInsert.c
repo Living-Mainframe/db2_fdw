@@ -32,11 +32,12 @@ DB2FdwState*        db2BuildInsertFdwState     (Relation rel);
 
 void db2BeginForeignInsert(ModifyTableState* mtstate, ResultRelInfo* rinfo) {
     Relation     rel       = rinfo->ri_RelationDesc;
-    DB2FdwState *fdw_state = db2BuildInsertFdwState(rel);
-    db2Debug1(">  db2BeginForeignInsert");
+    DB2FdwState *fdw_state = NULL;
+    db2Debug1("> db2BeginForeignInsert");
+    fdw_state = db2BuildInsertFdwState(rel);
     /* subplan is irrelevant for pure INSERT/COPY */
     db2BeginForeignModifyCommon(mtstate, rinfo, fdw_state, NULL);
-    db2Debug1("<  db2BeginForeignInsert");
+    db2Debug1("< db2BeginForeignInsert");
 }
 
 DB2FdwState* db2BuildInsertFdwState(Relation rel) {
@@ -44,7 +45,7 @@ DB2FdwState* db2BuildInsertFdwState(Relation rel) {
     StringInfoData sql;
     int i;
     bool firstcol;
-    db2Debug1(">  db2_build_insert_fdw_state");
+    db2Debug1("> db2BuildInsertFdwState");
 
     /* Same logic as CMD_INSERT branch of db2PlanForeignModify: */
     fdwState = db2GetFdwState(RelationGetRelid(rel), NULL);
@@ -92,8 +93,8 @@ DB2FdwState* db2BuildInsertFdwState(Relation rel) {
         appendAsType(&sql, fdwState->db2Table->cols[i]->pgtype);
     }
     appendStringInfo(&sql, ")");
-
     fdwState->query = sql.data;
-     db2Debug1("<  db2_build_insert_fdw_state - returns fdwState: %x",fdwState);
-   return fdwState;
+    db2Debug2("  fdwState->query: '%s'",sql.data);
+    db2Debug1("< db2BuildInsertFdwState - returns fdwState: %x",fdwState);
+  return fdwState;
 }
