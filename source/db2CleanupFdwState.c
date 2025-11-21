@@ -59,6 +59,7 @@ void db2CleanupFdwState(DB2FdwState* fdw_state) {
     db2free(cols[i]);
   }
   db2free(cols);
+  db2free(fdw_state->db2Table);
   db2free(fdw_state->order_clause);
   db2free(fdw_state->where_clause);
   db2Debug1("< db2CleanupFdwState");
