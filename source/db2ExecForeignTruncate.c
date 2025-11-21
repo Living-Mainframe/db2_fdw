@@ -15,7 +15,7 @@ extern void         db2Debug2            (const char* message, ...);
 extern void         db2Debug3            (const char* message, ...);
 extern int          db2ExecuteTruncate   (DB2Session* session, const char* query);
 extern void         db2CloseStatement    (DB2Session* session);
-extern void         db2Free              (void* p);
+extern void         db2free              (void* p);
 
 /** local prototypes */
 DB2FdwState* db2BuildTruncateFdwState(Relation rel, bool restart_seqs);
@@ -47,7 +47,7 @@ void db2ExecForeignTruncate(List *rels, DropBehavior behavior, bool restart_seqs
       db2ExecuteTruncate(fdw_state->session,fdw_state->query);
 
       db2CloseStatement (fdw_state->session);
-      db2Free(fdw_state->session);
+      db2free(fdw_state->session);
       fdw_state->session = NULL;
     }
   }

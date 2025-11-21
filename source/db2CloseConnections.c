@@ -19,6 +19,7 @@ extern void      db2Error_d           (db2error sqlstate, const char* message, c
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void      db2UnregisterCallback(void* arg);
 extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
+extern void      db2free              (void* p);
 
 /** local prototypes */
 void             db2CloseConnections  (void);
@@ -64,7 +65,7 @@ void db2FreeConnHdl(DB2EnvEntry* envp, DB2ConnEntry* connp){
     db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error closing session: SQLDisconnect failed to terminate session", db2Message);
   }
 
-  /* free the session handle */
+  /* release the session handle */
   db2Debug2("  connp->hdbc: %x",connp->hdbc);
   rc = SQLFreeHandle(SQL_HANDLE_DBC, connp->hdbc);
   db2Debug3("  SQLFreeHandle.rc: %d",rc);
@@ -107,8 +108,11 @@ int deleteconnEntry(DB2ConnEntry* start, DB2ConnEntry* node) {
         step->left->right = step->right;
         step->right->left = step->left;
       }
-      db2Debug3("  free step: %x",step);
-      free (step);
+      if (step->srvname)   db2free (step->srvname);
+      if (step->uid)       db2free (step->uid);
+      if (step->pwd)       db2free (step->pwd);
+      if (step->jwt_token) db2free (step->jwt_token);
+      if (step)            db2free (step);
       result = 1;
       break;
     }

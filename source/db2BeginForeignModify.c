@@ -16,13 +16,13 @@
 #include "DB2FdwState.h"
 
 /** external variables */
-extern regproc* output_funcs;
 
 /** external prototypes */
 extern DB2Session*  db2GetSession              (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern void         db2PrepareQuery            (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
 extern void         db2Debug1                  (const char* message, ...);
 extern void         db2Debug2                  (const char* message, ...);
+extern void*        db2alloc                   (const char* type, size_t size);
 extern char*        c2name                     (short fcType);
 extern void         db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan);
 
@@ -57,7 +57,7 @@ void db2BeginForeignModify (ModifyTableState * mtstate, ResultRelInfo * rinfo, L
  *   Extract the data structures from a List created by serializePlanData.
  */
 DB2FdwState* deserializePlanData (List* list) {
-  DB2FdwState* state = palloc (sizeof (DB2FdwState));
+  DB2FdwState* state = db2alloc ("DB2FdwState", sizeof (DB2FdwState));
   ListCell*    cell  = list_head (list);
   int          i, 
                len;
@@ -101,7 +101,7 @@ DB2FdwState* deserializePlanData (List* list) {
   cell = list_next (list,cell);
 
   /* table data */
-  state->db2Table = (DB2Table*) palloc (sizeof (struct db2Table));
+  state->db2Table = (DB2Table*) db2alloc ("state->db2Table", sizeof (struct db2Table));
   state->db2Table->name = deserializeString (lfirst (cell));
   db2Debug2("  state->db2Table->name: '%s'",state->db2Table->name);
   cell = list_next (list,cell);
@@ -114,11 +114,11 @@ DB2FdwState* deserializePlanData (List* list) {
   state->db2Table->npgcols = (int) DatumGetInt32 (((Const*) lfirst (cell))->constvalue);
   db2Debug2("  state->db2Table->npgcols: %d",state->db2Table->npgcols);
   cell = list_next (list,cell);
-  state->db2Table->cols = (DB2Column**) palloc (sizeof (DB2Column*) * state->db2Table->ncols);
+  state->db2Table->cols = (DB2Column**) db2alloc ("state->db2Table->cols", sizeof (DB2Column*) * state->db2Table->ncols);
 
   /* loop columns */
   for (i = 0; i < state->db2Table->ncols; ++i) {
-    state->db2Table->cols[i]           = (DB2Column *) palloc (sizeof (DB2Column));
+    state->db2Table->cols[i]           = (DB2Column *) db2alloc ("state->db2Table->cols[i]", sizeof (DB2Column));
     state->db2Table->cols[i]->colName  = deserializeString (lfirst (cell));
     db2Debug2("  state->db2Table->cols[%d]->colName: '%s'",i,state->db2Table->cols[i]->colName);
     cell = list_next (list,cell);
@@ -171,7 +171,7 @@ DB2FdwState* deserializePlanData (List* list) {
     db2Debug2("  state->db2Table->cols[%d]->noencerr: %d",i,state->db2Table->cols[i]->noencerr);
     cell = list_next (list,cell);
     /* allocate memory for the result value only when the column is used in query */
-    state->db2Table->cols[i]->val      = (state->db2Table->cols[i]->used == 1) ? (char*) palloc (state->db2Table->cols[i]->val_size + 1) : NULL;
+    state->db2Table->cols[i]->val      = (state->db2Table->cols[i]->used == 1) ? (char*) db2alloc ("state->db2Table->cols[i]->val", state->db2Table->cols[i]->val_size + 1) : NULL;
     db2Debug2("  state->db2Table->cols[%d]->val: %x",i,state->db2Table->cols[i]->val);
     state->db2Table->cols[i]->val_len  = 0;
     db2Debug2("  state->db2Table->cols[%d]->val_len: %d",i,state->db2Table->cols[i]->val_len);
@@ -186,7 +186,7 @@ DB2FdwState* deserializePlanData (List* list) {
   /* parameter table entries */
   state->paramList = NULL;
   for (i = 0; i < len; ++i) {
-    param            = (ParamDesc*) palloc (sizeof (ParamDesc));
+    param            = (ParamDesc*) db2alloc ("state->parmList->next", sizeof (ParamDesc));
     param->type      = DatumGetObjectId (((Const *) lfirst (cell))->constvalue);
     cell             = list_next (list,cell);
     param->bindType  = (db2BindType) DatumGetInt32 (((Const *) lfirst (cell))->constvalue);
@@ -209,7 +209,7 @@ DB2FdwState* deserializePlanData (List* list) {
 }
 
 /** deserializeString
- *   Extracts a string from a Const, returns a palloc'ed copy.
+ *   Extracts a string from a Const, returns a deep copy.
  */
 char* deserializeString (Const* constant) {
   char* result = NULL;

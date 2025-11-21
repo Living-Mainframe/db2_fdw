@@ -21,6 +21,8 @@ extern char*           guessNlsLang              (char* nls_lang);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
 extern short           c2dbType                  (short fcType);
+extern void            db2free                   (void* p);
+extern char*           db2strdup                 (const char* source);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
@@ -174,7 +176,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       }
       appendStringInfo (&buf, ")");
       db2Debug2 ("  pg fdw table ddl: '%s'",buf.data);
-      result = lappend (result, pstrdup (buf.data));
+      result = lappend (result, db2strdup (buf.data));
     }
 
     if (rc == 1 && (oldtabname[0] == '\0' || strcmp (tabname, oldtabname))) {
@@ -182,7 +184,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       resetStringInfo (&buf);
       foldedname = fold_case (tabname, foldcase);
       appendStringInfo (&buf, "CREATE FOREIGN TABLE \"%s\".\"%s\" (", stmt->local_schema, foldedname);
-      pfree (foldedname);
+      db2free (foldedname);
 
       firstcol = true;
       strncpy (oldtabname, tabname, sizeof(oldtabname));
@@ -198,7 +200,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       /* column name */
       foldedname = fold_case (colname, foldcase);
       appendStringInfo (&buf, "\"%s\" ", foldedname);
-      pfree (foldedname);
+      db2free (foldedname);
 
       // check charlen is not 0; set it to 1 in that case
       colSize = colSize == 0 ? 1 : colSize;
@@ -286,13 +288,13 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
 
 #ifdef IMPORT_API
 /** fold_case
- *   Returns a palloc'ed string that is the case-folded first argument.
+ *   Returns a dup'ed string that is the case-folded first argument.
  */
 char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
   db2Debug1("> fold_case");
   if (foldcase == CASE_KEEP) {
-    result = pstrdup (name);
+    result = db2strdup (name);
   } else {
     if (foldcase == CASE_LOWER) {
       result = str_tolower (name, strlen (name), DEFAULT_COLLATION_OID);
@@ -303,7 +305,7 @@ char* fold_case (char *name, fold_t foldcase) {
         if (strcmp (upstr, name) == 0)
           result = str_tolower (name, strlen (name), DEFAULT_COLLATION_OID);
         else
-          result = pstrdup (name);
+          result = db2strdup (name);
       }
     }
   }

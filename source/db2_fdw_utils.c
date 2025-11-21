@@ -29,6 +29,9 @@ extern short           c2dbType                  (short fcType);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
 extern void            db2Debug3                 (const char* message, ...);
+extern void*           db2alloc                  (const char* type, size_t size);
+extern void*           db2strdup                 (const char* source);
+extern void            db2free                   (void* p);
 
 /** local prototypes */
 void                appendAsType              (StringInfoData* dest, Oid type);
@@ -84,7 +87,7 @@ void appendAsType (StringInfoData* dest, Oid type) {
 
 /** deparseExpr
  *   Create and return an DB2 SQL string from "expr".
- *   Returns NULL if that is not possible, else a palloc'ed string.
+ *   Returns NULL if that is not possible, else an allocated string.
  *   As a side effect, all Params incorporated in the WHERE clause
  *   will be stored in "params".
  */
@@ -290,11 +293,11 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         if (!HeapTupleIsValid (tuple)) {
           elog (ERROR, "cache lookup failed for operator %u", oper->opno);
         }
-        opername = pstrdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
-        oprkind = ((Form_pg_operator) GETSTRUCT (tuple))->oprkind;
-        leftargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
+        opername     = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
+        oprkind      = ((Form_pg_operator) GETSTRUCT (tuple))->oprkind;
+        leftargtype  = ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
         rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
-        schema = ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
+        schema       = ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
         ReleaseSysCache (tuple);
         /* ignore operators in other than the pg_catalog schema */
         if (schema != PG_CATALOG_NAMESPACE)
@@ -322,7 +325,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         ||  strcmp (opername, "|/")   == 0 || strcmp (opername, "@")  == 0) {
           left = deparseExpr (session, foreignrel, linitial (oper->args), db2Table, params);
           if (left == NULL) {
-            pfree (opername);
+            db2free (opername);
             return NULL;
           }
     
@@ -330,8 +333,8 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
             /* binary operator */
             right = deparseExpr (session, foreignrel, lsecond (oper->args), db2Table, params);
             if (right == NULL) {
-              pfree (left);
-              pfree (opername);
+              db2free (left);
+              db2free (opername);
               return NULL;
             }
             initStringInfo (&result);
@@ -353,8 +356,8 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
               /* the other operators have the same name in DB2 */
               appendStringInfo (&result, "(%s %s %s)", left, opername, right);
             }
-            pfree (right);
-            pfree (left);
+            db2free (right);
+            db2free (left);
           } else {
             /* unary operator */
             initStringInfo (&result);
@@ -366,14 +369,14 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
               /* unary + or - */
               appendStringInfo (&result, "(%s%s)", opername, left);
             }
-            pfree (left);
+            db2free (left);
           }
         } else {
           /* cannot translate this operator */
-          pfree (opername);
+          db2free (opername);
           return NULL;
         }
-        pfree (opername);
+        db2free (opername);
       }
       break;
       case T_ScalarArrayOpExpr: {
@@ -384,9 +387,9 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         if (!HeapTupleIsValid (tuple)) {
           elog (ERROR, "cache lookup failed for operator %u", arrayoper->opno);
         }
-        opername    = pstrdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
-        leftargtype =          ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
-        schema      =          ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
+        opername    = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
+        leftargtype =           ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
+        schema      =           ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
         ReleaseSysCache (tuple);
     
         /* get the type's output function */
@@ -517,7 +520,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         }
         right = deparseExpr (session, foreignrel, lsecond (((DistinctExpr *) expr)->args), db2Table, params);
         if (right == NULL) {
-          pfree (left);
+          db2free (left);
           return NULL;
         }
 
@@ -543,7 +546,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         }
         right = deparseExpr (session, foreignrel, lsecond (((NullIfExpr *) expr)->args), db2Table, params);
         if (right == NULL) {
-          pfree (left);
+          db2free (left);
           return NULL;
         }
 
@@ -564,7 +567,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         do_each_cell(cell, boolexpr->args, list_next(boolexpr->args, list_head(boolexpr->args))) { 
           arg = deparseExpr (session, foreignrel, (Expr *) lfirst (cell), db2Table, params);
           if (arg == NULL) {
-            pfree (result.data);
+            db2free (result.data);
             return NULL;
           }
           appendStringInfo (&result, " %s %s", boolexpr->boolop == AND_EXPR ? "AND" : "OR", arg);
@@ -591,7 +594,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         if (caseexpr->arg != NULL) {
           arg = deparseExpr (session, foreignrel, caseexpr->arg, db2Table, params);
           if (arg == NULL) {
-            pfree (result.data);
+            db2free (result.data);
             return NULL;
           } else {
             appendStringInfo (&result, " %s", arg);
@@ -609,32 +612,32 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
             arg = deparseExpr (session, foreignrel, lsecond (((OpExpr *) whenclause->expr)->args), db2Table, params);
           }
           if (arg == NULL) {
-            pfree (result.data);
+            db2free (result.data);
             return NULL;
           } else {
             appendStringInfo (&result, " WHEN %s", arg);
-            pfree (arg);
+            db2free (arg);
           }
 
           /* THEN */
           arg = deparseExpr (session, foreignrel, whenclause->result, db2Table, params);
           if (arg == NULL) {
-            pfree (result.data);
+            db2free (result.data);
             return NULL;
           } else {
             appendStringInfo (&result, " THEN %s", arg);
-            pfree (arg);
+            db2free (arg);
           }
         }
         /* append ELSE clause if appropriate */
         if (caseexpr->defresult != NULL) {
           arg = deparseExpr (session, foreignrel, caseexpr->defresult, db2Table, params);
           if (arg == NULL) {
-            pfree (result.data);
+            db2free (result.data);
             return NULL;
           } else {
             appendStringInfo (&result, " ELSE %s", arg);
-            pfree (arg);
+            db2free (arg);
           }
         }
         /* append END */
@@ -654,7 +657,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         foreach (cell, coalesceexpr->args) {
           arg = deparseExpr (session, foreignrel, (Expr *) lfirst (cell), db2Table, params);
           if (arg == NULL) {
-            pfree (result.data);
+            db2free (result.data);
             return NULL;
           }
 
@@ -664,7 +667,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
           } else {
             appendStringInfo (&result, ", %s", arg);
           }
-          pfree (arg);
+          db2free(arg);
         }
 
         appendStringInfo (&result, ")");
@@ -694,7 +697,7 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         if (!HeapTupleIsValid (tuple)) {
           elog (ERROR, "cache lookup failed for function %u", func->funcid);
         }
-        opername = pstrdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data);
+        opername = db2strdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data);
         schema = ((Form_pg_proc) GETSTRUCT (tuple))->pronamespace;
         ReleaseSysCache (tuple);
     
@@ -738,8 +741,8 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
           foreach (cell, func->args) {
             arg = deparseExpr (session, foreignrel, lfirst (cell), db2Table, params);
             if (arg == NULL) {
-              pfree (result.data);
-              pfree (opername);
+              db2free (result.data);
+              db2free (opername);
               return NULL;
             }
             if (first_arg) {
@@ -748,14 +751,14 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
             } else {
               appendStringInfo (&result, ", %s", arg);
             }
-            pfree (arg);
+            db2free(arg);
           }
           appendStringInfo (&result, ")");
         } else if (strcmp (opername, "date_part") == 0) {
           /* special case: EXTRACT */
           left = deparseExpr (session, foreignrel, linitial (func->args), db2Table, params);
           if (left == NULL) {
-            pfree (opername);
+            db2free (opername);
             return NULL;
           }
           /* can only handle these fields in DB2 */
@@ -768,31 +771,31 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
     
             right = deparseExpr (session, foreignrel, lsecond (func->args), db2Table, params);
             if (right == NULL) {
-              pfree (opername);
-              pfree (left);
+              db2free (opername);
+              db2free (left);
               return NULL;
             }
     
             initStringInfo (&result);
             appendStringInfo (&result, "EXTRACT(%s FROM %s)", left + 1, right);
           } else {
-            pfree (opername);
-            pfree (left);
+            db2free (opername);
+            db2free (left);
             return NULL;
           }
     
-          pfree (left);
-          pfree (right);
+          db2free (left);
+          db2free (right);
         } else if (strcmp (opername, "now") == 0 || strcmp (opername, "transaction_timestamp") == 0) {
           /* special case: current timestamp */
           initStringInfo (&result);
           appendStringInfo (&result, "(CAST (?/*:now*/ AS TIMESTAMP))");
         } else {
           /* function that we cannot render for DB2 */
-          pfree (opername);
+          db2free (opername);
           return NULL;
         }
-        pfree (opername);
+        db2free (opername);
       }
       break;
       case T_CoerceViaIO: {
@@ -989,7 +992,7 @@ char* guessNlsLang (char *nls_lang) {
   db2Debug1("> %s::guessNlsLang(nls_lang: %s)", __FILE__, nls_lang);
   initStringInfo (&buf);
   if (nls_lang == NULL) {
-    server_encoding = pstrdup (GetConfigOption ("server_encoding", false, true));
+    server_encoding = db2strdup (GetConfigOption ("server_encoding", false, true));
     /* find an DB2 client character set that matches the database encoding */
     if (strcmp (server_encoding, "UTF8") == 0)
       charset = "AL32UTF8";
@@ -1059,7 +1062,7 @@ char* guessNlsLang (char *nls_lang) {
                       )
               );
     }
-    lc_messages = pstrdup (GetConfigOption ("lc_messages", false, true));
+    lc_messages = db2strdup (GetConfigOption ("lc_messages", false, true));
     /* try to guess those for which there is a backend translation */
     if (strncmp (lc_messages, "de_", 3) == 0 || pg_strncasecmp (lc_messages, "german", 6) == 0)
       language = "GERMAN_GERMANY";
@@ -1287,7 +1290,7 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
       case DB2_BLOB:
       case DB2_CLOB: {
         db2Debug3("  DB2_BLOB or DB2CLOB");
-        /* for LOBs, get the actual LOB contents (palloc'ed), truncated if desired */
+        /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
         /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
         db2GetLob (fdw_state->session, fdw_state->db2Table->cols[index], index+1, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
       }
@@ -1342,7 +1345,7 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
     /* fill the TupleSlot with the data (after conversion if necessary) */
     if (pgtype == BYTEAOID) {
       /* binary columns are not converted */
-      bytea* result = (bytea*) palloc (value_len + VARHDRSZ);
+      bytea* result = (bytea*) db2alloc ("bytea", value_len + VARHDRSZ);
       memcpy (VARDATA (result), value, value_len);
       SET_VARSIZE (result, value_len + VARHDRSZ);
 
@@ -1399,12 +1402,11 @@ void convertTuple (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trun
 //      error_context_stack = errcb.previous;
     }
 
-    /* free the data buffer for LOBs */
+    /* release the data buffer for LOBs */
     db2Type = c2dbType(fdw_state->db2Table->cols[index]->colType);
     if (db2Type == DB2_BLOB || db2Type == DB2_CLOB) {
-      db2Debug2("  value before pfree: %x",value);
       if (value != NULL) {
-        pfree (value);
+        db2free (value);
       } else {
         db2Debug2("  not freeing value, since it is null");
       }

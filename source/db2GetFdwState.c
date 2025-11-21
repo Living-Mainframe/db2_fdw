@@ -21,6 +21,8 @@ extern DB2Table*    db2Describe               (DB2Session* session, char* schema
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
+extern void*        db2alloc0                 (const char* type, size_t size);
+extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
 DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
@@ -37,7 +39,7 @@ bool         optionIsTrue  (const char* value);
  *   "sample_percent" can be NULL, in that case it is not set.
  */
 DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool describe) {
-  DB2FdwState* fdwState = palloc0 (sizeof (DB2FdwState));
+  DB2FdwState* fdwState = db2alloc0("fdw_state", sizeof (DB2FdwState));
   char *pgtablename = get_rel_name (foreigntableid);
   List *options;
   ListCell *cell;
@@ -152,7 +154,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
       db2Table->cols[index - 1]->pgattnum = att_tuple->attnum;
       db2Table->cols[index - 1]->pgtype   = att_tuple->atttypid;
       db2Table->cols[index - 1]->pgtypmod = att_tuple->atttypmod;
-      db2Table->cols[index - 1]->pgname   = pstrdup (NameStr (att_tuple->attname));
+      db2Table->cols[index - 1]->pgname   = db2strdup (NameStr(att_tuple->attname));
     }
 
     /* loop through column options */

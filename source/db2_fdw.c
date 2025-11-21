@@ -430,8 +430,8 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
     /* get the server version */
     db2ServerVersion (session, srv_version);
     appendStringInfo (&version, ", DB2 server %s", srv_version);
-    /* free the session (connection will be cached) */
-    /* pfree (session);*/
+    /* release the session (connection will be cached) */
+    /* db2free (session);*/
   }
   PG_RETURN_TEXT_P (cstring_to_text (version.data));
 }

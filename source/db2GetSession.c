@@ -8,7 +8,7 @@
 extern DB2EnvEntry*  rootenvEntry;          /* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void*         db2Alloc             (size_t size);
+extern void*         db2alloc             (const char* type, size_t size);
 extern void          db2Debug1            (const char* message, ...);
 extern void          db2Debug2            (const char* message, ...);
 extern DB2ConnEntry* db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
@@ -20,9 +20,9 @@ extern void          db2SetSavepoint      (DB2Session* session, int nest_level);
 DB2Session*          db2GetSession        (const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 
 /** db2GetSession
- *   Look up an DB2 connection in the cache, create a new one if there is none.
- *   The result is a palloc'ed data structure containing the connection.
- *   "curlevel" is the current PostgreSQL transaction level.
+ * Look up an DB2 connection in the cache, create a new one if there is none.
+ * The result is an allocated data structure containing the connection.
+ * "curlevel" is the current PostgreSQL transaction level.
  */
 DB2Session* db2GetSession (const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel) {
   DB2Session*   session = NULL;
@@ -54,8 +54,8 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
     connp->xact_level = 1;
   }
 
-  /* palloc a data structure pointing to the cached entries */
-  session        = db2Alloc (sizeof (DB2Session));
+  /* allocate a data structure pointing to the cached entries */
+  session        = db2alloc("session", sizeof (DB2Session));
   session->envp  = envp;
   session->connp = connp;
   session->stmtp = NULL;

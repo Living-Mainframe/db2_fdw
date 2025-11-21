@@ -17,6 +17,9 @@ extern void      db2Debug2            (const char* message, ...);
 extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
+extern void*     db2alloc             (const char* type, size_t size);
+extern char*     db2strdup            (const char* p);
+extern void      db2free              (void* p);
 
 /** local prototypes */
 DB2EnvEntry*     db2AllocEnvHdl       (const char* nls_lang);
@@ -34,7 +37,7 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
 
   db2Debug1("> db2AllocEnvHdl");
   /* create persistent copy of "nls_lang" */
-  if ((nlscopy = strdup (nls_lang)) == NULL)
+  if ((nlscopy = db2strdup (nls_lang)) == NULL)
     db2Error_d (FDW_OUT_OF_MEMORY, "error connecting to DB2:"," failed to allocate %d bytes of memory", strlen (nls_lang) + 1);
 
   /* set DB2 environment */
@@ -45,7 +48,7 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
   db2Debug3("  allocate env handle - rc: %d, henv: %d",rc, henv);
   rc = db2CheckErr(rc, henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS) {
-    free (nlscopy);
+    db2free (nlscopy);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllocHandle failed to create environment handle", db2Message);
   }
 
@@ -57,7 +60,7 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
   db2Debug3("  set env attributes odbcv3 - rc: %d, henv: %d",rc, henv);
   rc = db2CheckErr(rc, henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS) {
-    free (nlscopy);
+    db2free (nlscopy);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLSetEnvAttr failed to set ODBC v3.0", db2Message);
   }
 
@@ -95,44 +98,44 @@ DB2EnvEntry* db2AllocEnvHdl(const char* nls_lang){
 void setDB2Environment (char* nls_lang) {
   db2Debug2("  > setDB2Environment");
   if (putenv (nls_lang) != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_LANG cannot be set.");
   }
   /* other environment variables that control DB2 formats */
   if (putenv ("NLS_DATE_LANGUAGE=AMERICAN") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_DATE_LANGUAGE cannot be set.");
   }
   if (putenv ("NLS_DATE_FORMAT=YYYY-MM-DD HH24:MI:SS BC") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_DATE_FORMAT cannot be set.");
   }
   if (putenv ("NLS_TIMESTAMP_FORMAT=YYYY-MM-DD HH24:MI:SS.FF9 BC") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_TIMESTAMP_FORMAT cannot be set.");
   }
   if (putenv ("NLS_TIMESTAMP_TZ_FORMAT=YYYY-MM-DD HH24:MI:SS.FF9TZH:TZM BC") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_TIMESTAMP_TZ_FORMAT cannot be set.");
   }
   if (putenv ("NLS_TIME_FORMAT=HH24:MI:SS.FF9 BC") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_TIME_FORMAT cannot be set.");
   }
   if (putenv ("NLS_TIME_TZ_FORMAT= HH24:MI:SS.FF9TZH:TZM BC") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_TIME_TZ_FORMAT cannot be set.");
   }
   if (putenv ("NLS_NUMERIC_CHARACTERS=.,") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_NUMERIC_CHARACTERS cannot be set.");
   }
   if (putenv ("NLS_CALENDAR=") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_CALENDAR cannot be set.");
   }
   if (putenv ("NLS_NCHAR=") != 0) {
-    free (nls_lang);
+    db2free (nls_lang);
     db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2", "Environment variable NLS_NCHAR cannot be set.");
   }
   db2Debug2("  < setDB2Environment");
@@ -147,11 +150,11 @@ DB2EnvEntry* insertenvEntry(DB2EnvEntry* start, const char* nlslang, SQLHENV hen
   db2Debug2("  > insertenvEntry");
 
   /* allocate a  new DB2EnvEntry and initialize it*/
-  new = malloc(sizeof(DB2EnvEntry));
+  new = db2alloc("DB2EnvEntry", sizeof(DB2EnvEntry));
   if (new  == NULL) {
     db2Error_d (FDW_OUT_OF_MEMORY, "error connecting to DB2:"," failed to allocate %d bytes of memory", sizeof (DB2EnvEntry));
   }
-  new->nls_lang = strdup(nlslang);
+  new->nls_lang = db2strdup(nlslang);
   new->henv     = henv;
   new->connlist = NULL;
   new->left     = NULL;

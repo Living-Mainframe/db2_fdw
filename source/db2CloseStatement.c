@@ -19,9 +19,9 @@ void             db2CloseStatement    (DB2Session* session);
  */
 void db2CloseStatement (DB2Session* session) {
   db2Debug1("> db2CloseStatement");
-  /* free statement handle, if it exists */
+  /* release statement handle, if it exists */
   if (session->stmtp != NULL) {
-    /* free the statement handle */
+    /* release the statement handle */
     db2FreeStmtHdl(session->stmtp, session->connp);
     session->stmtp = NULL;
   } else {

@@ -18,7 +18,7 @@ extern void      db2CloseConnections  (void);
 void db2Shutdown(void);
 
 /** db2Shutdown
- *   Close all open connections, free handles, terminate DB2.
+ *   Close all open connections, release handles, terminate DB2.
  *   This will be called at the end of the PostgreSQL session.
  */
 void db2Shutdown (void) {

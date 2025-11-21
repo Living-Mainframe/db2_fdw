@@ -26,6 +26,8 @@ extern void         checkDataType             (short db2type, int scale, Oid pgt
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
+extern void         db2free                   (void* p);
+extern char*        db2strdup                 (const char* p);
 
 /** local prototypes */
 const char*  get_jointype_name     (JoinType jointype);
@@ -253,7 +255,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
     appendStringInfo (&query, " FOR UPDATE");
 
   /* get a copy of the where clause without single quoted string literals */
-  wherecopy = pstrdup (query.data);
+  wherecopy = db2strdup (query.data);
   for (p = wherecopy; *p != '\0'; ++p) {
     if (*p == '\'')
       in_quote = !in_quote;
@@ -272,7 +274,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
     }
   }
 
-  pfree (wherecopy);
+  db2free (wherecopy);
 
   /*
    * Calculate MD5 hash of the query string so far.
@@ -290,7 +292,7 @@ if (!pg_md5_hash (query.data, strlen (query.data), md5)) {
   /* add comment with MD5 hash to query */
   initStringInfo (&result);
   appendStringInfo (&result, "SELECT /*%s*/ %s", md5, query.data);
-  pfree (query.data);
+  db2free (query.data);
 
   db2Debug1("< createQuery returns: '%s'",result.data);
   return result.data;

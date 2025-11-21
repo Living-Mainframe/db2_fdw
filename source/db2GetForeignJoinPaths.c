@@ -16,6 +16,8 @@
 /** external prototypes */
 extern void         db2Debug1                 (const char* message, ...);
 extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern char*        db2strdup                 (const char* source);
+extern void*        db2alloc0                 (const char* type, size_t size);
 
 /** local prototypes */
 void db2GetForeignJoinPaths(PlannerInfo* root, RelOptInfo* joinrel, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinType jointype, JoinPathExtraData* extra);
@@ -61,7 +63,7 @@ void db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInf
    * time considering it again and don't add the same path a second time.
    * Once we know that this join can be pushed down, we fill the data structure.
    */
-  fdwState = (DB2FdwState *) palloc0 (sizeof (DB2FdwState));
+  fdwState = (DB2FdwState *) db2alloc0("joinrel->fdw_private", sizeof (DB2FdwState));
 
   joinrel->fdw_private = fdwState;
 
@@ -236,7 +238,7 @@ bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType jointyp
 
   /* copy outerrel's infomation to fdwstate */
   fdwState->dbserver = fdwState_o->dbserver;
-  fdwState->user = fdwState_o->user;
+  fdwState->user     = fdwState_o->user;
   fdwState->password = fdwState_o->password;
   fdwState->nls_lang = fdwState_o->nls_lang;
 
@@ -244,12 +246,12 @@ bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType jointyp
   db2Table_o = fdwState_o->db2Table;
   db2Table_i = fdwState_i->db2Table;
 
-  fdwState->db2Table = (struct db2Table *) palloc0 (sizeof (struct db2Table));
-  fdwState->db2Table->name = pstrdup ("");
-  fdwState->db2Table->pgname = pstrdup ("");
-  fdwState->db2Table->ncols = 0;
+  fdwState->db2Table          = (DB2Table*) db2alloc0("fdw_state->db2Table", sizeof (DB2Table));
+  fdwState->db2Table->name    = db2strdup ("");
+  fdwState->db2Table->pgname  = db2strdup ("");
+  fdwState->db2Table->ncols   = 0;
   fdwState->db2Table->npgcols = 0;
-  fdwState->db2Table->cols = (struct db2Column **) palloc0 (sizeof (struct db2Column *) * (db2Table_o->ncols + db2Table_i->ncols));
+  fdwState->db2Table->cols    = (DB2Column **) db2alloc0("fdw_state->db2Table->cols[]", (sizeof (DB2Column*) * (db2Table_o->ncols + db2Table_i->ncols)));
 
   /*
    * Search db2Column from children's db2Table.
@@ -293,7 +295,7 @@ bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType jointyp
       }
     }
 
-    newcol = (struct db2Column *) palloc0 (sizeof (struct db2Column));
+    newcol = (DB2Column*) db2alloc0("fdw_state->db2Table->cols[idx]", sizeof (DB2Column));
     if (col) {
       memcpy (newcol, col, sizeof (struct db2Column));
       used_flag = 1;

@@ -16,7 +16,8 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void*           db2Alloc                  (size_t size);
+extern char*           db2strdup                 (const char* source);
+extern void*           db2alloc                  (const char* type, size_t size);
 extern DB2FdwState*    db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
@@ -301,7 +302,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
       checkDataType (fdwState->db2Table->cols[i]->colType, fdwState->db2Table->cols[i]->colScale, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->pgname, fdwState->db2Table->cols[i]->pgname);
 
       /* create a new entry in the parameter list */
-      param = (ParamDesc *) palloc (sizeof (ParamDesc));
+      param = (ParamDesc *) db2alloc("fdwState->paramList->next", sizeof (ParamDesc));
       param->type         = fdwState->db2Table->cols[i]->pgtype;
       param->bindType     = BIND_OUTPUT;
       param->value        = NULL;
@@ -336,23 +337,23 @@ DB2FdwState* copyPlanData (DB2FdwState* orig) {
   DB2FdwState* copy = NULL;
 
   db2Debug1("> copyPlanData");
-  copy                    = db2Alloc(sizeof (DB2FdwState));
-  copy->dbserver          = pstrdup (orig->dbserver);
-  copy->user              = pstrdup (orig->user);
-  copy->password          = pstrdup (orig->password);
-  copy->nls_lang          = pstrdup (orig->nls_lang);
+  copy                    = db2alloc("copy_fdw_state", sizeof (DB2FdwState));
+  copy->dbserver          = db2strdup(orig->dbserver);
+  copy->user              = db2strdup(orig->user);
+  copy->password          = db2strdup(orig->password);
+  copy->nls_lang          = db2strdup(orig->nls_lang);
   copy->session           = NULL;
   copy->query             = NULL;
   copy->paramList         = NULL;
-  copy->db2Table          = (DB2Table*) db2Alloc(sizeof (DB2Table));
-  copy->db2Table->name    = pstrdup (orig->db2Table->name);
-  copy->db2Table->pgname  = pstrdup (orig->db2Table->pgname);
+  copy->db2Table          = (DB2Table*) db2alloc("copy_fdw_state->db2Table", sizeof (DB2Table));
+  copy->db2Table->name    = db2strdup(orig->db2Table->name);
+  copy->db2Table->pgname  = db2strdup(orig->db2Table->pgname);
   copy->db2Table->ncols   = orig->db2Table->ncols;
   copy->db2Table->npgcols = orig->db2Table->npgcols;
-  copy->db2Table->cols    = (DB2Column**) db2Alloc(sizeof (DB2Column*) * orig->db2Table->ncols);
+  copy->db2Table->cols    = (DB2Column**) db2alloc("copy_fdw_state->db2Table->cols",sizeof (DB2Column*) * orig->db2Table->ncols);
   for (i = 0; i < orig->db2Table->ncols; ++i) {
-    copy->db2Table->cols[i]                 = (DB2Column*) db2Alloc(sizeof (DB2Column));
-    copy->db2Table->cols[i]->colName        = pstrdup (orig->db2Table->cols[i]->colName);
+    copy->db2Table->cols[i]                 = (DB2Column*) db2alloc("copy_fdw_state->db2Table->cols[i]", sizeof (DB2Column));
+    copy->db2Table->cols[i]->colName        = db2strdup(orig->db2Table->cols[i]->colName);
     copy->db2Table->cols[i]->colType        = orig->db2Table->cols[i]->colType;
     copy->db2Table->cols[i]->colSize        = orig->db2Table->cols[i]->colSize;
     copy->db2Table->cols[i]->colScale       = orig->db2Table->cols[i]->colScale;
@@ -364,7 +365,7 @@ DB2FdwState* copyPlanData (DB2FdwState* orig) {
     if (orig->db2Table->cols[i]->pgname == NULL)
       copy->db2Table->cols[i]->pgname       = NULL;
     else
-      copy->db2Table->cols[i]->pgname       = pstrdup (orig->db2Table->cols[i]->pgname);
+      copy->db2Table->cols[i]->pgname       = db2strdup(orig->db2Table->cols[i]->pgname);
     copy->db2Table->cols[i]->pgattnum       = orig->db2Table->cols[i]->pgattnum;
     copy->db2Table->cols[i]->pgtype         = orig->db2Table->cols[i]->pgtype;
     copy->db2Table->cols[i]->pgtypmod       = orig->db2Table->cols[i]->pgtypmod;
@@ -387,13 +388,13 @@ DB2FdwState* copyPlanData (DB2FdwState* orig) {
 
 /** addParam
  *   Creates a new ParamDesc with the given values and adds it to the list.
- *   A palloc'ed copy of "name" is used.
+ *   A deep copy of the parameter is created.
  */
 void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int txts) {
   ParamDesc *param;
 
   db2Debug1(">  addParam");
-  param       = palloc (sizeof (ParamDesc));
+  param       = db2alloc("paramList->next",sizeof (ParamDesc));
   param->type = pgtype;
   switch (c2dbType(colType)) {
     case DB2_INTEGER:

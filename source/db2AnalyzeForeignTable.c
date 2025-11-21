@@ -26,6 +26,7 @@ extern void         convertTuple              (DB2FdwState* fdw_state, Datum* va
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
+extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 bool db2AnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
@@ -54,8 +55,8 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
   bool first_column = true;
   StringInfoData query;
   TupleDesc tupDesc = RelationGetDescr (relation);
-  Datum *values = (Datum *) palloc (tupDesc->natts * sizeof (Datum));
-  bool *nulls = (bool *) palloc (tupDesc->natts * sizeof (bool));
+  Datum* values = (Datum*) db2alloc("values", tupDesc->natts* sizeof (Datum));
+  bool*  nulls  = (bool*)  db2alloc("null"  , tupDesc->natts* sizeof (bool));
   double rstate, rowstoskip = -1, sample_percent;
   MemoryContext old_cxt, tmp_cxt;
 
@@ -93,7 +94,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
 
       /* allocate memory for return value */
       db2Debug2("  fdw_state->db2Table->cols[%d]->val_size: %x",i,fdw_state->db2Table->cols[i]->val_size);
-      fdw_state->db2Table->cols[i]->val = (char *) palloc (fdw_state->db2Table->cols[i]->val_size + 1);
+      fdw_state->db2Table->cols[i]->val = (char *) db2alloc ("fdw_state->db2Table->cols[i]->val", fdw_state->db2Table->cols[i]->val_size + 1);
       db2Debug2("  fdw_state->db2Table->cols[%d]->val: %x",i,fdw_state->db2Table->cols[i]->val);
       fdw_state->db2Table->cols[i]->val_len  = 0;
       db2Debug2("  fdw_state->db2Table->cols[%d]->val_len: %x",i,fdw_state->db2Table->cols[i]->val);
