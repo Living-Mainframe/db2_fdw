@@ -12,7 +12,7 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern DB2FdwState* db2GetFdwState               (Oid foreigntableid, double* sample_percent);
+extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void         db2Debug1                 (const char* message, ...);
 extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
 
@@ -32,7 +32,7 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
 
   db2Debug1("> db2GetForeignRelSize");
   /* get connection options, connect and get the remote table description */
-  fdwState = db2GetFdwState(foreigntableid, NULL);
+  fdwState = db2GetFdwState(foreigntableid, NULL, true);
   /** Store the table OID in each table column.
    * This is redundant for base relations, but join relations will
    * have columns from different tables, and we have to keep track of them.

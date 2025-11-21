@@ -16,7 +16,7 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern DB2FdwState* db2GetFdwState             (Oid foreigntableid, double* sample_percent);
+extern DB2FdwState* db2GetFdwState             (Oid foreigntableid, double* sample_percent, bool describe);
 #ifdef WRITE_API
 extern void         addParam                   (ParamDesc** paramList, Oid pgtype, short colType, int colnum, int txts);
 #endif
@@ -48,7 +48,7 @@ DB2FdwState* db2BuildInsertFdwState(Relation rel) {
     db2Debug1("> db2BuildInsertFdwState");
 
     /* Same logic as CMD_INSERT branch of db2PlanForeignModify: */
-    fdwState = db2GetFdwState(RelationGetRelid(rel), NULL);
+    fdwState = db2GetFdwState(RelationGetRelid(rel), NULL, true);
     initStringInfo(&sql);
 
     appendStringInfo(&sql, "INSERT INTO %s (", fdwState->db2Table->name);

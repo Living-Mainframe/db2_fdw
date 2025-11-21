@@ -17,7 +17,7 @@
 
 /** external prototypes */
 extern void*           db2Alloc                  (size_t size);
-extern DB2FdwState*    db2GetFdwState            (Oid foreigntableid, double* sample_percent);
+extern DB2FdwState*    db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
 extern void            db2Debug3                 (const char* message, ...);
@@ -93,7 +93,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
      * To match what ExecCheckRTEPerms does, pass the user whose user mapping
      * should be used (if invalid, the current user is used).
      */
-    fdwState = db2GetFdwState(rte->relid, NULL);
+    fdwState = db2GetFdwState(rte->relid, NULL, true);
   }
   initStringInfo(&sql);
 
