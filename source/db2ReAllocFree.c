@@ -62,6 +62,6 @@ char* db2strdup(const char* source) {
   if (source != NULL && source[0] != '\0') {
     target = pstrdup(source);
   }
-  db2Debug1("  dup'ed string : %x",target);
+  db2Debug1("  ++ %x: dup'ed string from %x content '%s'",target, source, source);
   return target;
 }

@@ -16,6 +16,7 @@
 extern void            db2CloseStatement         (DB2Session* session);
 extern void            db2free                   (void* p);
 extern void            db2Debug1                 (const char* message, ...);
+extern void            db2CleanupFdwState        (DB2FdwState* fdw_state);
 
 /** local prototypes */
 void db2EndForeignScan(ForeignScanState* node);
@@ -29,7 +30,11 @@ void db2EndForeignScan (ForeignScanState* node) {
   db2Debug1("> db2EndForeignScan");
   /* release the DB2 session */
   db2CloseStatement(fdw_state->session);
+  // check fdw_state->session for dangling references that need to be freed
   db2free(fdw_state->session);
   fdw_state->session = NULL;
+  // check fdw_state for dangling references that need to be freed
+  db2CleanupFdwState(fdw_state);
+  db2free(fdw_state);
   db2Debug1("< db2EndForeignScan");
 }

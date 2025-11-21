@@ -61,7 +61,8 @@ OBJS         = source/db2_fdw.o\
                source/db2Shutdown.o\
                source/db2CopyText.o\
                source/db2IsStatementOpen.o\
-               source/db2_utils.o
+               source/db2_utils.o\
+               source/db2CleanupFdwState.o
 RELEASE      = 18.1.0
 
 DATA         = $(wildcard sql/*--*.sql)
