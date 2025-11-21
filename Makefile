@@ -19,6 +19,7 @@ OBJS         = source/db2_fdw.o\
                source/db2ExecForeignInsert.o\
                source/db2ExecForeignUpdate.o\
                source/db2ExecForeignDelete.o\
+               source/db2ExecForeignTruncate.o\
                source/db2EndForeignModifyCommon.o\
                source/db2EndForeignModify.o\
                source/db2EndForeignInsert.o\
@@ -47,6 +48,7 @@ OBJS         = source/db2_fdw.o\
                source/db2PrepareQuery.o\
                source/db2ExecuteQuery.o\
                source/db2ExecuteInsert.o\
+               source/db2ExecuteTruncate.o\
                source/db2FetchNext.o\
                source/db2GetLob.o\
                source/db2SetSavepoint.o\
