@@ -27,8 +27,8 @@ extern void            db2Debug1                 (const char* message, ...);
 void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan);
 
 void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan) {
-  EState    *estate = mtstate->ps.state;
-  ParamDesc *param  = NULL;
+  EState*    estate = mtstate->ps.state;
+  ParamDesc* param  = NULL;
   HeapTuple  tuple;
   int        i;
 

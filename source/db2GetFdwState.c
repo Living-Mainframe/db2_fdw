@@ -23,7 +23,7 @@ extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
 
 /** local prototypes */
-DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent);
+DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
 void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
 #ifndef OLD_FDW_API
 bool         optionIsTrue  (const char* value);
@@ -36,7 +36,7 @@ bool         optionIsTrue  (const char* value);
  *   "sample_percent" is set from the foreign table options.
  *   "sample_percent" can be NULL, in that case it is not set.
  */
-DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
+DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool describe) {
   DB2FdwState* fdwState = palloc0 (sizeof (DB2FdwState));
   char *pgtablename = get_rel_name (foreigntableid);
   List *options;
@@ -103,14 +103,16 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
   /* guess a good NLS_LANG environment setting */
   fdwState->nls_lang = guessNlsLang (fdwState->nls_lang);
 
-  /* connect to DB2 database */
-  fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->jwt_token, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
+    /* connect to DB2 database */
+    fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->jwt_token, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
 
-  /* get remote table description */
-  fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr);
+  if (describe) {
+    /* get remote table description */
+    fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr);
 
-  /* add PostgreSQL data to table description */
-  getColumnData (fdwState->db2Table, foreigntableid);
+    /* add PostgreSQL data to table description */
+    getColumnData (fdwState->db2Table, foreigntableid);
+  }
 
   db2Debug1("< db2GetFdwState");
   return fdwState;
@@ -134,7 +136,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   db2Table->npgcols = tupdesc->natts;
 
   /* loop through foreign table columns */
-  index = 0;
+  index = 0;  
   for (i = 0; i < tupdesc->natts; ++i) {
     Form_pg_attribute att_tuple = TupleDescAttr (tupdesc, i);
     List*             options;

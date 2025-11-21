@@ -15,7 +15,7 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent);
+extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern int          db2IsStatementOpen        (DB2Session* session);
 extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
@@ -71,7 +71,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
   rstate = anl_init_selection_state (targrows);
 
   /* get connection options, connect and get the remote table description */
-  fdw_state = db2GetFdwState (RelationGetRelid (relation), &sample_percent);
+  fdw_state = db2GetFdwState (RelationGetRelid (relation), &sample_percent, true);
   fdw_state->paramList = NULL;
   fdw_state->rowcount = 0;
 
