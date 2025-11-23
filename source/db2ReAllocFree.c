@@ -12,30 +12,20 @@
 #include "db2_fdw.h"
 
 /*+ external prototypes */
-extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug5                 (const char* message, ...);
 
 /** local prototypes */
-void* db2alloc0 (const char* type, size_t size);
-void* db2alloc  (const char* type, size_t size);
-void* db2realloc(void* p, size_t size);
-void  db2free   (void* p);
-char* db2strdup (const char* source);
-
-/** db2alloc0
- *   Expose palloc0() to DB2 functions.
- */
-void* db2alloc0 (const char* type, size_t size) {
-  void* memory = palloc0(size);
-  db2Debug1("  ++ %x: %d bytes - %s", memory, size, type);
-  return memory;
-}
+void* db2alloc         (const char* type, size_t size);
+void* db2realloc       (void* p, size_t size);
+void  db2free          (void* p);
+char* db2strdup        (const char* source);
 
 /** db2alloc
  *   Expose palloc() to DB2 functions.
  */
 void* db2alloc (const char* type, size_t size) {
-  void* memory = palloc(size);
-  db2Debug1("  ++ %x: %d bytes - %s", memory, size, type);
+  void* memory = palloc0(size);
+  db2Debug5("  ++ %x: %d bytes - %s", memory, size, type);
   return memory;
 }
 
@@ -44,7 +34,7 @@ void* db2alloc (const char* type, size_t size) {
  */
 void* db2realloc (void* p, size_t size) {
   void* memory = repalloc(p, size);
-  db2Debug1("  ++ %x: %d bytes", memory, size);
+  db2Debug5("  ++ %x: %d bytes", memory, size);
   return memory;
 }
 /** db2free
@@ -52,7 +42,7 @@ void* db2realloc (void* p, size_t size) {
  */
 void db2free (void* p) {
   if (p != NULL) {
-    db2Debug1("  -- %x", p);
+    db2Debug5("  -- %x", p);
     pfree (p);
   }
 }
@@ -62,6 +52,6 @@ char* db2strdup(const char* source) {
   if (source != NULL && source[0] != '\0') {
     target = pstrdup(source);
   }
-  db2Debug1("  ++ %x: dup'ed string from %x content '%s'",target, source, source);
+  db2Debug5("  ++ %x: dup'ed string from %x content '%s'",target, source, source);
   return target;
 }
