@@ -20,7 +20,6 @@ extern void         db2CloseStatement    (DB2Session* session);
 extern void         db2free              (void* p);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
-extern void         db2CleanupFdwState   (DB2FdwState* fdw_state);
 
 /** local prototypes */
 void                db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo);
@@ -59,8 +58,6 @@ void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
   }
  
   rinfo->ri_FdwState = NULL;
-  // TODO: cleanup fdw_state; free all allocated structures beneath it and then itself
-  db2CleanupFdwState(fdw_state);
   db2free(fdw_state);
   db2Debug1("< db2EndForeignModifyCommon");
 }
