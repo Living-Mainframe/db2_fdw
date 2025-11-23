@@ -15,6 +15,7 @@ extern void      db2Error_d           (db2error sqlstate, const char* message, c
 extern void      db2RegisterCallback  (void* arg);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
+extern char*     db2strdup            (const char* p);
 
 /** local prototypes */
 DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
@@ -146,20 +147,20 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   DB2ConnEntry* new  = NULL;
 
   db2Debug2("  > insertconnEntry");
+  new = malloc(sizeof(DB2ConnEntry));
   if (start == NULL){ /* first entry in list */
-    new = malloc(sizeof(DB2ConnEntry));
     new->right = new->left = NULL;
   } else {
     for (step = start; step->right != NULL; step = step->right){ }
-    new = malloc(sizeof(DB2ConnEntry));
     step->right = new;
     new->left = step;
     new->right = NULL;
   }
-  new->srvname    = strdup(srvname);
-  new->uid        = strdup(uid);
-  new->pwd        = strdup(pwd);
-  new->jwt_token  = (jwt_token && jwt_token[0] != '\0') ? strdup(jwt_token) : NULL;
+  // generate a deep copy
+  new->srvname    = (srvname   && srvname[0]   != '\0') ? db2strdup(srvname)   : NULL;
+  new->uid        = (uid       && uid[0]       != '\0') ? db2strdup(uid)       : NULL;
+  new->pwd        = (pwd       && pwd[0]       != '\0') ? db2strdup(pwd)       : NULL;
+  new->jwt_token  = (jwt_token && jwt_token[0] != '\0') ? db2strdup(jwt_token) : NULL;
   new->handlelist = NULL;
   new->hdbc       = hdbc;
   new->xact_level = 0;

@@ -51,7 +51,7 @@ void db2EndTransaction (void* arg, int is_commit, int noerror) {
     /* print this trace hint, since the code will abend due to connp = NULL*/
     db2Error (FDW_ERROR, "db2EndTransaction internal error: handle not found in cache");
 
-  /* free all handles of this connection, if any*/
+  /* release all handles of this connection, if any*/
   while (connp->handlelist != NULL)
     db2FreeStmtHdl(connp->handlelist, connp);
 

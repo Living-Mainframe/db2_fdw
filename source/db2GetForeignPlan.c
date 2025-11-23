@@ -26,6 +26,8 @@ extern void         checkDataType             (short db2type, int scale, Oid pgt
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
+extern void         db2free                   (void* p);
+extern char*        db2strdup                 (const char* p);
 
 /** local prototypes */
 const char*  get_jointype_name     (JoinType jointype);
@@ -139,7 +141,7 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
   }
   /* create remote query */
   fdwState->query = createQuery (fdwState, foreignrel, for_update, best_path->path.pathkeys);
-  elog (DEBUG1, "db2_fdw: remote query is: %s", fdwState->query);
+  db2Debug2("  db2_fdw: remote query is: %s", fdwState->query);
   /* get PostgreSQL column data types, check that they match DB2's */
   for (i = 0; i < fdwState->db2Table->ncols; ++i) {
     if (fdwState->db2Table->cols[i]->used) {
@@ -161,6 +163,7 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
    */
 
   result = make_foreignscan (tlist, local_exprs, scan_relid, fdwState->params, fdw_private, fdw_scan_tlist, NIL, outer_plan);
+  db2free(fdwState);
   db2Debug1("< db2GetForeignPlan");
   return result;
 }
@@ -253,7 +256,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
     appendStringInfo (&query, " FOR UPDATE");
 
   /* get a copy of the where clause without single quoted string literals */
-  wherecopy = pstrdup (query.data);
+  wherecopy = db2strdup (query.data);
   for (p = wherecopy; *p != '\0'; ++p) {
     if (*p == '\'')
       in_quote = !in_quote;
@@ -272,7 +275,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
     }
   }
 
-  pfree (wherecopy);
+  db2free (wherecopy);
 
   /*
    * Calculate MD5 hash of the query string so far.
@@ -290,7 +293,7 @@ if (!pg_md5_hash (query.data, strlen (query.data), md5)) {
   /* add comment with MD5 hash to query */
   initStringInfo (&result);
   appendStringInfo (&result, "SELECT /*%s*/ %s", md5, query.data);
-  pfree (query.data);
+  db2free (query.data);
 
   db2Debug1("< createQuery returns: '%s'",result.data);
   return result.data;

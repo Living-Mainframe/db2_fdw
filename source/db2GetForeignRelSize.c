@@ -15,6 +15,7 @@
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void         db2Debug1                 (const char* message, ...);
 extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern void         db2free                   (void* p);
 
 /** local prototypes */
 void  db2GetForeignRelSize  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
@@ -52,7 +53,7 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
                                                   );
 
   /* release DB2 session (will be cached) */
-  pfree (fdwState->session);
+  db2free (fdwState->session);
   fdwState->session = NULL;
   /* use a random "high" value for cost */
   fdwState->startup_cost = 10000.0;
@@ -98,7 +99,7 @@ char* deparseWhereConditions (DB2FdwState *fdwState, RelOptInfo * baserel, List 
       /* append new WHERE clause to query string */
       appendStringInfo (&where_clause, " %s %s", keyword, where);
       keyword = "AND";
-      pfree (where);
+      db2free (where);
     } else {
       *local_conds = lappend (*local_conds, ((RestrictInfo *) lfirst (cell))->clause);
     }

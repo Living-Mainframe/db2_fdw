@@ -16,7 +16,7 @@ void             db2FreeStmtHdl       (HdlEntry* handlep, DB2ConnEntry* connp);
 HdlEntry*        findhdlEntry         (HdlEntry* start, SQLHANDLE hsql);
 
 /** db2FreeStmtHdl
- *   Free an DB2 statement handle, remove it from the cached list.
+ *  release a DB2 statement handle, remove it from the cached list.
  */
 void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
   HdlEntry* entryp      = handlep;
@@ -32,7 +32,7 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
   /* remember prev_entryp might be actually the root element at conp->handlelist*/
   db2Debug3("  prev_entryp: %x ->hsql : %d ->type : %d->next : %x", prev_entryp, prev_entryp->hsql, prev_entryp->type, prev_entryp->next);
 
-  /* free the handle */
+  /* release the handle */
   rc = SQLFreeHandle(handlep->type, handlep->hsql);
   rc = db2CheckErr(rc, handlep->hsql, handlep->type, __LINE__, __FILE__ );
 
@@ -44,11 +44,10 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
     db2Debug3("  connp->handlelist: '%x'", connp->handlelist);
   } else {
     /* we closed one element of connp->handlelist */
-    /* here we need to set handlep->next to prev_entryp->next isolating entryp for subsequent free*/
+    /* here we need to set handlep->next to prev_entryp->next isolating entryp for subsequent release*/
     prev_entryp->next = handlep->next;
     db2Debug3("  prev_entryp->next: '%x'", prev_entryp->next);
   }
-  db2Debug3("  free(entryp): '%x'", entryp);
   free (entryp);
   db2Debug1("< db2FreeStmtHdl");
 }

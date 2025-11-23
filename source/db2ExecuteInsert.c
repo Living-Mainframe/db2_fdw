@@ -11,8 +11,8 @@ extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 extern int          err_code;              /* error code, set by db2CheckErr()                              */
 
 /** external prototypes */
-extern void*        db2Alloc             (size_t size);
-extern void         db2Free              (void* p);
+extern void*        db2alloc             (const char* type, size_t size);
+extern void         db2free              (void* p);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
 extern void         db2Debug3            (const char* message, ...);
@@ -46,7 +46,7 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
   }
   db2Debug2("  paramcount: %d",param_count);
   /* allocate a temporary array of indicators */
-  indicators = db2Alloc (param_count * sizeof (SQLLEN));
+  indicators = db2alloc ("indicators", param_count * sizeof (SQLLEN));
 
   /* bind the parameters */
   param_count = 0;
@@ -220,8 +220,8 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
     /* use the correct SQLSTATE for serialization failures */
     db2Error_d(err_code == 8177 ? FDW_SERIALIZATION_FAILURE : FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLExecute failed to execute remote query", db2Message);
   }
-  /* free indicators */
-  db2Free (indicators);
+  /* db2free all indicators */
+  db2free (indicators);
   if (rc == SQL_NO_DATA) {
     db2Debug3("  SQL_NO_DATA");
     db2Debug1("< db2ExecuteInsert - returns: 0");

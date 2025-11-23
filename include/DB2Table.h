@@ -1,5 +1,6 @@
 #ifndef DB2TABLE_H
 #define DB2TABLE_H
+
 /** DB2Table
  *  A full table descriptor of a DB2 table and its columns.
  * 

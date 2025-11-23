@@ -18,6 +18,7 @@ extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
+extern void      db2free              (void* p);
 
 /** local prototypes */
 void             db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
@@ -42,12 +43,12 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
       db2Error (FDW_ERROR, "removeEnvironment internal error: environment handle not found in cache");
     }
   } else {
-    /* free environment handle */
+    /* release environment handle */
     rc = SQLFreeHandle(SQL_HANDLE_ENV, envp->henv);
-    db2Debug3("  free env handle - rc: %d, henv: %d", rc, envp->henv);
+    db2Debug3("  release env handle - rc: %d, henv: %d", rc, envp->henv);
     rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV,__LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
-      db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot free environment handle","%s", db2Message);
+      db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot release environment handle","%s", db2Message);
     }
     if (nls_lang != NULL){
       deleteenvEntryLang(rootenvEntry, nls_lang);
@@ -68,7 +69,7 @@ int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
   db2Debug2("  > deleteenvEntry");
   for (step = start; step != NULL; step = step->right){
     if (step == node) {
-      free (step->nls_lang);
+      db2free (step->nls_lang);
       step->nls_lang = NULL;
       if (step->left == NULL && step->right == NULL){
         rootenvEntry = NULL;
@@ -105,7 +106,7 @@ int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
   db2Debug2("  > deleteenvEntryLang");
   for (step = start; step != NULL; step = step->right){
     if (strcmp (step->nls_lang, nlslang) == 0) {
-      free (step->nls_lang);
+      db2free (step->nls_lang);
       if (step->left == NULL && step->right == NULL){
         rootenvEntry = NULL;
         free (step);

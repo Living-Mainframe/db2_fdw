@@ -12,10 +12,12 @@
 #endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
+/** external variables */
+extern regproc* output_funcs;
 
 /** external prototypes */
 extern void         db2CloseStatement    (DB2Session* session);
-extern void         db2Free              (void* p);
+extern void         db2free              (void* p);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
 
@@ -42,7 +44,7 @@ void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
   /* Finish statement / cursor, if you keep a handle there */
   if (fdw_state->session) {
     db2CloseStatement (fdw_state->session);
-    db2Free(fdw_state->session);
+    db2free(fdw_state->session);
     fdw_state->session = NULL;
   }
 
@@ -51,6 +53,11 @@ void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
     fdw_state->temp_cxt = NULL;
   }
 
+  if (output_funcs){
+    db2free(output_funcs);
+  }
+ 
   rinfo->ri_FdwState = NULL;
+  db2free(fdw_state);
   db2Debug1("< db2EndForeignModifyCommon");
 }

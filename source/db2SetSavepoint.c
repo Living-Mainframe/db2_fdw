@@ -51,7 +51,7 @@ void db2SetSavepoint (DB2Session* session, int nest_level) {
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error setting savepoint: SQLExecute failed to set savepoint", db2Message);
     }
 
-    /* free statement handle */
+    /* release statement handle */
     db2FreeStmtHdl(hstmt, session->connp);
     ++session->connp->xact_level;
   }
