@@ -23,15 +23,15 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void            db2GetLob                 (DB2Session* session, DB2Column* column, int cidx, char** value, long* value_len, unsigned long trunc);
-extern void            db2Shutdown               (void);
-extern short           c2dbType                  (short fcType);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern void            db2Debug3                 (const char* message, ...);
-extern void*           db2alloc                  (const char* type, size_t size);
-extern void*           db2strdup                 (const char* source);
-extern void            db2free                   (void* p);
+extern void         db2GetLob                 (DB2Session* session, DB2Column* column, int cidx, char** value, long* value_len, unsigned long trunc);
+extern void         db2Shutdown               (void);
+extern short        c2dbType                  (short fcType);
+extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug3                 (const char* message, ...);
+extern void*        db2alloc                  (const char* type, size_t size);
+extern void*        db2strdup                 (const char* source);
+extern void         db2free                   (void* p);
 
 /** local prototypes */
 void                appendAsType              (StringInfoData* dest, Oid type);
@@ -1090,6 +1090,8 @@ char* guessNlsLang (char *nls_lang) {
   } else {
     appendStringInfo (&buf, "NLS_LANG=%s", nls_lang);
   }
+  db2free(server_encoding);
+  db2free(lc_messages);
   db2Debug1("< %s::guessNlsLang - returns: '%s'", __FILE__, buf.data);
   return buf.data;
 }
