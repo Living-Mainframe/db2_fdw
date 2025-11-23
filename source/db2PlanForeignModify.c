@@ -21,7 +21,8 @@ extern void*        db2alloc                  (const char* type, size_t size);
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
-extern void         db2Debug3                 (const char* message, ...);
+extern void         db2Debug4                 (const char* message, ...);
+extern void         db2Debug5                 (const char* message, ...);
 extern short        c2dbType                  (short fcType);
 extern void         appendAsType              (StringInfoData* dest, Oid type);
 
@@ -432,23 +433,23 @@ void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int
  */
 void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename, const char *colname) {
   short db2type = c2dbType(sqltype);
-  db2Debug1("> checkDataType");
-  db2Debug2("  checkDataType: %s.$s of sqltype: %d, db2type: %d, pgtype: %d",tablename,colname,sqltype, db2type, pgtype);
+  db2Debug4("> checkDataType");
+  db2Debug4("  checkDataType: %s.%s of sqltype: %d, db2type: %d, pgtype: %d",tablename,colname,sqltype, db2type, pgtype);
   /* the binary DB2 types can be converted to bytea */
   if (db2type == DB2_BLOB && pgtype == BYTEAOID) {
-    db2Debug3("  DB2_BLOB can be converted into BYTEAOID");
+    db2Debug5("  DB2_BLOB can be converted into BYTEAOID");
   } else if (db2type == DB2_XML && pgtype == XMLOID) {
-    db2Debug3("  DB2_XML can be converted into XMLOID");
+    db2Debug5("  DB2_XML can be converted into XMLOID");
   } else if (db2type != DB2_UNKNOWN_TYPE && db2type != DB2_BLOB && (pgtype == TEXTOID || pgtype == VARCHAROID || pgtype == BPCHAROID)) {
-    db2Debug3("  DB2_UNKNONW && not DB2_BLOB can be converted into TEXTOID, VARCHAROID, BPCHAROID");
+    db2Debug5("  DB2_UNKNONW && not DB2_BLOB can be converted into TEXTOID, VARCHAROID, BPCHAROID");
   } else if ((db2type == DB2_INTEGER || db2type == DB2_SMALLINT || db2type == DB2_BIGINT || db2type == DB2_FLOAT || db2type == DB2_DOUBLE || db2type == DB2_REAL || db2type == DB2_DECIMAL || db2type == DB2_DECFLOAT) && (pgtype == NUMERICOID || pgtype == FLOAT4OID || pgtype == FLOAT8OID)) {
-    db2Debug3("  DB2_INTEGER,SMALLINT,BIGINT,FLOAT,DOUBLE,REAL,DECIMAL,DECFLOAT can be converted into NUMERICOID,FLOAT4OID,FLOAT8OID");
+    db2Debug5("  DB2_INTEGER,SMALLINT,BIGINT,FLOAT,DOUBLE,REAL,DECIMAL,DECFLOAT can be converted into NUMERICOID,FLOAT4OID,FLOAT8OID");
   } else if ((db2type == DB2_INTEGER || db2type == DB2_SMALLINT || db2type == DB2_BIGINT || db2type == DB2_BOOLEAN) && scale <= 0 && (pgtype == INT2OID || pgtype == INT4OID || pgtype == INT8OID || pgtype == BOOLOID)) {
-    db2Debug3("  DB2_INTEGER,SMALLINT,BIGINT,BOOLEAN can be converted into INT2OID, INT42OID, INT8OID,BOOLOID");
+    db2Debug5("  DB2_INTEGER,SMALLINT,BIGINT,BOOLEAN can be converted into INT2OID, INT42OID, INT8OID,BOOLOID");
   } else if ((db2type == DB2_TYPE_DATE || db2type == DB2_TYPE_TIME || db2type == DB2_TYPE_TIMESTAMP || db2type == DB2_TYPE_TIMESTAMP_WITH_TIMEZONE) && (pgtype == DATEOID || pgtype == TIMESTAMPOID || pgtype == TIMESTAMPTZOID || pgtype == TIMEOID || pgtype == TIMETZOID)) {
-    db2Debug3("  DB2_TYPE_DATE,TIME,TIMESTAMP,TIMESTAMP_WITH_TIMEZONE can be converted into DATEOID,TIMESTAMPOID,TIMESTAMPTZOID,TIMEOID,TIMETZOID");
+    db2Debug5("  DB2_TYPE_DATE,TIME,TIMESTAMP,TIMESTAMP_WITH_TIMEZONE can be converted into DATEOID,TIMESTAMPOID,TIMESTAMPTZOID,TIMEOID,TIMETZOID");
   } else if ((db2type == DB2_VARCHAR || db2type == DB2_CLOB) && pgtype == JSONOID) {
-    db2Debug3("  DB2_VARCHAR or DB2_CLOB can be converted into JSONOID");
+    db2Debug5("  DB2_VARCHAR or DB2_CLOB can be converted into JSONOID");
   } else {
     /* nok - report an error */
     ereport ( ERROR
@@ -461,7 +462,7 @@ void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename,
               )
             );
   }
-  db2Debug1("< checkDataType");
+  db2Debug4("< checkDataType");
 }
 
 /** serializePlanData

@@ -162,7 +162,8 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
    * because then they wouldn't be subject to later planner processing.
    */
 
-   result = make_foreignscan (tlist, local_exprs, scan_relid, fdwState->params, fdw_private, fdw_scan_tlist, NIL, outer_plan);
+  result = make_foreignscan (tlist, local_exprs, scan_relid, fdwState->params, fdw_private, fdw_scan_tlist, NIL, outer_plan);
+  db2free(fdwState);
   db2Debug1("< db2GetForeignPlan");
   return result;
 }
