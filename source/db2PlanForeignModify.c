@@ -16,14 +16,14 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern char*           db2strdup                 (const char* source);
-extern void*           db2alloc                  (const char* type, size_t size);
-extern DB2FdwState*    db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern void            db2Debug3                 (const char* message, ...);
-extern short           c2dbType                  (short fcType);
-extern void            appendAsType              (StringInfoData* dest, Oid type);
+extern char*        db2strdup                 (const char* source);
+extern void*        db2alloc                  (const char* type, size_t size);
+extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
+extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug3                 (const char* message, ...);
+extern short        c2dbType                  (short fcType);
+extern void         appendAsType              (StringInfoData* dest, Oid type);
 
 /** local prototypes */
 List*        db2PlanForeignModify(PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
@@ -324,7 +324,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
   db2Debug2("  fdwState->query: '%s'", fdwState->query);
   /* return a serialized form of the plan state */
   result = serializePlanData (fdwState);
-  db2Debug1("> db2PlanForeignModify");
+  db2Debug1("< db2PlanForeignModify");
   return result;
 }
 

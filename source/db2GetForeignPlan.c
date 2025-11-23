@@ -141,7 +141,7 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
   }
   /* create remote query */
   fdwState->query = createQuery (fdwState, foreignrel, for_update, best_path->path.pathkeys);
-  elog (DEBUG1, "db2_fdw: remote query is: %s", fdwState->query);
+  db2Debug2("  db2_fdw: remote query is: %s", fdwState->query);
   /* get PostgreSQL column data types, check that they match DB2's */
   for (i = 0; i < fdwState->db2Table->ncols; ++i) {
     if (fdwState->db2Table->cols[i]->used) {
@@ -162,7 +162,7 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
    * because then they wouldn't be subject to later planner processing.
    */
 
-  result = make_foreignscan (tlist, local_exprs, scan_relid, fdwState->params, fdw_private, fdw_scan_tlist, NIL, outer_plan);
+   result = make_foreignscan (tlist, local_exprs, scan_relid, fdwState->params, fdw_private, fdw_scan_tlist, NIL, outer_plan);
   db2Debug1("< db2GetForeignPlan");
   return result;
 }

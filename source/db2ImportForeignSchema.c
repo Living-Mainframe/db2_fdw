@@ -15,14 +15,14 @@
 #include "db2_fdw.h"
 
 /** external prototypes */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern int             db2GetImportColumn        (DB2Session* session, char* stmt, char* table_list, int list_type, char* tabname, char* colname, short* colType, size_t* colLen, short* typescale, short* nullable, int* key, int* cp);
-extern char*           guessNlsLang              (char* nls_lang);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern short           c2dbType                  (short fcType);
-extern void            db2free                   (void* p);
-extern char*           db2strdup                 (const char* source);
+extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern int          db2GetImportColumn        (DB2Session* session, char* stmt, char* table_list, int list_type, char* tabname, char* colname, short* colType, size_t* colLen, short* typescale, short* nullable, int* key, int* cp);
+extern char*        guessNlsLang              (char* nls_lang);
+extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern short        c2dbType                  (short fcType);
+extern void         db2free                   (void* p);
+extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
