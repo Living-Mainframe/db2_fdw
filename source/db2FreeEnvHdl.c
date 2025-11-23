@@ -73,20 +73,20 @@ int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
       step->nls_lang = NULL;
       if (step->left == NULL && step->right == NULL){
         rootenvEntry = NULL;
-        db2free (step);
+        free (step);
         step = NULL;
       } else if (step->left == NULL) {
         step->right->left = NULL;
-        db2free (step);
+        free (step);
         step = NULL;
       } else if (step->right == NULL) {
         step->left->right = NULL;
-        db2free (step);
+        free (step);
         step = NULL;
       } else {
         step->left->right = step->right;
         step->right->left = step->left;
-        db2free (step);
+        free (step);
         step = NULL;
       }
       result = 0;
@@ -109,20 +109,20 @@ int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
       db2free (step->nls_lang);
       if (step->left == NULL && step->right == NULL){
         rootenvEntry = NULL;
-        db2free (step);
+        free (step);
         step = NULL;
       } else if (step->left == NULL) {
         step->right->left = NULL;
-        db2free (step);
+        free (step);
         step = NULL;
       } else if (step->right == NULL) {
         step->left->right = NULL;
-        db2free (step);
+        free (step);
         step = NULL;
       } else {
         step->left->right = step->right;
         step->right->left = step->left;
-        db2free (step);
+        free (step);
         step = NULL;
       }
       result = 0;

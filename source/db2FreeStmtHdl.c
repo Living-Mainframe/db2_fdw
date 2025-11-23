@@ -10,7 +10,6 @@ extern void      db2Debug2            (const char* message, ...);
 extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
-extern void      db2free              (void* p);
 
 /** local prototypes */
 void             db2FreeStmtHdl       (HdlEntry* handlep, DB2ConnEntry* connp);
@@ -49,7 +48,7 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
     prev_entryp->next = handlep->next;
     db2Debug3("  prev_entryp->next: '%x'", prev_entryp->next);
   }
-  db2free (entryp);
+  free (entryp);
   db2Debug1("< db2FreeStmtHdl");
 }
 
