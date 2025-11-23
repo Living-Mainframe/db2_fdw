@@ -20,8 +20,6 @@ extern void      db2Debug2            (const char* message, ...);
 extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
-extern void*     db2alloc             (const char* type, size_t size);
-extern void      db2free              (void* p);
 
 /** inetrnal prototypes */
 HdlEntry*        db2AllocStmtHdl      (SQLSMALLINT type, DB2ConnEntry* connp, db2error error, const char* errmsg);
@@ -37,14 +35,14 @@ HdlEntry* db2AllocStmtHdl (SQLSMALLINT type, DB2ConnEntry* connp, db2error error
   db2Debug1("> db2AllocStmtHdl");
   printstruct();
   /* create entry for linked list */
-  if ((entry = db2alloc ("HdlEntry", sizeof (HdlEntry))) == NULL) {
+  if ((entry = malloc (sizeof (HdlEntry))) == NULL) {
     db2Error_d (FDW_OUT_OF_MEMORY, "error allocating handle:"," failed to allocate %d bytes of memory", sizeof (HdlEntry));
   }
   db2Debug3("  entry allocated: %x",entry);
   rc = SQLAllocHandle(type, connp->hdbc, &(entry->hsql));
   if (rc != SQL_SUCCESS) {
     db2Debug3("  SQLAllocHandle not SQL_SUCCESS: %d",rc);
-    db2free (entry);
+    free (entry);
     entry = NULL;
     db2Error (error, errmsg);
   } else {

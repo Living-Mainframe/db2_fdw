@@ -17,7 +17,6 @@ extern void      db2Debug2            (const char* message, ...);
 extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
-extern void*     db2alloc             (const char* type, size_t size);
 extern char*     db2strdup            (const char* p);
 extern void      db2free              (void* p);
 
@@ -150,7 +149,7 @@ DB2EnvEntry* insertenvEntry(DB2EnvEntry* start, const char* nlslang, SQLHENV hen
   db2Debug2("  > insertenvEntry");
 
   /* allocate a  new DB2EnvEntry and initialize it*/
-  new = db2alloc("DB2EnvEntry", sizeof(DB2EnvEntry));
+  new = malloc(sizeof(DB2EnvEntry));
   if (new  == NULL) {
     db2Error_d (FDW_OUT_OF_MEMORY, "error connecting to DB2:"," failed to allocate %d bytes of memory", sizeof (DB2EnvEntry));
   }

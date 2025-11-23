@@ -15,7 +15,6 @@ extern void      db2Error_d           (db2error sqlstate, const char* message, c
 extern void      db2RegisterCallback  (void* arg);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
-extern void*     db2alloc             (const char* type, size_t size);
 extern char*     db2strdup            (const char* p);
 
 /** local prototypes */
@@ -148,7 +147,7 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   DB2ConnEntry* new  = NULL;
 
   db2Debug2("  > insertconnEntry");
-  new = db2alloc("DB2ConnEntry", sizeof(DB2ConnEntry));
+  new = malloc(sizeof(DB2ConnEntry));
   if (start == NULL){ /* first entry in list */
     new->right = new->left = NULL;
   } else {
