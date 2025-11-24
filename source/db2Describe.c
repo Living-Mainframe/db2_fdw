@@ -25,13 +25,13 @@ extern HdlEntry*    db2AllocStmtHdl      (SQLSMALLINT type, DB2ConnEntry* connp,
 extern void         db2FreeStmtHdl       (HdlEntry* handlep, DB2ConnEntry* connp);
 
 /** internal prototypes */
-DB2Table*           db2Describe          (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr);
+DB2Table*           db2Describe          (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
 
 /** db2Describe
  *   Find the remote DB2 table and describe it.
  *   Returns an allocated data structure with the results.
  */
-DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr) {
+DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz) {
   DB2Table*   reply;
   HdlEntry*   stmthp;
   char*       qtable    = NULL;
@@ -106,6 +106,12 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   reply->pgname  = pgname;
   db2Debug2("  reply->pgname : '%s'", reply->pgname);
   reply->npgcols = 0;
+
+  reply->batchsz = DEFAULT_BATCHSZ;
+  if (batchsz != NULL) {
+    char* end;
+    reply->batchsz = strtol(batchsz,&end,10);
+  }
 
   /* get the number of columns */
   rc = SQLNumResultCols(stmthp->hsql, &ncols);
