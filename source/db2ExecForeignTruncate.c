@@ -63,7 +63,7 @@ DB2FdwState* db2BuildTruncateFdwState(Relation rel, bool restart_seqs) {
   char*          identity_clause;
   char*          storage_clause  = "DROP STORAGE";       /* or REUSE STORAGE */
   char*          trigger_clause  = "IGNORE DELETE TRIGGERS";
-  db2Debug2("  > db2BuildTruncateFdwState");
+  db2Debug2("> db2BuildTruncateFdwState");
 
   /** Map Postgres' RESTART/CONTINUE IDENTITY to Db2's TRUNCATE options. */
   if (restart_seqs)
@@ -88,7 +88,7 @@ DB2FdwState* db2BuildTruncateFdwState(Relation rel, bool restart_seqs) {
    */
   appendStringInfo(&sql, "TRUNCATE TABLE %s %s %s %s IMMEDIATE", fdwState->db2Table->name, storage_clause, trigger_clause, identity_clause);
   fdwState->query = sql.data;
-  db2Debug3("    fdwState->query: '%s'",sql.data);
-  db2Debug2("  < db2BuildTruncateFdwState - returns fdwState: %x",fdwState);
+  db2Debug3("  fdwState->query: '%s'",sql.data);
+  db2Debug2("< db2BuildTruncateFdwState - returns fdwState: %x",fdwState);
   return fdwState;
 }
