@@ -107,6 +107,9 @@ DB2FdwState* deserializePlanData (List* list) {
   state->db2Table->pgname = deserializeString (lfirst (cell));
   db2Debug2("  state->db2Table->pgname: '%s'",state->db2Table->pgname);
   cell = list_next (list,cell);
+  state->db2Table->batchsz = (int) DatumGetInt32 (((Const*) lfirst (cell))->constvalue);
+  db2Debug2("  state->db2Table->batchsz: %d",state->db2Table->batchsz);
+  cell = list_next (list,cell);
   state->db2Table->ncols = (int) DatumGetInt32 (((Const*) lfirst (cell))->constvalue);
   db2Debug2("  state->db2Table->ncols: %d",state->db2Table->ncols);
   cell = list_next (list,cell);
