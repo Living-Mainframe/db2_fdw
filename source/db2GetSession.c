@@ -39,6 +39,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
   if (!nls_lang)  nls_lang  = "";
 
   /* search environment and server handle in cache */
+  db2Debug1( "  rootenvEntry: %x", rootenvEntry);
   envp = findenvEntry (rootenvEntry, nls_lang);
   if (envp == NULL) {
     envp = db2AllocEnvHdl(nls_lang);
