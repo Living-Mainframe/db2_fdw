@@ -48,6 +48,8 @@ OBJS         = source/db2_fdw.o\
                source/db2PrepareQuery.o\
                source/db2ExecuteQuery.o\
                source/db2ExecuteInsert.o\
+               source/db2GetForeignModifyBatchSize.o \
+               source/db2ExecForeignBatchInsert.o \
                source/db2ExecuteTruncate.o\
                source/db2FetchNext.o\
                source/db2GetLob.o\

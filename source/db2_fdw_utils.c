@@ -1062,6 +1062,7 @@ char* guessNlsLang (char *nls_lang) {
                       )
               );
     }
+    db2free(server_encoding);
     lc_messages = db2strdup (GetConfigOption ("lc_messages", false, true));
     /* try to guess those for which there is a backend translation */
     if (strncmp (lc_messages, "de_", 3) == 0 || pg_strncasecmp (lc_messages, "german", 6) == 0)
@@ -1087,11 +1088,10 @@ char* guessNlsLang (char *nls_lang) {
     if (strncmp (lc_messages, "zh_TW", 5) == 0 || pg_strncasecmp (lc_messages, "chinese-traditional", 19) == 0)
       language = "TRADITIONAL CHINESE_TAIWAN";
     appendStringInfo (&buf, "NLS_LANG=%s.%s", language, charset);
+    db2free(lc_messages);
   } else {
     appendStringInfo (&buf, "NLS_LANG=%s", nls_lang);
   }
-  db2free(server_encoding);
-  db2free(lc_messages);
   db2Debug1("< %s::guessNlsLang - returns: '%s'", __FILE__, buf.data);
   return buf.data;
 }

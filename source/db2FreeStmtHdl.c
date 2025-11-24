@@ -48,6 +48,7 @@ void db2FreeStmtHdl (HdlEntry* handlep, DB2ConnEntry* connp) {
     prev_entryp->next = handlep->next;
     db2Debug3("  prev_entryp->next: '%x'", prev_entryp->next);
   }
+  db2Debug1("  HdlEntry freeed: %x",entryp);
   free (entryp);
   db2Debug1("< db2FreeStmtHdl");
 }

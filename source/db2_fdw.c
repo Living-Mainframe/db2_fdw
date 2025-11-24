@@ -71,6 +71,11 @@ DB2FdwOption valid_options[] = {
   {OPT_SAMPLE           , ForeignTableRelationId      , false},
   {OPT_PREFETCH         , ForeignTableRelationId      , false},
   {OPT_KEY              , AttributeRelationId         , false},
+#if PG_VERSION_NUM >= 140000
+  {OPT_BATCH_SIZE       , ForeignServerRelationId     , false},
+  {OPT_BATCH_SIZE       , ForeignTableRelationId      , false},
+  {OPT_BATCH_SIZE       , AttributeRelationId         , false},
+#endif
   {OPT_NO_ENCODING_ERROR, ForeignDataWrapperRelationId, false},
   {OPT_NO_ENCODING_ERROR, ForeignTableRelationId      , false},
   {OPT_NO_ENCODING_ERROR, AttributeRelationId         , false}
@@ -84,41 +89,44 @@ regproc* output_funcs;
 
 /** db2_utils
  */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern void            db2CloseConnections       (void);
-extern void            db2ClientVersion          (DB2Session* session, char* version);
-extern void            db2ServerVersion          (DB2Session* session, char* version);
-extern void            db2GetForeignRelSize      (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
+extern DB2Session*      db2GetSession              (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern void             db2CloseConnections        (void);
+extern void             db2ClientVersion           (DB2Session* session, char* version);
+extern void             db2ServerVersion           (DB2Session* session, char* version);
+extern void             db2GetForeignRelSize       (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
 
 /** db2_fdw_handler fdwroutines 
  */
-extern ForeignScan*    db2GetForeignPlan         (PlannerInfo* root, RelOptInfo* foreignrel, Oid foreigntableid, ForeignPath* best_path, List* tlist, List* scan_clauses , Plan* outer_plan);
-extern void            db2GetForeignPaths        (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
-extern void            db2GetForeignJoinPaths    (PlannerInfo* root, RelOptInfo* joinrel, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinType jointype, JoinPathExtraData* extra);
-extern bool            db2AnalyzeForeignTable    (Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
-extern void            db2ExplainForeignScan     (ForeignScanState* node, ExplainState* es);
-extern void            db2BeginForeignScan       (ForeignScanState* node, int eflags);
-extern TupleTableSlot* db2IterateForeignScan     (ForeignScanState* node);
-extern void            db2EndForeignScan         (ForeignScanState* node);
-extern void            db2ReScanForeignScan      (ForeignScanState* node);
+extern ForeignScan*     db2GetForeignPlan           (PlannerInfo* root, RelOptInfo* foreignrel, Oid foreigntableid, ForeignPath* best_path, List* tlist, List* scan_clauses , Plan* outer_plan);
+extern void             db2GetForeignPaths          (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
+extern void             db2GetForeignJoinPaths      (PlannerInfo* root, RelOptInfo* joinrel, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinType jointype, JoinPathExtraData* extra);
+extern bool             db2AnalyzeForeignTable      (Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
+extern void             db2ExplainForeignScan       (ForeignScanState* node, ExplainState* es);
+extern void             db2BeginForeignScan         (ForeignScanState* node, int eflags);
+extern TupleTableSlot*  db2IterateForeignScan       (ForeignScanState* node);
+extern void             db2EndForeignScan           (ForeignScanState* node);
+extern void             db2ReScanForeignScan        (ForeignScanState* node);
 #if PG_VERSION_NUM < 140000
-extern void            db2AddForeignUpdateTargets(Query* parsetree, RangeTblEntry* target_rte, Relation target_relation);
+extern void             db2AddForeignUpdateTargets  (Query* parsetree, RangeTblEntry* target_rte, Relation target_relation);
 #else
-extern void            db2AddForeignUpdateTargets(PlannerInfo* root, Index rtindex, RangeTblEntry* target_rte, Relation target_relation);
+extern void             db2AddForeignUpdateTargets  (PlannerInfo* root, Index rtindex, RangeTblEntry* target_rte, Relation target_relation);
 #endif
-extern List*           db2PlanForeignModify      (PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
-extern void            db2BeginForeignModify     (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, int eflags);
-extern void            db2BeginForeignInsert     (ModifyTableState* mtstate, ResultRelInfo* rinfo);
-extern TupleTableSlot* db2ExecForeignInsert      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
-extern TupleTableSlot* db2ExecForeignUpdate      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
-extern TupleTableSlot* db2ExecForeignDelete      (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
-extern void            db2ExecForeignTruncate    (List *rels, DropBehavior behavior, bool restart_seqs);
-extern void            db2EndForeignModify       (EState* estate, ResultRelInfo* rinfo);
-extern void            db2EndForeignInsert       (EState* estate, ResultRelInfo* rinfo);
-extern void            db2ExplainForeignModify   (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, ExplainState* es);
-extern int             db2IsForeignRelUpdatable  (Relation rel);
-extern List*           db2ImportForeignSchema    (ImportForeignSchemaStmt* stmt, Oid serverOid);
-
+extern List*            db2PlanForeignModify        (PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
+extern void             db2BeginForeignModify       (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, int eflags);
+extern void             db2BeginForeignInsert       (ModifyTableState* mtstate, ResultRelInfo* rinfo);
+extern TupleTableSlot*  db2ExecForeignInsert        (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
+extern TupleTableSlot*  db2ExecForeignUpdate        (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
+extern TupleTableSlot*  db2ExecForeignDelete        (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
+extern void             db2ExecForeignTruncate      (List *rels, DropBehavior behavior, bool restart_seqs);
+extern void             db2EndForeignModify         (EState* estate, ResultRelInfo* rinfo);
+extern void             db2EndForeignInsert         (EState* estate, ResultRelInfo* rinfo);
+extern void             db2ExplainForeignModify     (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, ExplainState* es);
+extern int              db2IsForeignRelUpdatable    (Relation rel);
+extern List*            db2ImportForeignSchema      (ImportForeignSchemaStmt* stmt, Oid serverOid);
+#if PG_VERSION_NUM >= 140000
+extern TupleTableSlot** db2ExecForeignBatchInsert   (EState *estate, ResultRelInfo *rinfo, TupleTableSlot **slots, TupleTableSlot **planSlots, int *numSlots);
+extern int              db2GetForeignModifyBatchSize(ResultRelInfo *rinfo);
+#endif
 /** db2 fdw utilities */
 extern char*           guessNlsLang              (char* nls_lang);
 extern void            exitHook                  (int code, Datum arg);
@@ -153,8 +161,10 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
   fdwroutine->BeginForeignInsert        = db2BeginForeignInsert;
   fdwroutine->EndForeignInsert          = db2EndForeignInsert;
   fdwroutine->ExecForeignTruncate       = db2ExecForeignTruncate;
-  fdwroutine->ExecForeignBatchInsert    = NULL;
-  fdwroutine->GetForeignModifyBatchSize = NULL;
+  #if PG_VERSION_NUM >= 140000
+  fdwroutine->ExecForeignBatchInsert    = db2ExecForeignBatchInsert;
+  fdwroutine->GetForeignModifyBatchSize = db2GetForeignModifyBatchSize;
+  #endif
 
   PG_RETURN_POINTER (fdwroutine);
 }
@@ -271,6 +281,21 @@ PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
                   )
                 );
     }
+    #if PG_VERSION_NUM >= 140000
+    /* check valid values for "batchsz" */
+    if (strcmp (def->defname, OPT_BATCH_SIZE) == 0) {
+      char *val = STRVAL(def->arg);
+      char *endptr;
+      unsigned long batchsz = strtol (val, &endptr, 0);
+      if (val[0] == '\0' || *endptr != '\0' || batchsz < 0)
+        ereport ( ERROR
+                , ( errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE)
+                  , errmsg ("invalid value for option \"%s\"", def->defname)
+                  , errhint ("Valid values in this context are integers greater than 0.")
+                  )
+                );
+    }
+    #endif
   }
   /* check that all required options have been given */
   for (i = 0; i < option_count; ++i) {

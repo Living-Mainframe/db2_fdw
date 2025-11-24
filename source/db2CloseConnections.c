@@ -112,7 +112,10 @@ int deleteconnEntry(DB2ConnEntry* start, DB2ConnEntry* node) {
       if (step->uid)       db2free (step->uid);
       if (step->pwd)       db2free (step->pwd);
       if (step->jwt_token) db2free (step->jwt_token);
-      if (step)               free (step);
+      if (step) {
+        db2Debug1("  DB2ConnEntry freed: %x", step);
+        free (step);
+      }
       result = 1;
       break;
     }
