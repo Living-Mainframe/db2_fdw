@@ -146,14 +146,14 @@ void setDB2Environment (char* nls_lang) {
 DB2EnvEntry* insertenvEntry(DB2EnvEntry* start, const char* nlslang, SQLHENV henv) { 
   DB2EnvEntry* step = NULL;
   DB2EnvEntry* new  = NULL;
-  db2Debug2("  > insertenvEntry");
+  db2Debug2("  > insertenvEntry(start: %x, nlslang: '%s', henv: %d)",start, nlslang, henv);
 
   /* allocate a  new DB2EnvEntry and initialize it*/
   new = malloc(sizeof(DB2EnvEntry));
   if (new  == NULL) {
     db2Error_d (FDW_OUT_OF_MEMORY, "error connecting to DB2:"," failed to allocate %d bytes of memory", sizeof (DB2EnvEntry));
   }
-  new->nls_lang = db2strdup(nlslang);
+  new->nls_lang = strdup(nlslang);  // important to use strdup since env will survive multiple PG scopes, and so needs nls_lang
   new->henv     = henv;
   new->connlist = NULL;
   new->left     = NULL;
