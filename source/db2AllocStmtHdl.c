@@ -39,10 +39,11 @@ HdlEntry* db2AllocStmtHdl (SQLSMALLINT type, DB2ConnEntry* connp, db2error error
   if ((entry = malloc (sizeof (HdlEntry))) == NULL) {
     db2Error_d (FDW_OUT_OF_MEMORY, "error allocating handle:"," failed to allocate %d bytes of memory", sizeof (HdlEntry));
   }
-  db2Debug3("  entry allocated: %x",entry);
+  db2Debug1("  HdlEntry allocated: %x",entry);
   rc = SQLAllocHandle(type, connp->hdbc, &(entry->hsql));
   if (rc != SQL_SUCCESS) {
     db2Debug3("  SQLAllocHandle not SQL_SUCCESS: %d",rc);
+    db2Debug1("  HdlEntry freeed: %x",entry);
     free (entry);
     entry = NULL;
     db2Error (error, errmsg);
