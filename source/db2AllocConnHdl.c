@@ -156,11 +156,11 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
     new->left = step;
     new->right = NULL;
   }
-  // generate a deep copy
-  new->srvname    = (srvname   && srvname[0]   != '\0') ? db2strdup(srvname)   : NULL;
-  new->uid        = (uid       && uid[0]       != '\0') ? db2strdup(uid)       : NULL;
-  new->pwd        = (pwd       && pwd[0]       != '\0') ? db2strdup(pwd)       : NULL;
-  new->jwt_token  = (jwt_token && jwt_token[0] != '\0') ? db2strdup(jwt_token) : NULL;
+  // generate a deep copy using strdup, so these values survive together with DB2ConnEntry
+  new->srvname    = (srvname   && srvname[0]   != '\0') ? strdup(srvname)   : NULL;
+  new->uid        = (uid       && uid[0]       != '\0') ? strdup(uid)       : NULL;
+  new->pwd        = (pwd       && pwd[0]       != '\0') ? strdup(pwd)       : NULL;
+  new->jwt_token  = (jwt_token && jwt_token[0] != '\0') ? strdup(jwt_token) : NULL;
   new->handlelist = NULL;
   new->hdbc       = hdbc;
   new->xact_level = 0;
