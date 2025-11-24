@@ -492,6 +492,8 @@ List* serializePlanData (DB2FdwState* fdwState) {
   result = lappend (result, serializeString (fdwState->db2Table->name));
   /* PostgreSQL table name */
   result = lappend (result, serializeString (fdwState->db2Table->pgname));
+  /* batch size in DB2 table */
+  result = lappend (result, serializeInt (fdwState->db2Table->batchsz));
   /* number of columns in DB2 table */
   result = lappend (result, serializeInt (fdwState->db2Table->ncols));
   /* number of columns in PostgreSQL table */
