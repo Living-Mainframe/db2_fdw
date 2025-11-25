@@ -1,4 +1,5 @@
 #include <postgres.h>
+#if PG_VERSION_NUM >= 140000
 #include <utils/rel.h>
 #include <nodes/pathnodes.h>
 #include <access/xact.h>
@@ -92,3 +93,4 @@ DB2FdwState* db2BuildTruncateFdwState(Relation rel, bool restart_seqs) {
   db2Debug2("< db2BuildTruncateFdwState - returns fdwState: %x",fdwState);
   return fdwState;
 }
+#endif

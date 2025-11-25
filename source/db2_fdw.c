@@ -117,13 +117,13 @@ extern void             db2BeginForeignInsert       (ModifyTableState* mtstate, 
 extern TupleTableSlot*  db2ExecForeignInsert        (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern TupleTableSlot*  db2ExecForeignUpdate        (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
 extern TupleTableSlot*  db2ExecForeignDelete        (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
-extern void             db2ExecForeignTruncate      (List *rels, DropBehavior behavior, bool restart_seqs);
 extern void             db2EndForeignModify         (EState* estate, ResultRelInfo* rinfo);
 extern void             db2EndForeignInsert         (EState* estate, ResultRelInfo* rinfo);
 extern void             db2ExplainForeignModify     (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, ExplainState* es);
 extern int              db2IsForeignRelUpdatable    (Relation rel);
 extern List*            db2ImportForeignSchema      (ImportForeignSchemaStmt* stmt, Oid serverOid);
 #if PG_VERSION_NUM >= 140000
+extern void             db2ExecForeignTruncate      (List *rels, DropBehavior behavior, bool restart_seqs);
 extern TupleTableSlot** db2ExecForeignBatchInsert   (EState *estate, ResultRelInfo *rinfo, TupleTableSlot **slots, TupleTableSlot **planSlots, int *numSlots);
 extern int              db2GetForeignModifyBatchSize(ResultRelInfo *rinfo);
 #endif
@@ -160,8 +160,8 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
   fdwroutine->ImportForeignSchema       = db2ImportForeignSchema;
   fdwroutine->BeginForeignInsert        = db2BeginForeignInsert;
   fdwroutine->EndForeignInsert          = db2EndForeignInsert;
-  fdwroutine->ExecForeignTruncate       = db2ExecForeignTruncate;
   #if PG_VERSION_NUM >= 140000
+  fdwroutine->ExecForeignTruncate       = db2ExecForeignTruncate;
   fdwroutine->ExecForeignBatchInsert    = db2ExecForeignBatchInsert;
   fdwroutine->GetForeignModifyBatchSize = db2GetForeignModifyBatchSize;
   #endif
