@@ -1,5 +1,6 @@
 #include <postgres.h>
 #include <tcop/tcopprot.h>
+#include <libpq/pqsignal.h>
 #if PG_VERSION_NUM < 120000
 #include <nodes/relation.h>
 #include <optimizer/var.h>
