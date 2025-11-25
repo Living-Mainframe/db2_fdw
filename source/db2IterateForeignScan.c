@@ -10,6 +10,7 @@
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
+#include <access/xact.h>
 #endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
