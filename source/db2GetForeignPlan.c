@@ -184,31 +184,32 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
   char*          wherecopy, *p, md5[33], parname[10], *separator = "";
   StringInfoData query, result;
   List*          columnlist, *conditions = foreignrel->baserestrictinfo;
-#if PG_VERSION_NUM >= 150000
+  #if PG_VERSION_NUM >= 150000
   const char*    errstr = NULL;
-#endif
+  #endif
 
   db2Debug1("> createQuery");
 
-  columnlist = foreignrel->reltarget->exprs;
-#if PG_VERSION_NUM < 90600
+  #if PG_VERSION_NUM < 90600
   columnlist = foreignrel->reltargetlist;
-#else
+  #else
   columnlist = foreignrel->reltarget->exprs;
-#endif
+  #endif
 
   if (IS_SIMPLE_REL (foreignrel)) {
     db2Debug3("  IS_SIMPLE_REL");
     /* find all the columns to include in the select list */
     /* examine each SELECT list entry for Var nodes */
+    db2Debug3("  size of columnlist: %d", list_length(columnlist));
     foreach (cell, columnlist) {
       db2Debug3("  examine column");
-      getUsedColumns ((Expr*) lfirst (cell), fdwState->db2Table,foreignrel->relid);
+      getUsedColumns ((Expr*) lfirst (cell), fdwState->db2Table, foreignrel->relid);
     }
     /* examine each condition for Var nodes */
+    db2Debug3("  size of conditions: %d", list_length(conditions));
     foreach (cell, conditions) {
       db2Debug3("  examine condition");
-      getUsedColumns ((Expr *) lfirst (cell), fdwState->db2Table,foreignrel->relid);
+      getUsedColumns ((Expr *) lfirst (cell), fdwState->db2Table, foreignrel->relid);
     }
   }
 
@@ -343,7 +344,7 @@ void deparseFromExprForRel (DB2FdwState* fdwState, StringInfo buf, RelOptInfo* f
     /* End the FROM clause entry. */
     appendStringInfo (buf, ")");
   }
-  db2Debug2("  buf: '%s",buf->data);
+  db2Debug2("  buf: '%s'",buf->data);
   db2Debug1("< deparseFromExprForRel");
 }
 
@@ -352,8 +353,7 @@ void deparseFromExprForRel (DB2FdwState* fdwState, StringInfo buf, RelOptInfo* f
  *    The conditions in the list are assumed to be ANDed.
  *    This function is used to deparse JOIN ... ON clauses.
  */
-void appendConditions(List* exprs, StringInfo buf, RelOptInfo* joinrel, List** params_list)
-{
+void appendConditions(List* exprs, StringInfo buf, RelOptInfo* joinrel, List** params_list) {
     ListCell *lc = NULL;
     bool is_first = true;
     char *where = NULL;
@@ -396,9 +396,9 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
       case T_CaseTestExpr:
       case T_CoerceToDomainValue:
       case T_CurrentOfExpr:
-#if PG_VERSION_NUM >= 100000
-     case T_NextValueExpr:
-#endif
+      #if PG_VERSION_NUM >= 100000
+      case T_NextValueExpr:
+      #endif
       break;
       case T_Var:
         variable = (Var*) expr;
@@ -439,13 +439,13 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
           getUsedColumns ((Expr*) lfirst (cell), db2Table, foreignrelid);
         }
       break;
-#if PG_VERSION_NUM < 120000
+      #if PG_VERSION_NUM < 120000
       case T_ArrayRef: {
         ArrayRef* ref = (ArrayRef*)expr;
-#else
+      #else
       case T_SubscriptingRef: {
         SubscriptingRef* ref = (SubscriptingRef*) expr;
-#endif
+      #endif
         foreach(cell, ref->refupperindexpr) {
           getUsedColumns((Expr*)lfirst(cell), db2Table, foreignrelid);
         }
@@ -575,11 +575,11 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
       case T_PlaceHolderVar:
         getUsedColumns (((PlaceHolderVar*) expr)->phexpr, db2Table, foreignrelid);
       break;
-#if PG_VERSION_NUM >= 100000
+      #if PG_VERSION_NUM >= 100000
       case T_SQLValueFunction:
         //nop
       break;                                /* contains no column references */
-#endif
+      #endif
       default:
         /*
          * We must be able to handle all node types that can

@@ -5,7 +5,9 @@
             "includePath": [
                 "${default}",
                 "${workspaceFolder}",
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
+                "/usr/pgsql-18/include",
+                "/usr/pgsql-18/include/server"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
