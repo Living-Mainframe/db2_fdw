@@ -144,10 +144,7 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
      * Use persistent buffers from statement handle to avoid stack deallocation issues.
      * This fixes the segfault when using aggregate functions without WHERE clause.
      */
-    rc = SQLBindCol(session->stmtp->hsql, 1, SQL_C_CHAR,
-                    session->stmtp->dummy_buffer,
-                    sizeof(session->stmtp->dummy_buffer),
-                    &session->stmtp->dummy_null);
+    rc = SQLBindCol(session->stmtp->hsql, 1, SQL_C_CHAR, session->stmtp->dummy_buffer, sizeof(session->stmtp->dummy_buffer), &session->stmtp->dummy_null);
     rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
       db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
