@@ -40,7 +40,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
   SQLLEN       ind_len;
   SQLSMALLINT  scale_val;
   SQLLEN       ind_scale;
-  SQLCHAR      nulls_val;
+  SQLCHAR      nulls_val[2];  /* 'Y' or 'N' plus null terminator */
   SQLLEN       ind_nulls;
   SQLSMALLINT  keyseq_val;
   SQLLEN       ind_key;
@@ -214,7 +214,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error importing foreign schema: SQLBindCol failed to define result for type scale", db2Message);
     }
 
-    result = SQLBindCol(session->stmtp->hsql, 6, SQL_C_CHAR, &nulls_val, sizeof(nulls_val), &ind_nulls);
+    result = SQLBindCol(session->stmtp->hsql, 6, SQL_C_CHAR, nulls_val, sizeof(nulls_val), &ind_nulls);
     db2Debug2("  SQLBindCol6 rc : %d",result);
     result = db2CheckErr(result, session->stmtp->hsql, session->stmtp->type,  __LINE__, __FILE__);
     if (result != SQL_SUCCESS) {
@@ -282,7 +282,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
       strncpy(colName, (char*)col_buf, COLUMN_NAME_LEN);
     *colLen    = (ind_len   == SQL_NULL_DATA) ? 0 : (size_t) len_val;
     *colScale  = (ind_scale == SQL_NULL_DATA) ? 0 : (short) scale_val;
-    *colNulls  = (ind_nulls == SQL_NULL_DATA) ? 0 : (nulls_val == 'Y');
+    *colNulls  = (ind_nulls == SQL_NULL_DATA) ? 0 : (nulls_val[0] == 'Y');
     *key       = (ind_key   == SQL_NULL_DATA) ? 0 : (int) keyseq_val;
     *cp        = (ind_cp    == SQL_NULL_DATA) ? 0 : (int) cp_val;
     /* figure out correct data type */
