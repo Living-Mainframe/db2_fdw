@@ -104,6 +104,6 @@ char* deparseWhereConditions (DB2FdwState *fdwState, RelOptInfo * baserel, List 
       *local_conds = lappend (*local_conds, ((RestrictInfo *) lfirst (cell))->clause);
     }
   }
-  db2Debug1("< deparseWhereCondition");
+  db2Debug1("< deparseWhereCondition - where_clause: '%s'",where_clause.data);
   return where_clause.data;
 }
