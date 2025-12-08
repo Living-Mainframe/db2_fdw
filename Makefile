@@ -64,7 +64,7 @@ OBJS         = source/db2_fdw.o\
                source/db2CopyText.o\
                source/db2IsStatementOpen.o\
                source/db2_utils.o
-RELEASE      = 18.1.0
+RELEASE      = 18.1.1
 
 DATA         = $(wildcard sql/*--*.sql)
 DOCS         = $(wildcard doc/*.md)
