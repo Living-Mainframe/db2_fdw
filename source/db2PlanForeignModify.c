@@ -245,6 +245,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
         appendStringInfo (&sql, "%s = ", fdwState->db2Table->cols[i]->colName);
         appendAsType (&sql, fdwState->db2Table->cols[i]->pgtype);
       }
+      db2Debug2("  sql: '%s'",sql.data);
       /* throw a meaningful error if nothing is updated */
       if (firstcol)
         ereport (ERROR
