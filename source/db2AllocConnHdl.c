@@ -131,7 +131,10 @@ DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char
   DB2ConnEntry* step = NULL;
   db2Debug2("  > findconnEntry");
   for (step = start; step != NULL; step = step->right){
-    if (strcmp(step->srvname, srvname) == 0 && strcmp(step->uid, user) == 0) {
+    /* NULL-safe comparison for JWT auth where user may be NULL */
+    int srv_match = (step->srvname && srvname) ? strcmp(step->srvname, srvname) == 0 : step->srvname == srvname;
+    int uid_match = (step->uid && user) ? strcmp(step->uid, user) == 0 : step->uid == user;
+    if (srv_match && uid_match) {
       break;
     }
   }
