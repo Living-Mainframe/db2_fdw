@@ -21,7 +21,7 @@ extern regproc* output_funcs;
 
 /** external prototypes */
 extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern void            db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
+extern void            db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
 extern void            db2Debug1                 (const char* message, ...);
 extern void*           db2alloc                  (const char* type, size_t size);
 

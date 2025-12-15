@@ -17,7 +17,7 @@
 
 /** external prototypes */
 extern int          db2IsStatementOpen        (DB2Session* session);
-extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
+extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         db2CloseStatement         (DB2Session* session);

@@ -18,7 +18,7 @@
 /** external variables */
 
 /** external prototypes */
-extern void         db2PrepareQuery            (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
+extern void         db2PrepareQuery            (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
 extern void         db2Debug1                  (const char* message, ...);
 extern void         db2Debug2                  (const char* message, ...);
 extern void*        db2alloc                   (const char* type, size_t size);
@@ -96,7 +96,7 @@ DB2FdwState* deserializePlanData (List* list) {
   cell = list_next (list,cell);
 
   /* DB2 prefetch count */
-  state->prefetch = (unsigned int) DatumGetInt32 (((Const *) lfirst (cell))->constvalue);
+  state->prefetch = (unsigned long) DatumGetInt32 (((Const *) lfirst (cell))->constvalue);
   cell = list_next (list,cell);
 
   /* table data */

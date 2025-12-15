@@ -105,7 +105,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
   if (fetch == NULL)
     fdwState->prefetch = DEFAULT_PREFETCH;
   else
-    fdwState->prefetch = (unsigned int) strtoul (fetch, NULL, 0);
+    fdwState->prefetch = (unsigned long) strtoul (fetch, NULL, 0);
 
   /* check if options are ok */
   if (table == NULL)

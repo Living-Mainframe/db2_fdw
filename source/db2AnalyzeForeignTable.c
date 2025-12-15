@@ -17,7 +17,7 @@
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern int          db2IsStatementOpen        (DB2Session* session);
-extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
+extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);

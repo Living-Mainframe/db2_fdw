@@ -488,7 +488,7 @@ List* serializePlanData (DB2FdwState* fdwState) {
   /* query */
   result = lappend (result, serializeString (fdwState->query));
   /* DB2 prefetch count */
-  result = lappend (result, serializeInt ((int) fdwState->prefetch));
+  result = lappend (result, serializeLong (fdwState->prefetch));
   /* DB2 table name */
   result = lappend (result, serializeString (fdwState->db2Table->name));
   /* PostgreSQL table name */

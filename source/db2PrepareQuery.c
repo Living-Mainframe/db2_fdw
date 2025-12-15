@@ -21,7 +21,7 @@ extern SQLSMALLINT  c2param              (SQLSMALLINT fparamType);
 extern char*        param2name           (SQLSMALLINT fparamType);
 
 /** internal prototypes */
-void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned int prefetch);
+void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch);
 
 /** db2PrepareQuery
  *   Prepares an SQL statement for execution.
@@ -31,7 +31,7 @@ void                db2PrepareQuery      (DB2Session* session, const char *query
  *   - For DML statements, allocates LOB locators for the RETURNING clause in db2Table.
  *   - Set the prefetch options.
  */
-void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned int prefetch) {
+void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch) {
   int        i          = 0;
   int        col_pos    = 0;
   int        is_select  = 0;
@@ -55,7 +55,7 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
   db2Debug2("  session->stmtp->hsql: %d",session->stmtp->hsql);
   /* set prefetch options */
   if (is_select) {
-    SQLULEN prefetch_rows = prefetch;
+    unsigned long  prefetch_rows = prefetch;
     db2Debug3("  IS_SELECT");
     if (for_update) {
       db2Debug3("  FOR UPDATE");

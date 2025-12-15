@@ -32,7 +32,7 @@ typedef struct db2FdwState {
   unsigned long       rowcount;      // rows already read from DB2
   int                 columnindex;   // currently processed column for error context
   MemoryContext       temp_cxt;      // short-lived memory for data modification
-  unsigned int        prefetch;      // number of rows to prefetch
+  unsigned long       prefetch;      // number of rows to prefetch
   char*               order_clause;  // for sort-pushdown
   char*               where_clause;  // deparsed where clause
   /*
