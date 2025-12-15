@@ -69,6 +69,8 @@ jobs:
             sleep 1
           done
           docker-compose logs db2
-          docker-compose exec db2 -- ps -ef
+          docker-compose exec db2 whoami
+          docker-compose exec db2 which ps
+          docker-compose exec db2 sh -c "ps -ef"
         env:
           PGVERSION: ${{ matrix.pgversion }}
