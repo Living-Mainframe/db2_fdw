@@ -11,15 +11,13 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent);
+extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern int          db2IsStatementOpen        (DB2Session* session);
-extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
+extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
@@ -28,6 +26,7 @@ extern void         convertTuple              (DB2FdwState* fdw_state, Datum* va
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
+extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 bool db2AnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
@@ -56,8 +55,8 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
   bool first_column = true;
   StringInfoData query;
   TupleDesc tupDesc = RelationGetDescr (relation);
-  Datum *values = (Datum *) palloc (tupDesc->natts * sizeof (Datum));
-  bool *nulls = (bool *) palloc (tupDesc->natts * sizeof (bool));
+  Datum* values = (Datum*) db2alloc("values", tupDesc->natts* sizeof (Datum));
+  bool*  nulls  = (bool*)  db2alloc("null"  , tupDesc->natts* sizeof (bool));
   double rstate, rowstoskip = -1, sample_percent;
   MemoryContext old_cxt, tmp_cxt;
 
@@ -73,7 +72,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
   rstate = anl_init_selection_state (targrows);
 
   /* get connection options, connect and get the remote table description */
-  fdw_state = db2GetFdwState (RelationGetRelid (relation), &sample_percent);
+  fdw_state = db2GetFdwState (RelationGetRelid (relation), &sample_percent, true);
   fdw_state->paramList = NULL;
   fdw_state->rowcount = 0;
 
@@ -95,7 +94,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
 
       /* allocate memory for return value */
       db2Debug2("  fdw_state->db2Table->cols[%d]->val_size: %x",i,fdw_state->db2Table->cols[i]->val_size);
-      fdw_state->db2Table->cols[i]->val = (char *) palloc (fdw_state->db2Table->cols[i]->val_size + 1);
+      fdw_state->db2Table->cols[i]->val = (char *) db2alloc ("fdw_state->db2Table->cols[i]->val", fdw_state->db2Table->cols[i]->val_size + 1);
       db2Debug2("  fdw_state->db2Table->cols[%d]->val: %x",i,fdw_state->db2Table->cols[i]->val);
       fdw_state->db2Table->cols[i]->val_len  = 0;
       db2Debug2("  fdw_state->db2Table->cols[%d]->val_len: %x",i,fdw_state->db2Table->cols[i]->val);

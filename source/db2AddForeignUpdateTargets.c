@@ -13,7 +13,6 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 
 /** external prototypes */
@@ -21,6 +20,9 @@
 extern bool            optionIsTrue              (const char* value);
 #endif
 extern void            db2Debug1                 (const char* message, ...);
+#if PG_VERSION_NUM < 140000
+extern char*           db2strdup                 (const char* source);
+#endif
 
 /** local prototypes */
 #if PG_VERSION_NUM < 140000
@@ -70,7 +72,7 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
           /* Wrap it in a resjunk TLE with the right name ... */
           tle = makeTargetEntry((Expr *)var,
             list_length(parsetree->targetList) + 1,
-            pstrdup(NameStr(att->attname)),
+            db2strdup(NameStr(att->attname)),
             true);
           /* ... and add it to the query's targetlist */
           parsetree->targetList = lappend(parsetree->targetList, tle);

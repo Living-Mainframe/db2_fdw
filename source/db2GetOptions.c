@@ -10,7 +10,6 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 
 /** external prototypes */
@@ -60,5 +59,5 @@ void db2GetOptions (Oid foreigntableid, List** options) {
   } else {
     db2Debug1("  unable to GetForeignTable: %d",foreigntableid);
   }
-    db2Debug1("< db2GetOptions");
+  db2Debug1("< db2GetOptions");
 }

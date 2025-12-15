@@ -1,5 +1,6 @@
 #include <postgres.h>
 #include <tcop/tcopprot.h>
+#include <libpq/pqsignal.h>
 #if PG_VERSION_NUM < 120000
 #include <nodes/relation.h>
 #include <optimizer/var.h>
@@ -9,7 +10,6 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 
 /** external prototypes */

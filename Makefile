@@ -1,7 +1,7 @@
 EXTENSION    = db2_fdw
 EXTVERSION   = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 MODULE_big   = db2_fdw
-OBJS         = db2_fdw.o\
+OBJS         = source/db2_fdw.o\
                source/db2GetForeignPlan.o\
                source/db2GetForeignPaths.o\
                source/db2GetForeignJoinPaths.o\
@@ -13,11 +13,16 @@ OBJS         = db2_fdw.o\
                source/db2ReScanForeignScan.o\
                source/db2AddForeignUpdateTargets.o\
                source/db2PlanForeignModify.o\
+               source/db2BeginForeignModifyCommon.o\
                source/db2BeginForeignModify.o\
+               source/db2BeginForeignInsert.o\
                source/db2ExecForeignInsert.o\
                source/db2ExecForeignUpdate.o\
                source/db2ExecForeignDelete.o\
+               source/db2ExecForeignTruncate.o\
+               source/db2EndForeignModifyCommon.o\
                source/db2EndForeignModify.o\
+               source/db2EndForeignInsert.o\
                source/db2ExplainForeignModify.o\
                source/db2IsForeignRelUpdatable.o\
                source/db2ImportForeignSchema.o\
@@ -42,6 +47,10 @@ OBJS         = db2_fdw.o\
                source/db2GetImportColumn.o\
                source/db2PrepareQuery.o\
                source/db2ExecuteQuery.o\
+               source/db2ExecuteInsert.o\
+               source/db2GetForeignModifyBatchSize.o \
+               source/db2ExecForeignBatchInsert.o \
+               source/db2ExecuteTruncate.o\
                source/db2FetchNext.o\
                source/db2GetLob.o\
                source/db2SetSavepoint.o\
@@ -55,7 +64,7 @@ OBJS         = db2_fdw.o\
                source/db2CopyText.o\
                source/db2IsStatementOpen.o\
                source/db2_utils.o
-RELEASE      = 18.0.1
+RELEASE      = 18.1.1
 
 DATA         = $(wildcard sql/*--*.sql)
 DOCS         = $(wildcard doc/*.md)
@@ -69,7 +78,7 @@ REGRESS_OPTS = --inputdir=test
 #MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
 PG_CPPFLAGS  = -g -fPIC -I$(DB2_HOME)/include -I./include
 SHLIB_LINK   = -fPIC -L$(DB2_HOME)/lib64 -L$(DB2_HOME)/bin  -ldb2
-PG_CONFIG    = pg_config
+PG_CONFIG   ?= pg_config
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)

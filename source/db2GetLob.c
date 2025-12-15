@@ -9,8 +9,8 @@
 extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void*        db2Alloc             (size_t size);
-extern void*        db2Realloc           (void* p, size_t size);
+extern void*        db2alloc             (const char* type, size_t size);
+extern void*        db2realloc           (void* p, size_t size);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
 extern void         db2Debug3            (const char* message, ...);
@@ -63,14 +63,14 @@ void db2GetLob (DB2Session* session, DB2Column* column, int cidx, char** value, 
       db2Debug2("  extend   : %d", extend);
       if (*value_len == 0) {
         if (extend > 0) {
-          *value = db2Alloc (*value_len + extend + 1);
+          *value = db2alloc ("lob_value", *value_len + extend + 1);
         } else {
           *value = NULL;
           db2Debug3("  not allocating space since the LOB value is apparently NULL");
         }
       } else {
         // do not add another 0 termination byte, since we already have one
-        *value = db2Realloc (*value, *value_len + extend);
+        *value = db2realloc (*value, *value_len + extend);
       }
       // append the buffer read to the value excluding 0 termination byte
       db2Debug2("  *value    : %x", *value);

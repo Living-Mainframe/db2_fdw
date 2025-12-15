@@ -8,15 +8,14 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern DB2FdwState* db2GetFdwState               (Oid foreigntableid, double* sample_percent);
+extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void         db2Debug1                 (const char* message, ...);
 extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern void         db2free                   (void* p);
 
 /** local prototypes */
 void  db2GetForeignRelSize  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
@@ -34,7 +33,7 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
 
   db2Debug1("> db2GetForeignRelSize");
   /* get connection options, connect and get the remote table description */
-  fdwState = db2GetFdwState(foreigntableid, NULL);
+  fdwState = db2GetFdwState(foreigntableid, NULL, true);
   /** Store the table OID in each table column.
    * This is redundant for base relations, but join relations will
    * have columns from different tables, and we have to keep track of them.
@@ -54,7 +53,7 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
                                                   );
 
   /* release DB2 session (will be cached) */
-  pfree (fdwState->session);
+  db2free (fdwState->session);
   fdwState->session = NULL;
   /* use a random "high" value for cost */
   fdwState->startup_cost = 10000.0;
@@ -100,11 +99,11 @@ char* deparseWhereConditions (DB2FdwState *fdwState, RelOptInfo * baserel, List 
       /* append new WHERE clause to query string */
       appendStringInfo (&where_clause, " %s %s", keyword, where);
       keyword = "AND";
-      pfree (where);
+      db2free (where);
     } else {
       *local_conds = lappend (*local_conds, ((RestrictInfo *) lfirst (cell))->clause);
     }
   }
-  db2Debug1("< deparseWhereCondition");
+  db2Debug1("< deparseWhereCondition - where_clause: '%s'",where_clause.data);
   return where_clause.data;
 }

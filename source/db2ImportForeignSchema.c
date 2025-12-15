@@ -12,16 +12,17 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
 
 /** external prototypes */
-extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
-extern int             db2GetImportColumn        (DB2Session* session, char* stmt, char* table_list, int list_type, char* tabname, char* colname, short* colType, size_t* colLen, short* typescale, short* nullable, int* key, int* cp);
-extern char*           guessNlsLang              (char* nls_lang);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern short           c2dbType                  (short fcType);
+extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern int          db2GetImportColumn        (DB2Session* session, char* stmt, char* table_list, int list_type, char* tabname, char* colname, short* colType, size_t* colLen, short* typescale, short* nullable, int* key, int* cp);
+extern char*        guessNlsLang              (char* nls_lang);
+extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern short        c2dbType                  (short fcType);
+extern void         db2free                   (void* p);
+extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
@@ -43,6 +44,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   char*               nls_lang  = NULL;
   char*               user      = NULL;
   char*               password  = NULL;
+  char*               jwt_token = NULL;
   char*               dbserver  = NULL;
   short               colType;
   size_t              colSize;
@@ -82,6 +84,8 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       user = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_PASSWORD) == 0)
       password = STRVAL(def->arg);
+    if (strcmp (def->defname, OPT_JWT_TOKEN) == 0)
+      jwt_token = STRVAL(def->arg);
   }
 
   /* process the options of the IMPORT FOREIGN SCHEMA command */
@@ -121,7 +125,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   nls_lang = guessNlsLang (nls_lang);
 
   /* connect to DB2 database */
-  session = db2GetSession (dbserver, user, password, nls_lang, 1);
+  session = db2GetSession (dbserver, user, password, jwt_token, nls_lang, 1);
 
   initStringInfo (&buf);
   db2Debug2("  stmt->list_type    : %d  ",stmt->list_type);
@@ -172,7 +176,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       }
       appendStringInfo (&buf, ")");
       db2Debug2 ("  pg fdw table ddl: '%s'",buf.data);
-      result = lappend (result, pstrdup (buf.data));
+      result = lappend (result, db2strdup (buf.data));
     }
 
     if (rc == 1 && (oldtabname[0] == '\0' || strcmp (tabname, oldtabname))) {
@@ -180,7 +184,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       resetStringInfo (&buf);
       foldedname = fold_case (tabname, foldcase);
       appendStringInfo (&buf, "CREATE FOREIGN TABLE \"%s\".\"%s\" (", stmt->local_schema, foldedname);
-      pfree (foldedname);
+      db2free (foldedname);
 
       firstcol = true;
       strncpy (oldtabname, tabname, sizeof(oldtabname));
@@ -196,7 +200,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       /* column name */
       foldedname = fold_case (colname, foldcase);
       appendStringInfo (&buf, "\"%s\" ", foldedname);
-      pfree (foldedname);
+      db2free (foldedname);
 
       // check charlen is not 0; set it to 1 in that case
       colSize = colSize == 0 ? 1 : colSize;
@@ -284,13 +288,13 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
 
 #ifdef IMPORT_API
 /** fold_case
- *   Returns a palloc'ed string that is the case-folded first argument.
+ *   Returns a dup'ed string that is the case-folded first argument.
  */
 char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
   db2Debug1("> fold_case");
   if (foldcase == CASE_KEEP) {
-    result = pstrdup (name);
+    result = db2strdup (name);
   } else {
     if (foldcase == CASE_LOWER) {
       result = str_tolower (name, strlen (name), DEFAULT_COLLATION_OID);
@@ -301,7 +305,7 @@ char* fold_case (char *name, fold_t foldcase) {
         if (strcmp (upstr, name) == 0)
           result = str_tolower (name, strlen (name), DEFAULT_COLLATION_OID);
         else
-          result = pstrdup (name);
+          result = db2strdup (name);
       }
     }
   }

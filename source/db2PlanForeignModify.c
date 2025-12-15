@@ -12,19 +12,19 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void*           db2Alloc                  (size_t size);
-extern DB2FdwState*    db2GetFdwState            (Oid foreigntableid, double* sample_percent);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern void            db2Debug3                 (const char* message, ...);
-extern short           c2dbType                  (short fcType);
-extern void            appendAsType              (StringInfoData* dest, Oid type);
+extern char*        db2strdup                 (const char* source);
+extern void*        db2alloc                  (const char* type, size_t size);
+extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
+extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug4                 (const char* message, ...);
+extern void         db2Debug5                 (const char* message, ...);
+extern short        c2dbType                  (short fcType);
+extern void         appendAsType              (StringInfoData* dest, Oid type);
 
 /** local prototypes */
 List*        db2PlanForeignModify(PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
@@ -95,7 +95,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
      * To match what ExecCheckRTEPerms does, pass the user whose user mapping
      * should be used (if invalid, the current user is used).
      */
-    fdwState = db2GetFdwState(rte->relid, NULL);
+    fdwState = db2GetFdwState(rte->relid, NULL, true);
   }
   initStringInfo(&sql);
 
@@ -245,6 +245,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
         appendStringInfo (&sql, "%s = ", fdwState->db2Table->cols[i]->colName);
         appendAsType (&sql, fdwState->db2Table->cols[i]->pgtype);
       }
+      db2Debug2("  sql: '%s'",sql.data);
       /* throw a meaningful error if nothing is updated */
       if (firstcol)
         ereport (ERROR
@@ -303,7 +304,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
       checkDataType (fdwState->db2Table->cols[i]->colType, fdwState->db2Table->cols[i]->colScale, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->pgname, fdwState->db2Table->cols[i]->pgname);
 
       /* create a new entry in the parameter list */
-      param = (ParamDesc *) palloc (sizeof (ParamDesc));
+      param = (ParamDesc *) db2alloc("fdwState->paramList->next", sizeof (ParamDesc));
       param->type         = fdwState->db2Table->cols[i]->pgtype;
       param->bindType     = BIND_OUTPUT;
       param->value        = NULL;
@@ -325,7 +326,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
   db2Debug2("  fdwState->query: '%s'", fdwState->query);
   /* return a serialized form of the plan state */
   result = serializePlanData (fdwState);
-  db2Debug1("> db2PlanForeignModify");
+  db2Debug1("< db2PlanForeignModify");
   return result;
 }
 
@@ -338,23 +339,23 @@ DB2FdwState* copyPlanData (DB2FdwState* orig) {
   DB2FdwState* copy = NULL;
 
   db2Debug1("> copyPlanData");
-  copy                    = db2Alloc(sizeof (DB2FdwState));
-  copy->dbserver          = pstrdup (orig->dbserver);
-  copy->user              = pstrdup (orig->user);
-  copy->password          = pstrdup (orig->password);
-  copy->nls_lang          = pstrdup (orig->nls_lang);
+  copy                    = db2alloc("copy_fdw_state", sizeof (DB2FdwState));
+  copy->dbserver          = db2strdup(orig->dbserver);
+  copy->user              = db2strdup(orig->user);
+  copy->password          = db2strdup(orig->password);
+  copy->nls_lang          = db2strdup(orig->nls_lang);
   copy->session           = NULL;
   copy->query             = NULL;
   copy->paramList         = NULL;
-  copy->db2Table          = (DB2Table*) db2Alloc(sizeof (DB2Table));
-  copy->db2Table->name    = pstrdup (orig->db2Table->name);
-  copy->db2Table->pgname  = pstrdup (orig->db2Table->pgname);
+  copy->db2Table          = (DB2Table*) db2alloc("copy_fdw_state->db2Table", sizeof (DB2Table));
+  copy->db2Table->name    = db2strdup(orig->db2Table->name);
+  copy->db2Table->pgname  = db2strdup(orig->db2Table->pgname);
   copy->db2Table->ncols   = orig->db2Table->ncols;
   copy->db2Table->npgcols = orig->db2Table->npgcols;
-  copy->db2Table->cols    = (DB2Column**) db2Alloc(sizeof (DB2Column*) * orig->db2Table->ncols);
+  copy->db2Table->cols    = (DB2Column**) db2alloc("copy_fdw_state->db2Table->cols",sizeof (DB2Column*) * orig->db2Table->ncols);
   for (i = 0; i < orig->db2Table->ncols; ++i) {
-    copy->db2Table->cols[i]                 = (DB2Column*) db2Alloc(sizeof (DB2Column));
-    copy->db2Table->cols[i]->colName        = pstrdup (orig->db2Table->cols[i]->colName);
+    copy->db2Table->cols[i]                 = (DB2Column*) db2alloc("copy_fdw_state->db2Table->cols[i]", sizeof (DB2Column));
+    copy->db2Table->cols[i]->colName        = db2strdup(orig->db2Table->cols[i]->colName);
     copy->db2Table->cols[i]->colType        = orig->db2Table->cols[i]->colType;
     copy->db2Table->cols[i]->colSize        = orig->db2Table->cols[i]->colSize;
     copy->db2Table->cols[i]->colScale       = orig->db2Table->cols[i]->colScale;
@@ -366,7 +367,7 @@ DB2FdwState* copyPlanData (DB2FdwState* orig) {
     if (orig->db2Table->cols[i]->pgname == NULL)
       copy->db2Table->cols[i]->pgname       = NULL;
     else
-      copy->db2Table->cols[i]->pgname       = pstrdup (orig->db2Table->cols[i]->pgname);
+      copy->db2Table->cols[i]->pgname       = db2strdup(orig->db2Table->cols[i]->pgname);
     copy->db2Table->cols[i]->pgattnum       = orig->db2Table->cols[i]->pgattnum;
     copy->db2Table->cols[i]->pgtype         = orig->db2Table->cols[i]->pgtype;
     copy->db2Table->cols[i]->pgtypmod       = orig->db2Table->cols[i]->pgtypmod;
@@ -389,13 +390,13 @@ DB2FdwState* copyPlanData (DB2FdwState* orig) {
 
 /** addParam
  *   Creates a new ParamDesc with the given values and adds it to the list.
- *   A palloc'ed copy of "name" is used.
+ *   A deep copy of the parameter is created.
  */
 void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int txts) {
   ParamDesc *param;
 
   db2Debug1(">  addParam");
-  param       = palloc (sizeof (ParamDesc));
+  param       = db2alloc("paramList->next",sizeof (ParamDesc));
   param->type = pgtype;
   switch (c2dbType(colType)) {
     case DB2_INTEGER:
@@ -433,23 +434,23 @@ void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int
  */
 void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename, const char *colname) {
   short db2type = c2dbType(sqltype);
-  db2Debug1("> checkDataType");
-  db2Debug2("  checkDataType: %s.$s of sqltype: %d, db2type: %d, pgtype: %d",tablename,colname,sqltype, db2type, pgtype);
+  db2Debug4("> checkDataType");
+  db2Debug4("  checkDataType: %s.%s of sqltype: %d, db2type: %d, pgtype: %d",tablename,colname,sqltype, db2type, pgtype);
   /* the binary DB2 types can be converted to bytea */
   if (db2type == DB2_BLOB && pgtype == BYTEAOID) {
-    db2Debug3("  DB2_BLOB can be converted into BYTEAOID");
+    db2Debug5("  DB2_BLOB can be converted into BYTEAOID");
   } else if (db2type == DB2_XML && pgtype == XMLOID) {
-    db2Debug3("  DB2_XML can be converted into XMLOID");
+    db2Debug5("  DB2_XML can be converted into XMLOID");
   } else if (db2type != DB2_UNKNOWN_TYPE && db2type != DB2_BLOB && (pgtype == TEXTOID || pgtype == VARCHAROID || pgtype == BPCHAROID)) {
-    db2Debug3("  DB2_UNKNONW && not DB2_BLOB can be converted into TEXTOID, VARCHAROID, BPCHAROID");
+    db2Debug5("  DB2_UNKNONW && not DB2_BLOB can be converted into TEXTOID, VARCHAROID, BPCHAROID");
   } else if ((db2type == DB2_INTEGER || db2type == DB2_SMALLINT || db2type == DB2_BIGINT || db2type == DB2_FLOAT || db2type == DB2_DOUBLE || db2type == DB2_REAL || db2type == DB2_DECIMAL || db2type == DB2_DECFLOAT) && (pgtype == NUMERICOID || pgtype == FLOAT4OID || pgtype == FLOAT8OID)) {
-    db2Debug3("  DB2_INTEGER,SMALLINT,BIGINT,FLOAT,DOUBLE,REAL,DECIMAL,DECFLOAT can be converted into NUMERICOID,FLOAT4OID,FLOAT8OID");
+    db2Debug5("  DB2_INTEGER,SMALLINT,BIGINT,FLOAT,DOUBLE,REAL,DECIMAL,DECFLOAT can be converted into NUMERICOID,FLOAT4OID,FLOAT8OID");
   } else if ((db2type == DB2_INTEGER || db2type == DB2_SMALLINT || db2type == DB2_BIGINT || db2type == DB2_BOOLEAN) && scale <= 0 && (pgtype == INT2OID || pgtype == INT4OID || pgtype == INT8OID || pgtype == BOOLOID)) {
-    db2Debug3("  DB2_INTEGER,SMALLINT,BIGINT,BOOLEAN can be converted into INT2OID, INT42OID, INT8OID,BOOLOID");
+    db2Debug5("  DB2_INTEGER,SMALLINT,BIGINT,BOOLEAN can be converted into INT2OID, INT42OID, INT8OID,BOOLOID");
   } else if ((db2type == DB2_TYPE_DATE || db2type == DB2_TYPE_TIME || db2type == DB2_TYPE_TIMESTAMP || db2type == DB2_TYPE_TIMESTAMP_WITH_TIMEZONE) && (pgtype == DATEOID || pgtype == TIMESTAMPOID || pgtype == TIMESTAMPTZOID || pgtype == TIMEOID || pgtype == TIMETZOID)) {
-    db2Debug3("  DB2_TYPE_DATE,TIME,TIMESTAMP,TIMESTAMP_WITH_TIMEZONE can be converted into DATEOID,TIMESTAMPOID,TIMESTAMPTZOID,TIMEOID,TIMETZOID");
+    db2Debug5("  DB2_TYPE_DATE,TIME,TIMESTAMP,TIMESTAMP_WITH_TIMEZONE can be converted into DATEOID,TIMESTAMPOID,TIMESTAMPTZOID,TIMEOID,TIMETZOID");
   } else if ((db2type == DB2_VARCHAR || db2type == DB2_CLOB) && pgtype == JSONOID) {
-    db2Debug3("  DB2_VARCHAR or DB2_CLOB can be converted into JSONOID");
+    db2Debug5("  DB2_VARCHAR or DB2_CLOB can be converted into JSONOID");
   } else {
     /* nok - report an error */
     ereport ( ERROR
@@ -462,7 +463,7 @@ void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename,
               )
             );
   }
-  db2Debug1("< checkDataType");
+  db2Debug4("< checkDataType");
 }
 
 /** serializePlanData
@@ -487,11 +488,13 @@ List* serializePlanData (DB2FdwState* fdwState) {
   /* query */
   result = lappend (result, serializeString (fdwState->query));
   /* DB2 prefetch count */
-  result = lappend (result, serializeInt ((int) fdwState->prefetch));
+  result = lappend (result, serializeLong (fdwState->prefetch));
   /* DB2 table name */
   result = lappend (result, serializeString (fdwState->db2Table->name));
   /* PostgreSQL table name */
   result = lappend (result, serializeString (fdwState->db2Table->pgname));
+  /* batch size in DB2 table */
+  result = lappend (result, serializeInt (fdwState->db2Table->batchsz));
   /* number of columns in DB2 table */
   result = lappend (result, serializeInt (fdwState->db2Table->ncols));
   /* number of columns in PostgreSQL table */

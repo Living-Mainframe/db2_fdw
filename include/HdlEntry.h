@@ -20,6 +20,8 @@ typedef struct handleEntry
   SQLHANDLE           hsql;
   SQLSMALLINT         type;
   struct handleEntry* next;
+  SQLCHAR             dummy_buffer[4];   // Buffer for COUNT(*) queries with no columns
+  SQLLEN              dummy_null;        // Null indicator for dummy buffer
 } HdlEntry;
 
 #endif

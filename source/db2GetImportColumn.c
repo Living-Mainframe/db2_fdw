@@ -10,8 +10,8 @@
 extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void*        db2Alloc             (size_t size);
-extern void         db2Free              (void* p);
+extern void*        db2alloc             (const char* type, size_t size);
+extern void         db2free              (void* p);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
 extern void         db2Debug3            (const char* message, ...);
@@ -40,7 +40,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
   SQLLEN       ind_len;
   SQLSMALLINT  scale_val;
   SQLLEN       ind_scale;
-  SQLCHAR      nulls_val;
+  SQLCHAR      nulls_val[2];
   SQLLEN       ind_nulls;
   SQLSMALLINT  keyseq_val;
   SQLLEN       ind_key;
@@ -107,7 +107,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
       }
     }
     db2Debug2("  count(*) = %lld, ind_c = %d", (long long)count, ind_c);
-    /* free the statement handle */
+    /* release the statement handle */
     db2FreeStmtHdl(session->stmtp, session->connp);
     db2Debug2("  session->connp: %x", session->connp);
     db2Debug2("  session->emvp : %x", session->envp);
@@ -132,7 +132,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
                           " FROM SYSCAT.TABLES T JOIN SYSCAT.COLUMNS C ON T.TABSCHEMA = C.TABSCHEMA AND T.TABNAME   = C.TABNAME"
                           " WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') ORDER BY T.TABNAME, C.COLNO";
         int   s_len     = strlen(query_str)+1;
-        column_query = db2Alloc(s_len);
+        column_query = db2alloc("column_query",s_len);
         strncpy(column_query,query_str,s_len);
       }
       break;
@@ -141,7 +141,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
                           " FROM SYSCAT.TABLES T JOIN SYSCAT.COLUMNS C ON T.TABSCHEMA = C.TABSCHEMA AND T.TABNAME   = C.TABNAME"
                           " WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') AND T.TABNAME IN (%s) ORDER BY T.TABNAME, C.COLNO";
         int   s_len     = strlen(query_str) + strlen(table_list) + 1;
-        column_query = db2Alloc(s_len);
+        column_query = db2alloc("column_query",s_len);
         snprintf(column_query,s_len,query_str,table_list);
       }
       break;
@@ -150,7 +150,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
                           " FROM SYSCAT.TABLES T JOIN SYSCAT.COLUMNS C ON T.TABSCHEMA = C.TABSCHEMA AND T.TABNAME   = C.TABNAME"
                           " WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') AND T.TABNAME NOT IN (%s) ORDER BY T.TABNAME, C.COLNO";
         int   s_len     = strlen(query_str) + strlen(table_list) + 1;
-        column_query = db2Alloc(s_len);
+        column_query = db2alloc("column_query",s_len);
         snprintf(column_query,s_len,query_str,table_list);
       }
       break;
@@ -214,7 +214,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error importing foreign schema: SQLBindCol failed to define result for type scale", db2Message);
     }
 
-    result = SQLBindCol(session->stmtp->hsql, 6, SQL_C_CHAR, &nulls_val, sizeof(nulls_val), &ind_nulls);
+    result = SQLBindCol(session->stmtp->hsql, 6, SQL_C_CHAR, nulls_val, sizeof(nulls_val), &ind_nulls);
     db2Debug2("  SQLBindCol6 rc : %d",result);
     result = db2CheckErr(result, session->stmtp->hsql, session->stmtp->type,  __LINE__, __FILE__);
     if (result != SQL_SUCCESS) {
@@ -242,7 +242,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
     if (result != SQL_SUCCESS && result != SQL_NO_DATA) {
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error importing foreign schema: SQLExecute failed to execute column query", db2Message);
     }
-    db2Free(column_query);
+    db2free(column_query);
   }
 
   /* for any subsequent call, just fetch the next row from that cursor */
@@ -257,7 +257,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
 
   if (result == SQL_NO_DATA) {
     db2Debug3("  End of Data reached");
-    /* free the statement handle */
+    /* release the statement handle */
     db2FreeStmtHdl(session->stmtp, session->connp);
     session->stmtp = NULL;
     db2Debug1("< db2GetImportCol - returns: 0");
@@ -282,7 +282,7 @@ int db2GetImportColumn(DB2Session* session, char* schema, char* table_list, int 
       strncpy(colName, (char*)col_buf, COLUMN_NAME_LEN);
     *colLen    = (ind_len   == SQL_NULL_DATA) ? 0 : (size_t) len_val;
     *colScale  = (ind_scale == SQL_NULL_DATA) ? 0 : (short) scale_val;
-    *colNulls  = (ind_nulls == SQL_NULL_DATA) ? 0 : (nulls_val == 'Y');
+    *colNulls  = (ind_nulls == SQL_NULL_DATA) ? 0 : (nulls_val[0] == 'Y');
     *key       = (ind_key   == SQL_NULL_DATA) ? 0 : (int) keyseq_val;
     *cp        = (ind_cp    == SQL_NULL_DATA) ? 0 : (int) cp_val;
     /* figure out correct data type */

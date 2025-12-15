@@ -9,21 +9,24 @@
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
+#include <access/xact.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
 extern char*        guessNlsLang              (char* nls_lang);
 extern void         db2GetOptions             (Oid foreigntableid, List** options);
-extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
-extern DB2Table*    db2Describe               (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr);
+extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern DB2Table*    db2Describe               (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
 extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug3                 (const char* message, ...);
+extern void*        db2alloc                  (const char* type, size_t size);
+extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
-DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent);
+DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
 void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
 #ifndef OLD_FDW_API
 bool         optionIsTrue  (const char* value);
@@ -36,12 +39,18 @@ bool         optionIsTrue  (const char* value);
  *   "sample_percent" is set from the foreign table options.
  *   "sample_percent" can be NULL, in that case it is not set.
  */
-DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
-  DB2FdwState* fdwState = palloc0 (sizeof (DB2FdwState));
-  char *pgtablename = get_rel_name (foreigntableid);
-  List *options;
-  ListCell *cell;
-  char *schema = NULL, *table = NULL, *maxlong = NULL, *sample = NULL, *fetch = NULL, *noencerr = NULL;
+DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool describe) {
+  DB2FdwState* fdwState    = db2alloc("fdw_state", sizeof (DB2FdwState));
+  char*        pgtablename = get_rel_name (foreigntableid);
+  List*        options;
+  ListCell*    cell;
+  char*        schema   = NULL;
+  char*        table    = NULL;
+  char*        maxlong  = NULL;
+  char*        sample   = NULL;
+  char*        fetch    = NULL;
+  char*        noencerr = NULL;
+  char*        batchsz  = NULL;
   long max_long;
 
   db2Debug1("> db2GetFdwState");
@@ -60,18 +69,22 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
       fdwState->user = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_PASSWORD) == 0)
       fdwState->password = STRVAL(def->arg);
+    if (strcmp (def->defname, OPT_JWT_TOKEN) == 0)
+      fdwState->jwt_token = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_SCHEMA) == 0)
-      schema = STRVAL(def->arg);
+      schema  = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_TABLE) == 0)
-      table = STRVAL(def->arg);
+      table   = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_MAX_LONG) == 0)
       maxlong = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_SAMPLE) == 0)
-      sample = STRVAL(def->arg);
+      sample  = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_PREFETCH) == 0)
       fetch = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_NO_ENCODING_ERROR) == 0)
       noencerr = STRVAL(def->arg);
+    if (strcmp (def->defname, OPT_BATCH_SIZE) == 0)
+      batchsz  = STRVAL(def->arg);
   }
 
   /* convert "max_long" option to number or use default */
@@ -92,7 +105,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
   if (fetch == NULL)
     fdwState->prefetch = DEFAULT_PREFETCH;
   else
-    fdwState->prefetch = (unsigned int) strtoul (fetch, NULL, 0);
+    fdwState->prefetch = (unsigned long) strtoul (fetch, NULL, 0);
 
   /* check if options are ok */
   if (table == NULL)
@@ -102,13 +115,15 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent) {
   fdwState->nls_lang = guessNlsLang (fdwState->nls_lang);
 
   /* connect to DB2 database */
-  fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
+  fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->jwt_token, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
 
-  /* get remote table description */
-  fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr);
+  if (describe) {
+    /* get remote table description */
+    fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr, batchsz);
 
-  /* add PostgreSQL data to table description */
-  getColumnData (fdwState->db2Table, foreigntableid);
+    /* add PostgreSQL data to table description */
+    getColumnData (fdwState->db2Table, foreigntableid);
+  }
 
   db2Debug1("< db2GetFdwState");
   return fdwState;
@@ -124,7 +139,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   TupleDesc tupdesc;
   int i, index;
 
-  db2Debug1("> getColumnData");
+  db2Debug2("  > getColumnData");
   rel = table_open (foreigntableid, NoLock);
   tupdesc = rel->rd_att;
 
@@ -132,7 +147,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   db2Table->npgcols = tupdesc->natts;
 
   /* loop through foreign table columns */
-  index = 0;
+  index = 0;  
   for (i = 0; i < tupdesc->natts; ++i) {
     Form_pg_attribute att_tuple = TupleDescAttr (tupdesc, i);
     List*             options;
@@ -148,7 +163,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
       db2Table->cols[index - 1]->pgattnum = att_tuple->attnum;
       db2Table->cols[index - 1]->pgtype   = att_tuple->atttypid;
       db2Table->cols[index - 1]->pgtypmod = att_tuple->atttypmod;
-      db2Table->cols[index - 1]->pgname   = pstrdup (NameStr (att_tuple->attname));
+      db2Table->cols[index - 1]->pgname   = db2strdup (NameStr(att_tuple->attname));
     }
 
     /* loop through column options */
@@ -168,7 +183,7 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   }
 
   table_close (rel, NoLock);
-  db2Debug1("< getColumnData");
+  db2Debug2("  < getColumnData");
 }
 
 #ifndef OLD_FDW_API
@@ -177,9 +192,9 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
  */
 bool optionIsTrue (const char *value) {
   bool result = false;
-  db2Debug1("> optionIsTrue(value: '%s')",value);
+  db2Debug3("    > optionIsTrue(value: '%s')",value);
   result = (pg_strcasecmp (value, "on") == 0 || pg_strcasecmp (value, "yes") == 0 || pg_strcasecmp (value, "true") == 0);
-  db2Debug1("< optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
+  db2Debug3("    < optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
   return result;
 }
 #endif /* OLD_FDW_API */

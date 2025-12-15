@@ -21,7 +21,7 @@ extern SQLSMALLINT  c2param              (SQLSMALLINT fparamType);
 extern char*        param2name           (SQLSMALLINT fparamType);
 
 /** internal prototypes */
-void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned int prefetch);
+void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch);
 
 /** db2PrepareQuery
  *   Prepares an SQL statement for execution.
@@ -31,7 +31,7 @@ void                db2PrepareQuery      (DB2Session* session, const char *query
  *   - For DML statements, allocates LOB locators for the RETURNING clause in db2Table.
  *   - Set the prefetch options.
  */
-void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned int prefetch) {
+void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch) {
   int        i          = 0;
   int        col_pos    = 0;
   int        is_select  = 0;
@@ -55,7 +55,7 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
   db2Debug2("  session->stmtp->hsql: %d",session->stmtp->hsql);
   /* set prefetch options */
   if (is_select) {
-    SQLULEN prefetch_rows = prefetch;
+    unsigned long  prefetch_rows = prefetch;
     db2Debug3("  IS_SELECT");
     if (for_update) {
       db2Debug3("  FOR UPDATE");
@@ -139,13 +139,12 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
     }
   }
   if (is_select && col_pos == 0) {
-    SQLCHAR    dummy[4];
-    SQLLEN     dummy_null;
     /*
-     * No columns selected (i.e., SELECT '1' FROM).
-     * Define dummy result columnn.
+     * No columns selected (i.e., SELECT '1' FROM or COUNT(*)).
+     * Use persistent buffers from statement handle to avoid stack deallocation issues.
+     * This fixes the segfault when using aggregate functions without WHERE clause.
      */
-    rc = SQLBindCol(session->stmtp->hsql, 1, SQL_C_CHAR, dummy, sizeof(dummy), &dummy_null);
+    rc = SQLBindCol(session->stmtp->hsql, 1, SQL_C_CHAR, session->stmtp->dummy_buffer, sizeof(session->stmtp->dummy_buffer), &session->stmtp->dummy_null);
     rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
       db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);

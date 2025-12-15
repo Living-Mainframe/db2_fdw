@@ -13,8 +13,8 @@ extern int          err_code;              /* error code, set by db2CheckErr()  
 
 /** external prototypes */
 extern bool         optionIsTrue         (const char* value);
-extern void*        db2Alloc             (size_t size);
-extern void         db2Free              (void* p);
+extern void*        db2alloc             (const char* type, size_t size);
+extern void         db2free              (void* p);
 extern void         db2Debug1            (const char* message, ...);
 extern void         db2Debug2            (const char* message, ...);
 extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -25,13 +25,13 @@ extern HdlEntry*    db2AllocStmtHdl      (SQLSMALLINT type, DB2ConnEntry* connp,
 extern void         db2FreeStmtHdl       (HdlEntry* handlep, DB2ConnEntry* connp);
 
 /** internal prototypes */
-DB2Table*           db2Describe          (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr);
+DB2Table*           db2Describe          (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
 
 /** db2Describe
  *   Find the remote DB2 table and describe it.
- *   Returns a palloc'ed data structure with the results.
+ *   Returns an allocated data structure with the results.
  */
-DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr) {
+DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz) {
   DB2Table*   reply;
   HdlEntry*   stmthp;
   char*       qtable    = NULL;
@@ -60,20 +60,20 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
     qschema = db2CopyText (schema, strlen (schema), 1);
     length += strlen (qschema) + 1;
   }
-  tablename = db2Alloc (length + 1);
+  tablename = db2alloc ("reply->name", length + 1);
   tablename[0] = '\0';		/* empty */
   if (schema != NULL) {
     strncat (tablename, qschema,length);
     strncat (tablename, ".",length);
   }
   strncat (tablename, qtable,length);
-  db2Free (qtable);
+  db2free (qtable);
   if (schema != NULL)
-    db2Free (qschema);
+    db2free (qschema);
 
   /* construct a "SELECT * FROM ..." query to describe columns */
   length += 40;
-  query = db2Alloc (length + 1);
+  query = db2alloc ("query", length + 1);
   snprintf ((char*)query, length+1, (char*)"SELECT * FROM %s FETCH FIRST 1 ROW ONLY", tablename);
 
   /* create statement handle */
@@ -96,15 +96,22 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
     else
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLExecute failed to describe table", db2Message);
   }
+  db2free(query);
 
   /* allocate an db2Table struct for the results */
-  reply          = db2Alloc (sizeof (DB2Table));
+  reply          = db2alloc ("reply", sizeof (DB2Table));
   reply->name    = tablename;
   db2Debug2("  table description");
   db2Debug2("  reply->name   : '%s'", reply->name);
   reply->pgname  = pgname;
   db2Debug2("  reply->pgname : '%s'", reply->pgname);
   reply->npgcols = 0;
+
+  reply->batchsz = DEFAULT_BATCHSZ;
+  if (batchsz != NULL) {
+    char* end;
+    reply->batchsz = strtol(batchsz,&end,10);
+  }
 
   /* get the number of columns */
   rc = SQLNumResultCols(stmthp->hsql, &ncols);
@@ -114,13 +121,13 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   }
 
   reply->ncols = ncols;
-  reply->cols = (DB2Column **) db2Alloc (sizeof (DB2Column *) * reply->ncols);
+  reply->cols = (DB2Column **) db2alloc ("reply->cols", sizeof (DB2Column *) * reply->ncols);
   db2Debug2("  reply->ncols  : %d", reply->ncols);
 
   /* loop through the column list */
   for (i = 1; i <= reply->ncols; ++i) {
     /* allocate an db2Column struct for the column */
-    reply->cols[i - 1]                 = (DB2Column *) db2Alloc (sizeof (DB2Column));
+    reply->cols[i - 1]                 = (DB2Column *) db2alloc (" reply->cols[i - 1]", sizeof (DB2Column));
     reply->cols[i - 1]->colPrimKeyPart = 0;
     reply->cols[i -1 ]->colCodepage    = 0;
     reply->cols[i - 1]->pgname         = NULL;
@@ -269,7 +276,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
     db2Debug2("  reply->cols[%d]->val_len  : %d", (i-1), reply->cols[i - 1]->val_len);
     db2Debug2("  reply->cols[%d]->val_null : %d", (i-1), reply->cols[i - 1]->val_null);
   }
-  /* free statement handle, this takes care of the parameter handles */
+  /* release statement handle, this takes care of the parameter handles */
   db2FreeStmtHdl(stmthp, session->connp);
   db2Debug1("< db2Describe - returns: %x", reply);
   return reply;

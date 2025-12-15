@@ -9,15 +9,14 @@
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
+#include <access/xact.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, const char* nls_lang, int curlevel);
-extern void*        db2Alloc                  (size_t size);
+extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern void*        db2alloc                  (const char* type, size_t size);
 extern DB2FdwState* deserializePlanData       (List* list);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
@@ -63,7 +62,7 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
       continue;
 
     /* create a new entry in the parameter list */
-    paramDesc       = (ParamDesc*) db2Alloc(sizeof (ParamDesc));
+    paramDesc       = (ParamDesc*) db2alloc("fdw_state->paramList->next", sizeof (ParamDesc));
     paramDesc->type = exprType ((Node*) (expr->expr));
 
     if (paramDesc->type == TEXTOID
@@ -90,7 +89,7 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
 
   /* add a fake parameter "if that string appears in the query */
   if (strstr (fdw_state->query, "?/*:now*/") != NULL) {
-    paramDesc            = (ParamDesc*) palloc (sizeof (ParamDesc));
+    paramDesc            = (ParamDesc*) db2alloc ("fdw_state->paramList->next", sizeof (ParamDesc));
     paramDesc->type      = TIMESTAMPTZOID;
     paramDesc->bindType  = BIND_STRING;
     paramDesc->value     = NULL;
@@ -110,6 +109,7 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   fdw_state->session = db2GetSession (fdw_state->dbserver
                                      ,fdw_state->user
                                      ,fdw_state->password
+                                     ,fdw_state->jwt_token
                                      ,fdw_state->nls_lang
                                      ,GetCurrentTransactionNestLevel()
     );

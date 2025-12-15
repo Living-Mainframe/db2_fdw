@@ -75,7 +75,7 @@
 */
 
 /* db2_fdw version */
-#define DB2_FDW_VERSION "18.0.1"
+#define DB2_FDW_VERSION "18.1.1"
 /* number of bytes to read per LOB chunk */
 #define LOB_CHUNK_SIZE    8192
 #define ERRBUFSIZE        2000
@@ -83,6 +83,7 @@
 #define EXPLAIN_LINE_SIZE 1000
 #define DEFAULT_MAX_LONG  32767
 #define DEFAULT_PREFETCH  200
+#define DEFAULT_BATCHSZ   100
 #define TABLE_NAME_LEN    129
 #define COLUMN_NAME_LEN   129
 #define SQLSTATE_LEN      6
@@ -119,10 +120,6 @@ typedef enum {
   BIND_OUTPUT
 } db2BindType;
 
-/*
-#include "ParamDesc.h"
-*/
-
 /* PostgreSQL error messages we need */
 typedef enum {
   FDW_ERROR,
@@ -145,6 +142,7 @@ typedef enum {
 #define OPT_DBSERVER          "dbserver"
 #define OPT_USER              "user"
 #define OPT_PASSWORD          "password"
+#define OPT_JWT_TOKEN         "jwt_token"
 #define OPT_SCHEMA            "schema"
 #define OPT_TABLE             "table"
 #define OPT_MAX_LONG          "max_long"
@@ -153,6 +151,7 @@ typedef enum {
 #define OPT_SAMPLE            "sample_percent"
 #define OPT_PREFETCH          "prefetch"
 #define OPT_NO_ENCODING_ERROR "no_encoding_error"
+#define OPT_BATCH_SIZE        "batch_size"
 
 /* types for the DB2 table description */
 typedef enum {

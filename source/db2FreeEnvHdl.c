@@ -18,6 +18,7 @@ extern void      db2Debug3            (const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
+extern void      db2free              (void* p);
 
 /** local prototypes */
 void             db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
@@ -42,19 +43,19 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
       db2Error (FDW_ERROR, "removeEnvironment internal error: environment handle not found in cache");
     }
   } else {
-    /* free environment handle */
+    /* release environment handle */
     rc = SQLFreeHandle(SQL_HANDLE_ENV, envp->henv);
-    db2Debug2("  free env handle - rc: %d, henv: %d", rc, envp->henv);
+    db2Debug3("  release env handle - rc: %d, henv: %d", rc, envp->henv);
     rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV,__LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
-      db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot free environment handle","%s", db2Message);
+      db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot release environment handle","%s", db2Message);
     }
     if (nls_lang != NULL){
       deleteenvEntryLang(rootenvEntry, nls_lang);
     }
     deleteenvEntry(rootenvEntry,envp);
     sql_initialized = 0;
-    db2Debug2("  sql_initialized: %d",sql_initialized);
+    db2Debug3("  sql_initialized: %d",sql_initialized);
   }
   db2Debug1("< db2FreeEnvHdl");
 }
@@ -65,26 +66,34 @@ void db2FreeEnvHdl(DB2EnvEntry* envp, const char* nls_lang){
 int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
   int          result = 1;
   DB2EnvEntry* step   = NULL;
-  db2Debug1("> deleteenvEntry");
+  db2Debug2("  > deleteenvEntry(start: %x, node: %x)", start, node);
   for (step = start; step != NULL; step = step->right){
     if (step == node) {
       free (step->nls_lang);
       step->nls_lang = NULL;
       if (step->left == NULL && step->right == NULL){
         rootenvEntry = NULL;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       } else if (step->left == NULL) {
         step->right->left = NULL;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       } else if (step->right == NULL) {
         step->left->right = NULL;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       } else {
         step->left->right = step->right;
         step->right->left = step->left;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       }
@@ -92,7 +101,7 @@ int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
       break;
     }
   }
-  db2Debug1("< deleteenvEntry - returns: %d",result);
+  db2Debug2("  < deleteenvEntry - returns: %d",result);
   return result;
 }
 
@@ -102,25 +111,33 @@ int deleteenvEntry(DB2EnvEntry* start, DB2EnvEntry* node) {
 int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
   int          result = 1;
   DB2EnvEntry *step = NULL;
-  db2Debug1("> deleteenvEntryLang");
+  db2Debug2("  > deleteenvEntryLang(start: %x, nlslang: %s)", start, nlslang);
   for (step = start; step != NULL; step = step->right){
     if (strcmp (step->nls_lang, nlslang) == 0) {
       free (step->nls_lang);
       if (step->left == NULL && step->right == NULL){
         rootenvEntry = NULL;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       } else if (step->left == NULL) {
         step->right->left = NULL;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       } else if (step->right == NULL) {
         step->left->right = NULL;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       } else {
         step->left->right = step->right;
         step->right->left = step->left;
+        db2Debug3("  rootenvEntry     : %x", rootenvEntry);
+        db2Debug3("  DB2Enventry freed: %x", step);
         free (step);
         step = NULL;
       }
@@ -128,7 +145,7 @@ int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
       break;
     }
   }
-  db2Debug1("< deleteenvEntryLang - returns: %d",result);
+  db2Debug2("  < deleteenvEntryLang - returns: %d",result);
   return result;
 }
 
@@ -137,13 +154,13 @@ int deleteenvEntryLang(DB2EnvEntry* start, const char* nlslang)  {
  */
 DB2EnvEntry* findenvEntryHandle (DB2EnvEntry* start, SQLHENV henv) {
   DB2EnvEntry* step = NULL;
-  db2Debug1("> findenvEntryHandle");
+  db2Debug2("  > findenvEntryHandle(start: %x, SQLHENV: %d)",start, henv);
   for (step = start; step != NULL; step = step->right){
     if (step->henv == henv) {
       break;
     }
   }
-  db2Debug1("< findenvEntryHandle - returns: %x",step);
+  db2Debug2("  < findenvEntryHandle - returns: %x",step);
   return step;
 }
 
@@ -152,12 +169,18 @@ DB2EnvEntry* findenvEntryHandle (DB2EnvEntry* start, SQLHENV henv) {
  */
 DB2EnvEntry* findenvEntry(DB2EnvEntry* start, const char* nlslang) {
   DB2EnvEntry* step = NULL;
-  db2Debug1("> findenvEntry");
-  for (step = start; step != NULL; step = step->right){
+  db2Debug2("  > findenvEntry(start: %x, nlslang: '%s')", start, nlslang);
+  for (step = start; step != NULL; step = step->right) {
+    db2Debug3("  step: %x ->nls_lang: '%s'", step, step->nls_lang);
+    db2Debug3("  nls_lang      : '%s'", nlslang);
+    db2Debug3("  strcmp(step->nls_lang, nlslang): %d",strcmp (step->nls_lang, nlslang));
     if (strcmp (step->nls_lang, nlslang) == 0) {
       break;
     }
   }
-  db2Debug1("< findenvEntry - returns: %x",step);
+  if (step != NULL) {
+    db2Debug3("  step: %x, ->henv: %d, ->nls_lang: '%s', ->connlist: %x", step, step->henv, step->nls_lang,step->connlist);
+  }
+  db2Debug2("  < findenvEntry - returns: %x", step);
   return step;
 }

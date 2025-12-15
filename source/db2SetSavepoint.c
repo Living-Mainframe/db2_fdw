@@ -25,13 +25,13 @@ void                 db2SetSavepoint      (DB2Session* session, int nest_level);
 void db2SetSavepoint (DB2Session* session, int nest_level) {
   SQLRETURN rc    = 0;
   HdlEntry* hstmt = NULL;
-  db2Debug1("> db2SetSavepoint(nest_level %d)",nest_level);
+  db2Debug1("> db2SetSavepoint(session, nest_level %d)",nest_level);
   db2Debug2("  xact_level: %d",session->connp->xact_level);
   while (session->connp->xact_level < nest_level) {
-    SQLCHAR query[40];
+    SQLCHAR query[80];
 
     db2Debug2("  db2_fdw::db2SetSavepoint: set savepoint s%d", session->connp->xact_level + 1);
-    snprintf((char*)query, 39, "SAVEPOINT s%d", session->connp->xact_level + 1);
+    snprintf((char*)query, 79, "SAVEPOINT s%d ON ROLLBACK RETAIN CURSORS", session->connp->xact_level + 1);
     db2Debug2("  query: '%s'",query);
 
     /* create statement handle */
@@ -51,7 +51,7 @@ void db2SetSavepoint (DB2Session* session, int nest_level) {
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error setting savepoint: SQLExecute failed to set savepoint", db2Message);
     }
 
-    /* free statement handle */
+    /* release statement handle */
     db2FreeStmtHdl(hstmt, session->connp);
     ++session->connp->xact_level;
   }

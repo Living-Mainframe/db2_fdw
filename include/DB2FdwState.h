@@ -1,6 +1,10 @@
 #ifndef DB2FDWSTATE_H
 #define DB2FDWSTATE_H
 
+#ifndef PARAMDESC_H
+#include "ParamDesc.h"
+#endif
+
 /** DB2FdwState
  *  FDW-specific information for RelOptInfo.fdw_private and ForeignScanState.fdw_state.
  *  The same structure is used to hold information for query planning and execution.
@@ -16,6 +20,7 @@ typedef struct db2FdwState {
   char*               dbserver;      // DB2 connect string
   char*               user;          // DB2 username
   char*               password;      // DB2 password
+  char*               jwt_token;     // JWT token for authentication (alternative to user/password)
   char*               nls_lang;      // DB2 locale information
   DB2Session*         session;       // encapsulates the active DB2 session
   char*               query;         // query we issue against DB2
@@ -27,7 +32,7 @@ typedef struct db2FdwState {
   unsigned long       rowcount;      // rows already read from DB2
   int                 columnindex;   // currently processed column for error context
   MemoryContext       temp_cxt;      // short-lived memory for data modification
-  unsigned int        prefetch;      // number of rows to prefetch
+  unsigned long       prefetch;      // number of rows to prefetch
   char*               order_clause;  // for sort-pushdown
   char*               where_clause;  // deparsed where clause
   /*

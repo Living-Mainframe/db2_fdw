@@ -16,9 +16,7 @@
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
@@ -28,6 +26,8 @@ extern void         checkDataType             (short db2type, int scale, Oid pgt
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
+extern void         db2free                   (void* p);
+extern char*        db2strdup                 (const char* p);
 
 /** local prototypes */
 const char*  get_jointype_name     (JoinType jointype);
@@ -141,7 +141,7 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
   }
   /* create remote query */
   fdwState->query = createQuery (fdwState, foreignrel, for_update, best_path->path.pathkeys);
-  elog (DEBUG1, "db2_fdw: remote query is: %s", fdwState->query);
+  db2Debug2("  db2_fdw: remote query is: %s", fdwState->query);
   /* get PostgreSQL column data types, check that they match DB2's */
   for (i = 0; i < fdwState->db2Table->ncols; ++i) {
     if (fdwState->db2Table->cols[i]->used) {
@@ -183,31 +183,32 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
   char*          wherecopy, *p, md5[33], parname[10], *separator = "";
   StringInfoData query, result;
   List*          columnlist, *conditions = foreignrel->baserestrictinfo;
-#if PG_VERSION_NUM >= 150000
+  #if PG_VERSION_NUM >= 150000
   const char*    errstr = NULL;
-#endif
+  #endif
 
   db2Debug1("> createQuery");
 
-  columnlist = foreignrel->reltarget->exprs;
-#if PG_VERSION_NUM < 90600
+  #if PG_VERSION_NUM < 90600
   columnlist = foreignrel->reltargetlist;
-#else
+  #else
   columnlist = foreignrel->reltarget->exprs;
-#endif
+  #endif
 
   if (IS_SIMPLE_REL (foreignrel)) {
     db2Debug3("  IS_SIMPLE_REL");
     /* find all the columns to include in the select list */
     /* examine each SELECT list entry for Var nodes */
+    db2Debug3("  size of columnlist: %d", list_length(columnlist));
     foreach (cell, columnlist) {
       db2Debug3("  examine column");
-      getUsedColumns ((Expr*) lfirst (cell), fdwState->db2Table,foreignrel->relid);
+      getUsedColumns ((Expr*) lfirst (cell), fdwState->db2Table, foreignrel->relid);
     }
     /* examine each condition for Var nodes */
+    db2Debug3("  size of conditions: %d", list_length(conditions));
     foreach (cell, conditions) {
       db2Debug3("  examine condition");
-      getUsedColumns ((Expr *) lfirst (cell), fdwState->db2Table,foreignrel->relid);
+      getUsedColumns ((Expr *) lfirst (cell), fdwState->db2Table, foreignrel->relid);
     }
   }
 
@@ -255,7 +256,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
     appendStringInfo (&query, " FOR UPDATE");
 
   /* get a copy of the where clause without single quoted string literals */
-  wherecopy = pstrdup (query.data);
+  wherecopy = db2strdup (query.data);
   for (p = wherecopy; *p != '\0'; ++p) {
     if (*p == '\'')
       in_quote = !in_quote;
@@ -274,7 +275,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
     }
   }
 
-  pfree (wherecopy);
+  db2free (wherecopy);
 
   /*
    * Calculate MD5 hash of the query string so far.
@@ -292,7 +293,7 @@ if (!pg_md5_hash (query.data, strlen (query.data), md5)) {
   /* add comment with MD5 hash to query */
   initStringInfo (&result);
   appendStringInfo (&result, "SELECT /*%s*/ %s", md5, query.data);
-  pfree (query.data);
+  db2free (query.data);
 
   db2Debug1("< createQuery returns: '%s'",result.data);
   return result.data;
@@ -342,7 +343,7 @@ void deparseFromExprForRel (DB2FdwState* fdwState, StringInfo buf, RelOptInfo* f
     /* End the FROM clause entry. */
     appendStringInfo (buf, ")");
   }
-  db2Debug2("  buf: '%s",buf->data);
+  db2Debug2("  buf: '%s'",buf->data);
   db2Debug1("< deparseFromExprForRel");
 }
 
@@ -351,8 +352,7 @@ void deparseFromExprForRel (DB2FdwState* fdwState, StringInfo buf, RelOptInfo* f
  *    The conditions in the list are assumed to be ANDed.
  *    This function is used to deparse JOIN ... ON clauses.
  */
-void appendConditions(List* exprs, StringInfo buf, RelOptInfo* joinrel, List** params_list)
-{
+void appendConditions(List* exprs, StringInfo buf, RelOptInfo* joinrel, List** params_list) {
     ListCell *lc = NULL;
     bool is_first = true;
     char *where = NULL;
@@ -395,9 +395,9 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
       case T_CaseTestExpr:
       case T_CoerceToDomainValue:
       case T_CurrentOfExpr:
-#if PG_VERSION_NUM >= 100000
-     case T_NextValueExpr:
-#endif
+      #if PG_VERSION_NUM >= 100000
+      case T_NextValueExpr:
+      #endif
       break;
       case T_Var:
         variable = (Var*) expr;
@@ -438,13 +438,13 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
           getUsedColumns ((Expr*) lfirst (cell), db2Table, foreignrelid);
         }
       break;
-#if PG_VERSION_NUM < 120000
+      #if PG_VERSION_NUM < 120000
       case T_ArrayRef: {
         ArrayRef* ref = (ArrayRef*)expr;
-#else
+      #else
       case T_SubscriptingRef: {
         SubscriptingRef* ref = (SubscriptingRef*) expr;
-#endif
+      #endif
         foreach(cell, ref->refupperindexpr) {
           getUsedColumns((Expr*)lfirst(cell), db2Table, foreignrelid);
         }
@@ -574,11 +574,11 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
       case T_PlaceHolderVar:
         getUsedColumns (((PlaceHolderVar*) expr)->phexpr, db2Table, foreignrelid);
       break;
-#if PG_VERSION_NUM >= 100000
+      #if PG_VERSION_NUM >= 100000
       case T_SQLValueFunction:
         //nop
       break;                                /* contains no column references */
-#endif
+      #endif
       default:
         /*
          * We must be able to handle all node types that can

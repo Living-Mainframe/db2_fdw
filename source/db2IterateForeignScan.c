@@ -10,24 +10,23 @@
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
+#include <access/xact.h>
 #endif
-//#include "db2_pg.h"
 #include "db2_fdw.h"
-#include "ParamDesc.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern int             db2IsStatementOpen        (DB2Session* session);
-extern void            db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned int prefetch);
-extern int             db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
-extern int             db2FetchNext              (DB2Session* session);
-extern void            db2CloseStatement         (DB2Session* session);
-extern void            db2Debug1                 (const char* message, ...);
-extern void            db2Debug2                 (const char* message, ...);
-extern void            db2Debug3                 (const char* message, ...);
-extern void            convertTuple              (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trunc_lob) ;
-extern char*           deparseDate               (Datum datum);
-extern char*           deparseTimestamp          (Datum datum, bool hasTimezone);
+extern int          db2IsStatementOpen        (DB2Session* session);
+extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
+extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
+extern int          db2FetchNext              (DB2Session* session);
+extern void         db2CloseStatement         (DB2Session* session);
+extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug3                 (const char* message, ...);
+extern void         convertTuple              (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trunc_lob) ;
+extern char*        deparseDate               (Datum datum);
+extern char*        deparseTimestamp          (Datum datum, bool hasTimezone);
 
 /** local prototypes */
 TupleTableSlot* db2IterateForeignScan(ForeignScanState* node);
