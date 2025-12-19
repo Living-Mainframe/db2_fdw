@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include <sqlcli1.h>
 #include <postgres_ext.h>
 #include "db2_fdw.h"
@@ -66,8 +67,27 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
         SQLSMALLINT colType = (param->colnum >= 0) ? db2Table->cols[param->colnum]->colType : SQL_DOUBLE;
         db2Debug3("  param->bindType: BIND_NUMBER");
         indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : 0);
+        db2Debug2("  colType         : %d",colType);
         db2Debug2("  param_ind       : %d",indicators[param_count]);
         switch (colType){
+          case SQL_BIGINT:{
+            char* end = NULL;
+            SQLBIGINT sqlbint = strtoll(param->value,&end,10);
+            db2Debug2("  sqlbint: %d",sqlbint);
+            db2Debug2("  param->bindType: SQL_BIGINT");
+            rc = SQLBindParameter( session->stmtp->hsql
+                                 , param_count
+                                 , SQL_PARAM_INPUT
+                                 , SQL_C_SBIGINT
+                                 , colType
+                                 , 0
+                                 , 0
+                                 , &sqlbint
+                                 , 0
+                                 , &indicators[param_count]
+                                 );
+          }
+          break;
           case SQL_SMALLINT:{
             char* end = NULL;
             SQLSMALLINT sqlint = strtol(param->value,&end,10);
