@@ -64,8 +64,7 @@ OBJS         = source/db2_fdw.o\
                source/db2CopyText.o\
                source/db2IsStatementOpen.o\
                source/db2_utils.o
-RELEASE      = 18.1.1
-
+RELEASE      = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 DATA         = $(wildcard sql/*--*.sql)
 DOCS         = $(wildcard doc/*.md)
 TESTS        = $(wildcard test/sql/*.sql)
@@ -79,9 +78,9 @@ REGRESS_OPTS = --inputdir=test
 PG_CPPFLAGS  = -g -fPIC -I$(DB2_HOME)/include -I./include
 SHLIB_LINK   = -fPIC -L$(DB2_HOME)/lib64 -L$(DB2_HOME)/bin  -ldb2
 PG_CONFIG   ?= pg_config
-
-PGXS := $(shell $(PG_CONFIG) --pgxs)
+PGXS        := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+PG_MAJOR    := $(firstword $(subst ., ,$(VERSION)))
 
 
 #checkin: clean
@@ -96,3 +95,11 @@ include $(PGXS)
 
 archive:
 	git archive --format zip --prefix=db2_fdw-$(RELEASE)/ --output ../db2_fdw-$(RELEASE).zip master
+
+rpms:
+	mkdir -p ~/rpms
+	echo %pgversion "$(PG_MAJOR)" > ~/.rpmmacros
+	echo %fdw_version "$(RELEASE)" >> ~/.rpmmacros
+	rpmbuild -ba ./$(EXTENSION).spec
+	nexusupld.sh -s ~/rpmbuild/RPMS/x86_64/postgresql$(PG_MAJOR)-db2_fdw-$(RELEASE)-1.el8.x86_64.rpm -p /db2_fdw/el8/x86_64/Package
+	rm -rf ~/rpmbuild
