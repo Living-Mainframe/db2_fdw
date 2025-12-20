@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <sqlcli1.h>
 #include <postgres_ext.h>
 #include "db2_fdw.h"
@@ -122,7 +123,12 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
                                  );
           }
           break;
-          default: {
+          case SQL_DECIMAL:
+          case SQL_NUMERIC:
+          case SQL_FLOAT:
+          case SQL_REAL:
+          case SQL_DOUBLE:
+          case SQL_DECFLOAT: {
             SQL_NUMERIC_STRUCT num = {0};
             parse2num_struct(param->value, &num);
             db2Debug2("  num: '%s'",num);
@@ -137,6 +143,11 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
                                  , sizeof(num)
                                  , &indicators[param_count]
                                  );
+          }
+          break;
+          default: {
+            snprintf(db2Message,ERRBUFSIZE,"unsupported sql number type: %d - %s",colType,c2name(colType)); 
+            db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: unable to bind parameter", db2Message);
           }
           break;
         }

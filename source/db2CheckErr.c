@@ -38,7 +38,7 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
   memset (db2Message,0x00,sizeof(db2Message));
   switch (status) {
     case SQL_INVALID_HANDLE: {
-      snprintf(db2Message,sizeof(db2Message),"-CI INVALID HANDLE-----\nline=%d\nfile=%s\n",line,file);
+      snprintf(db2Message,ERRBUFSIZE,"-CI INVALID HANDLE-----\nline=%d\nfile=%s\n",line,file);
       err_code = -1;
     }
     break;
