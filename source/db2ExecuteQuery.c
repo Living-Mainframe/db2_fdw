@@ -21,6 +21,7 @@ extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQ
 extern void         db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLSMALLINT  param2c              (SQLSMALLINT fcType);
 extern void         parse2num_struct     (const char* s, SQL_NUMERIC_STRUCT* ns);
+extern char*        c2name               (short fcType);
 
 /** internal prototypes */
 int                 db2ExecuteQuery      (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
@@ -67,14 +68,13 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
         SQLSMALLINT colType = (param->colnum >= 0) ? db2Table->cols[param->colnum]->colType : SQL_DOUBLE;
         db2Debug3("  param->bindType: BIND_NUMBER");
         indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : 0);
-        db2Debug2("  colType         : %d",colType);
+        db2Debug2("  colType         : %d - %s",colType,c2name(colType));
         db2Debug2("  param_ind       : %d",indicators[param_count]);
         switch (colType){
           case SQL_BIGINT:{
             char* end = NULL;
             SQLBIGINT sqlbint = strtoll(param->value,&end,10);
             db2Debug2("  sqlbint: %d",sqlbint);
-            db2Debug2("  param->bindType: SQL_BIGINT");
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -92,7 +92,6 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
             char* end = NULL;
             SQLSMALLINT sqlint = strtol(param->value,&end,10);
             db2Debug2("  sqlint: %d",sqlint);
-            db2Debug2("  param->bindType: SQL_SMALLINT");
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -110,7 +109,6 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
             char* end = NULL;
             SQLINTEGER sqlint = strtol(param->value,&end,10);
             db2Debug2("  sqlint: %d",sqlint);
-            db2Debug2("  param->bindType: SQL_INTEGER");
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -127,7 +125,6 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
           default: {
             SQL_NUMERIC_STRUCT num = {0};
             parse2num_struct(param->value, &num);
-            db2Debug2("  param->bindType: SQL_NUMERIC");
             db2Debug2("  num: '%s'",num);
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
