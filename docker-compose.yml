@@ -20,7 +20,12 @@ services:
     platform: linux/amd64
     volumes:
       - ./:/host
-    command: /scripts/build_rpm.sh
+    command: 
+      - /scripts/build_rpm.sh
+      - /scripts/sign_rpms.sh
+    environment:
+      - GPG_PASSPHRASE
+      - GPG_KEY_B64
   postgres:
     build:
       context: docker/postgres
