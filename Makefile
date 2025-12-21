@@ -74,14 +74,14 @@ REGRESS_OPTS = --inputdir=test
 # Uncoment the MODULES line if you are adding C files
 # to your extention.
 #
-#MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
-PG_CPPFLAGS  = -g -fPIC -I$(DB2_HOME)/include -I./include
-SHLIB_LINK   = -fPIC -L$(DB2_HOME)/lib64 -L$(DB2_HOME)/bin  -ldb2
-PG_CONFIG   ?= pg_config
-PGXS        := $(shell $(PG_CONFIG) --pgxs)
+#MODULES         = $(patsubst %.c,%,$(wildcard src/*.c))
+PG_CPPFLAGS     = -g -fPIC -I$(DB2_HOME)/include -I./include
+SHLIB_LINK      = -fPIC -L$(DB2_HOME)/lib64 -L$(DB2_HOME)/bin  -ldb2
+PG_CONFIG      ?= pg_config
+PGXS           := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-PG_MAJOR    := $(firstword $(subst ., ,$(VERSION)))
-
+PG_MAJOR       := $(firstword $(subst ., ,$(VERSION)))
+GPG_PASSPHRASE := $(shell cat ~/.gnupg/rpm-passphrase)
 
 #checkin: clean
 #	git remote set-url origin git@github.com:Living-Mainframe/db2_fdw.git
@@ -97,9 +97,9 @@ archive:
 	git archive --format zip --prefix=db2_fdw-$(RELEASE)/ --output ../db2_fdw-$(RELEASE).zip master
 
 rpms:
-	mkdir -p ~/rpms
-	echo %pgversion "$(PG_MAJOR)" > ~/.rpmmacros
-	echo %fdw_version "$(RELEASE)" >> ~/.rpmmacros
-	rpmbuild -ba ./$(EXTENSION).spec
+#	mkdir -p ~/rpms
+	sed -e "s/GPG_PASSPHRASE/$(GPG_PASSPHRASE)/" -e "s/PG_MAJOR/$(PG_MAJOR)/" -e "s/FDW_RELEASE/$(RELEASE)/" ./config/makemacros >~/.rpmmacros
+	rpmbuild -ba --sign ./$(EXTENSION).spec
 	nexusupld.sh -s ~/rpmbuild/RPMS/x86_64/postgresql$(PG_MAJOR)-db2_fdw-$(RELEASE)-1.el8.x86_64.rpm -p /db2_fdw/el8/x86_64/Package
 	rm -rf ~/rpmbuild
+	rm -rf ~/.rpmmacros
