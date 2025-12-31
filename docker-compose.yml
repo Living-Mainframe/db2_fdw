@@ -20,8 +20,7 @@ services:
     platform: linux/amd64
     volumes:
       - ./:/host
-    command: >
-      - /scripts/build_rpm.sh
+    command: /scripts/build_rpm.sh
   postgres:
     build:
       context: docker/postgres
@@ -29,8 +28,7 @@ services:
       LD_LIBRARY_PATH: /opt/ibm/db2/V12.1/lib64
   rpmsigner:
     image: builder
-    command:
-      - /scripts/sign_rpms.sh
+    command: /scripts/sign_rpms.sh
     volumes:
       - ./:/host
     environment:
