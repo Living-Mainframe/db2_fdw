@@ -12,9 +12,7 @@ services:
   builder:
     image: builder
     environment:
-      - DB2_HOME: /opt/ibm/db2/V12.1
-      - GPG_PASSPHRASE: ${GPG_PASSPHRASE}
-      - GPG_KEY_B64: ${GPG_KEY_B64}
+      DB2_HOME: /opt/ibm/db2/V12.1
     build:
       context: docker/builder
       args:
@@ -23,21 +21,21 @@ services:
     volumes:
       - ./:/host
     command: >
-      bash -e -c "/scripts/build_rpm.sh && /scripts/sign_rpms.sh"
+      - /scripts/build_rpm.sh
   postgres:
     build:
       context: docker/postgres
     environment:
       LD_LIBRARY_PATH: /opt/ibm/db2/V12.1/lib64
-  #rpmsigner:
-  #  image: builder
-  #  command:
-  #    - /host/scripts/sign_rpms.sh
-  #  volumes:
-  #    - ./:/host
-  #  environment:
-  #    - GPG_PASSPHRASE
-  #    - GPG_KEY_B64
+  rpmsigner:
+    image: builder
+    command:
+      - /host/scripts/sign_rpms.sh
+    volumes:
+      - ./:/host
+    environment:
+      - GPG_PASSPHRASE
+      - GPG_KEY_B64
   #dev:
   #  image: builder
   #  platform: linux/amd64
