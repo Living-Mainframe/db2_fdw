@@ -32,8 +32,8 @@ services:
     volumes:
       - ./:/host
     environment:
-      - GPG_PASSPHRASE
-      - GPG_KEY_B64
+      GPG_PASSPHRASE: ${GPG_PASSPHRASE}
+      GPG_KEY_B64: ${GPG_KEY_B64}
   #dev:
   #  image: builder
   #  platform: linux/amd64

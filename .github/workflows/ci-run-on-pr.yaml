@@ -47,11 +47,12 @@ jobs:
         env:
           PGVERSION: ${{ matrix.pgversion }}
 
-      - name: sign rpm
-        run: |
-          docker-compose up rpmsigner --exit-code-from rpmsigner
+      - name: Run rpm signer
         env:
           PGVERSION: ${{ matrix.pgversion }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_B64: ${{ secrets.GPG_KEY_B64 }}
+        run: docker-compose up rpmsigner --exit-code-from rpmsigner
 
       - name: copy rpm to postgres context
         run: |
