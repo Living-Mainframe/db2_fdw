@@ -32,7 +32,7 @@ jobs:
 
       - name: start DB2 (background)
         run: |
-          docker-compose up db2 -d
+          docker-compose up -d db2
         env:
           PGVERSION: ${{ matrix.pgversion }}
 
