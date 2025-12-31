@@ -22,9 +22,8 @@ services:
     platform: linux/amd64
     volumes:
       - ./:/host
-    command: 
-      - /scripts/build_rpm.sh
-      - /scripts/sign_rpms.sh
+    command: >
+      bash -e -c "/scripts/build_rpm.sh && /scripts/sign_rpms.sh"
   postgres:
     build:
       context: docker/postgres
