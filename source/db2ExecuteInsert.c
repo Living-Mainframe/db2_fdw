@@ -69,8 +69,9 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
         switch (db2Table->cols[param->colnum]->colType){
           case SQL_BIGINT:{
             char* end = NULL;
-            SQLBIGINT sqlbint = strtoll(param->value,&end,10);
-            db2Debug2("  sqlbint: %d",sqlbint);
+            SQLBIGINT* sqlbint = db2alloc("SQLBIGINT",sizeof(SQLBIGINT));
+            *sqlbint = strtoll(param->value,&end,10);
+            db2Debug2("  sqlbint: %d",*sqlbint);
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -78,7 +79,7 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
                                  , db2Table->cols[param->colnum]->colType
                                  , 0
                                  , 0
-                                 , &sqlbint
+                                 , sqlbint
                                  , 0
                                  , &indicators[param_count]
                                  );
@@ -86,8 +87,9 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           break;
           case SQL_SMALLINT:{
             char* end = NULL;
-            SQLSMALLINT sqlint = strtol(param->value,&end,10);
-            db2Debug2("  sqlint: %d",sqlint);
+            SQLSMALLINT* sqlsint = db2alloc("SQLSMALLINT",sizeof(SQLSMALLINT));
+            *sqlsint = strtol(param->value,&end,10);
+            db2Debug2("  sqlsint: %d",*sqlsint);
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param->colnum+1
                                  , SQL_PARAM_INPUT
@@ -95,7 +97,7 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
                                  , db2Table->cols[param->colnum]->colType
                                  , 0
                                  , 0
-                                 , &sqlint
+                                 , sqlsint
                                  , 0
                                  , &indicators[param_count]
                                  );
@@ -103,8 +105,9 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           break;
           case SQL_INTEGER: {
             char* end = NULL;
-            SQLINTEGER sqlint = strtol(param->value,&end,10);
-            db2Debug2("  sqlint: %d",sqlint);
+            SQLINTEGER* sqlint = db2alloc("SQLINTEGER",sizeof(SQLINTEGER));
+            *sqlint = strtol(param->value,&end,10);
+            db2Debug2("  sqlint: %d",*sqlint);
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param->colnum+1
                                  , SQL_PARAM_INPUT
@@ -112,7 +115,7 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
                                  , db2Table->cols[param->colnum]->colType
                                  , 0
                                  , 0
-                                 , &sqlint
+                                 , sqlint
                                  , 0
                                  , &indicators[param_count]
                                  );
@@ -124,18 +127,18 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           case SQL_REAL:
           case SQL_DOUBLE:
           case SQL_DECFLOAT: {
-            SQL_NUMERIC_STRUCT num = {0};
-            parse2num_struct(param->value, &num);
-            db2Debug2("  num: '%s'",num);
+            SQL_NUMERIC_STRUCT* num = db2alloc("SQL_NUMERIC_STRUCT",sizeof(SQL_NUMERIC_STRUCT));
+            parse2num_struct(param->value, num);
+            db2Debug2("  num: '%s'",*num);
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param->colnum+1
                                  , SQL_PARAM_INPUT
                                  , SQL_C_NUMERIC
                                  , db2Table->cols[param->colnum]->colType
-                                 , num.precision
-                                 , num.scale
-                                 , &num
-                                 , sizeof(num)
+                                 , num->precision
+                                 , num->scale
+                                 , num
+                                 , sizeof(*num)
                                  , &indicators[param_count]
                                  );
           }
