@@ -14,8 +14,8 @@ jobs:
           #- 14
           #- 15
           #- 16
-          - 17
-          #- 18
+          #- 17
+          - 18
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +46,13 @@ jobs:
           docker-compose up builder --exit-code-from builder
         env:
           PGVERSION: ${{ matrix.pgversion }}
+
+      - name: Run rpm signer
+        env:
+          PGVERSION: ${{ matrix.pgversion }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_B64: ${{ secrets.GPG_KEY_B64 }}
+        run: docker-compose up rpmsigner --exit-code-from rpmsigner
 
       - name: copy rpm to postgres context
         run: |
