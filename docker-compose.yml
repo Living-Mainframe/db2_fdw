@@ -30,7 +30,7 @@ services:
   rpmsigner:
     image: builder
     command:
-      - /host/scripts/sign_rpms.sh
+      - /scripts/sign_rpms.sh
     volumes:
       - ./:/host
     environment:
