@@ -12,9 +12,9 @@ services:
   builder:
     image: builder
     environment:
-      DB2_HOME: /opt/ibm/db2/V12.1
-      GPG_PASSPHRASE: ${GPG_PASSPHRASE}
-      GPG_KEY_B64: ${GPG_KEY_B64}
+      - DB2_HOME: /opt/ibm/db2/V12.1
+      - GPG_PASSPHRASE: ${GPG_PASSPHRASE}
+      - GPG_KEY_B64: ${GPG_KEY_B64}
     build:
       context: docker/builder
       args:
