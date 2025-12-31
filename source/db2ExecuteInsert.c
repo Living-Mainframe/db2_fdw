@@ -70,8 +70,12 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           case SQL_BIGINT:{
             char* end = NULL;
             SQLBIGINT* sqlbint = db2alloc("SQLBIGINT",sizeof(SQLBIGINT));
-            *sqlbint = strtoll(param->value,&end,10);
-            db2Debug2("  sqlbint: %d",*sqlbint);
+            if (param->value != NULL) {
+              *sqlbint = strtoll(param->value,&end,10);
+              db2Debug2("  sqlbint: %d",*sqlbint);
+            } else {
+              db2Debug2("  sqlbint: '%s'",param->value);
+            }
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param_count
                                  , SQL_PARAM_INPUT
@@ -88,8 +92,12 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           case SQL_SMALLINT:{
             char* end = NULL;
             SQLSMALLINT* sqlsint = db2alloc("SQLSMALLINT",sizeof(SQLSMALLINT));
-            *sqlsint = strtol(param->value,&end,10);
-            db2Debug2("  sqlsint: %d",*sqlsint);
+            if (param->value != NULL) {
+              *sqlsint = strtol(param->value,&end,10);
+              db2Debug2("  sqlsint: %d",*sqlsint);
+            } else {
+              db2Debug2("  sqlsint: '%s'",param->value);
+            }
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param->colnum+1
                                  , SQL_PARAM_INPUT
@@ -106,8 +114,12 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           case SQL_INTEGER: {
             char* end = NULL;
             SQLINTEGER* sqlint = db2alloc("SQLINTEGER",sizeof(SQLINTEGER));
-            *sqlint = strtol(param->value,&end,10);
-            db2Debug2("  sqlint: %d",*sqlint);
+            if (param->value != NULL) {
+              *sqlint = strtol(param->value,&end,10);
+              db2Debug2("  sqlint: %d",*sqlint);
+            } else {
+              db2Debug2("  sqlint: '%s'",param->value);
+            }
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param->colnum+1
                                  , SQL_PARAM_INPUT
@@ -128,8 +140,12 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
           case SQL_DOUBLE:
           case SQL_DECFLOAT: {
             SQL_NUMERIC_STRUCT* num = db2alloc("SQL_NUMERIC_STRUCT",sizeof(SQL_NUMERIC_STRUCT));
-            parse2num_struct(param->value, num);
-            db2Debug2("  num: '%s'",*num);
+            if (param->value != NULL) {
+              parse2num_struct(param->value, num);
+              db2Debug2("  num: '%s'",*num);
+            } else {
+              db2Debug2("  num: '%s'",param->value);
+            }
             rc = SQLBindParameter( session->stmtp->hsql
                                  , param->colnum+1
                                  , SQL_PARAM_INPUT
