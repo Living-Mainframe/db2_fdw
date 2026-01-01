@@ -22,6 +22,7 @@ extern void         db2Error_d           (db2error sqlstate, const char* message
 extern SQLSMALLINT  param2c              (SQLSMALLINT fcType);
 extern void         parse2num_struct     (const char* s, SQL_NUMERIC_STRUCT* ns);
 extern char*        c2name               (short fcType);
+extern void         db2BindParameter     (DB2Session* session, const DB2Table* db2Table, ParamDesc* param, SQLLEN* indicators, int param_count, int col_num);
 
 /** internal prototypes */
 int                 db2ExecuteInsert     (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
@@ -54,207 +55,10 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
   param_count = 0;
   for (param = paramList; param; param = param->next) {
     ++param_count;
-    db2Debug2("  paramcount      : %d",param_count);
-    db2Debug2("  param->value    : %s",param->value);
-    db2Debug2("  param->colnum   : %d",param->colnum);
-    db2Debug2("  param->bindType : %d",param->bindType);
-    db2Debug2("  param_count     : %d",param_count);
-    db2Debug2("  colName         : %s",db2Table->cols[param->colnum]->colName);
-    switch (param->bindType) {
-      case BIND_NUMBER: {
-        db2Debug3("  param->bindType: BIND_NUMBER");
-        indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : 0);
-        db2Debug2("  param_ind       : %d",indicators[param_count]);
-        db2Debug2("  colType         : %d - %s",db2Table->cols[param->colnum]->colType,c2name(db2Table->cols[param->colnum]->colType));
-        switch (db2Table->cols[param->colnum]->colType){
-          case SQL_BIGINT:{
-            char* end = NULL;
-            SQLBIGINT* sqlbint = db2alloc("SQLBIGINT",sizeof(SQLBIGINT));
-            if (param->value != NULL) {
-              *sqlbint = strtoll(param->value,&end,10);
-              db2Debug2("  sqlbint: %d",*sqlbint);
-            } else {
-              db2Debug2("  sqlbint: '%s'",param->value);
-            }
-            rc = SQLBindParameter( session->stmtp->hsql
-                                 , param_count
-                                 , SQL_PARAM_INPUT
-                                 , SQL_C_SBIGINT
-                                 , db2Table->cols[param->colnum]->colType
-                                 , 0
-                                 , 0
-                                 , sqlbint
-                                 , 0
-                                 , &indicators[param_count]
-                                 );
-          }
-          break;
-          case SQL_SMALLINT:{
-            char* end = NULL;
-            SQLSMALLINT* sqlsint = db2alloc("SQLSMALLINT",sizeof(SQLSMALLINT));
-            if (param->value != NULL) {
-              *sqlsint = strtol(param->value,&end,10);
-              db2Debug2("  sqlsint: %d",*sqlsint);
-            } else {
-              db2Debug2("  sqlsint: '%s'",param->value);
-            }
-            rc = SQLBindParameter( session->stmtp->hsql
-                                 , param->colnum+1
-                                 , SQL_PARAM_INPUT
-                                 , SQL_C_SSHORT
-                                 , db2Table->cols[param->colnum]->colType
-                                 , 0
-                                 , 0
-                                 , sqlsint
-                                 , 0
-                                 , &indicators[param_count]
-                                 );
-          }
-          break;
-          case SQL_INTEGER: {
-            char* end = NULL;
-            SQLINTEGER* sqlint = db2alloc("SQLINTEGER",sizeof(SQLINTEGER));
-            if (param->value != NULL) {
-              *sqlint = strtol(param->value,&end,10);
-              db2Debug2("  sqlint: %d",*sqlint);
-            } else {
-              db2Debug2("  sqlint: '%s'",param->value);
-            }
-            rc = SQLBindParameter( session->stmtp->hsql
-                                 , param->colnum+1
-                                 , SQL_PARAM_INPUT
-                                 , SQL_C_SLONG
-                                 , db2Table->cols[param->colnum]->colType
-                                 , 0
-                                 , 0
-                                 , sqlint
-                                 , 0
-                                 , &indicators[param_count]
-                                 );
-          }
-          break;
-          case SQL_DECIMAL:
-          case SQL_NUMERIC:
-          case SQL_FLOAT:
-          case SQL_REAL:
-          case SQL_DOUBLE:
-          case SQL_DECFLOAT: {
-            SQL_NUMERIC_STRUCT* num = db2alloc("SQL_NUMERIC_STRUCT",sizeof(SQL_NUMERIC_STRUCT));
-            if (param->value != NULL) {
-              parse2num_struct(param->value, num);
-              db2Debug2("  num: '%s'",*num);
-            } else {
-              db2Debug2("  num: '%s'",param->value);
-            }
-            rc = SQLBindParameter( session->stmtp->hsql
-                                 , param->colnum+1
-                                 , SQL_PARAM_INPUT
-                                 , SQL_C_NUMERIC
-                                 , db2Table->cols[param->colnum]->colType
-                                 , num->precision
-                                 , num->scale
-                                 , num
-                                 , sizeof(*num)
-                                 , &indicators[param_count]
-                                 );
-          }
-          break;
-          default: {
-            snprintf(db2Message,ERRBUFSIZE,"unsupported sql number type: %d - %s"
-                    ,db2Table->cols[param->colnum]->colType
-                    ,c2name(db2Table->cols[param->colnum]->colType)
-                    ); 
-            db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing isrt query: unable to bind parameter", db2Message);
-          }
-          break;
-        }
-      }
-      break;
-      case BIND_STRING: {
-        db2Debug3("  param->bindType: BIND_STRING");
-        indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : SQL_NTS);
-        db2Debug2("  param_ind       : %d",indicators[param_count]);
-        rc = SQLBindParameter( session->stmtp->hsql
-                             , param->colnum+1
-                             , SQL_PARAM_INPUT
-                             , SQL_C_CHAR
-                             , SQL_VARCHAR
-                             , db2Table->cols[param->colnum]->colSize
-                             , 0
-                             , (SQLPOINTER) param->value
-                             , 0
-                             , &indicators[param_count]
-                             );
-      }
-      break;
-      case BIND_LONGRAW: {
-        db2Debug3("  param->bindType: BIND_LONGRAW");
-        indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : SQL_NTS);
-        db2Debug2("  param_ind       : %d",indicators[param_count]);
-        rc = SQLBindParameter( session->stmtp->hsql
-                             , param->colnum+1
-                             , SQL_PARAM_INPUT
-                             , SQL_C_BINARY
-                             , SQL_LONGVARBINARY
-                             , db2Table->cols[param->colnum]->colSize
-                             , 0
-                             , (SQLPOINTER) param->value
-                             , 0
-                             , &indicators[param_count]
-                             );
-      }
-      break;
-      case BIND_LONG: {
-        db2Debug3("  param->bindType: BIND_LONG");
-        indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : SQL_NTS);
-        db2Debug2("  param_ind       : %d",indicators[param_count]);
-        db2Debug2("  param->value    : '%s'",param->value);
-        rc = SQLBindParameter( session->stmtp->hsql
-                             , param->colnum+1
-                             , SQL_PARAM_INPUT
-                             , SQL_C_CHAR
-                             , SQL_LONGVARCHAR
-                             , db2Table->cols[param->colnum]->colSize
-                             , 0
-                             , (SQLPOINTER) param->value
-                             , 0
-                             , &indicators[param_count]
-                             );
-      }
-      break;
-      case BIND_OUTPUT: {
-        SQLSMALLINT fcType;
-        SQLSMALLINT fParamType;
-        db2Debug2("  param->bindType: BIND_OUTPUT");
-        indicators[param_count] = (SQLLEN) ((param->value == NULL) ? SQL_NULL_DATA : 0);
-        db2Debug2("  param_ind       : %d",indicators[param_count]);
-        if (db2Table->cols[param->colnum]->pgtype == UUIDOID) {
-          /* the type input function will interpret the string value correctly */
-          fcType = SQL_CHAR;
-        } else {
-          fcType = db2Table->cols[param->colnum]->colType;
-        }
-        fParamType = param2c(fcType);
-        rc = SQLBindParameter( session->stmtp->hsql
-                             , param_count
-                             , SQL_PARAM_OUTPUT
-                             , fParamType
-                             , fcType
-                             , db2Table->cols[param->colnum]->colSize
-                             , 0
-                             , (SQLPOINTER) param->value
-                             , db2Table->cols[param->colnum]->val_size
-                             , &indicators[param_count]
-                             );
-      }
-      break;
-    }
-    /* bind the value to the parameter */
-    rc = db2CheckErr(rc,  session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
-    if (rc != SQL_SUCCESS) {
-      db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindParameter failed to bind parameter", db2Message);
-    }
+    /** colnum in param and param_count are 0 based, but in isrt statements need to be 1 based */
+    db2BindParameter(session, db2Table, param, &indicators[param_count], param_count, param->colnum+1);
   }
+
   /* execute the query and get the first result row */
   db2Debug2("  session->stmtp->hsql: %d",session->stmtp->hsql);
   rc = SQLGetCursorName(session->stmtp->hsql, cname, (SQLSMALLINT)sizeof(cname), &outlen); 
@@ -269,6 +73,7 @@ int db2ExecuteInsert (DB2Session* session, const DB2Table* db2Table, ParamDesc* 
     /* use the correct SQLSTATE for serialization failures */
     db2Error_d(err_code == 8177 ? FDW_SERIALIZATION_FAILURE : FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLExecute failed to execute remote query", db2Message);
   }
+
   /* db2free all indicators */
   db2free (indicators);
   if (rc == SQL_NO_DATA) {

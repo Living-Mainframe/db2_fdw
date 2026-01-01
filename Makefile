@@ -46,6 +46,7 @@ OBJS         = source/db2_fdw.o\
                source/db2Describe.o\
                source/db2GetImportColumn.o\
                source/db2PrepareQuery.o\
+               source/db2BindParameter.o\
                source/db2ExecuteQuery.o\
                source/db2ExecuteInsert.o\
                source/db2GetForeignModifyBatchSize.o \
