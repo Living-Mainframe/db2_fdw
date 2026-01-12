@@ -99,6 +99,7 @@ extern void             db2GetForeignRelSize       (PlannerInfo* root, RelOptInf
  */
 extern ForeignScan*     db2GetForeignPlan           (PlannerInfo* root, RelOptInfo* foreignrel, Oid foreigntableid, ForeignPath* best_path, List* tlist, List* scan_clauses , Plan* outer_plan);
 extern void             db2GetForeignPaths          (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
+extern void             db2GetForeignUpperPaths     (PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra);
 extern void             db2GetForeignJoinPaths      (PlannerInfo* root, RelOptInfo* joinrel, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinType jointype, JoinPathExtraData* extra);
 extern bool             db2AnalyzeForeignTable      (Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
 extern void             db2ExplainForeignScan       (ForeignScanState* node, ExplainState* es);
@@ -140,6 +141,7 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
 
   fdwroutine->GetForeignRelSize         = db2GetForeignRelSize;
   fdwroutine->GetForeignPaths           = db2GetForeignPaths;
+  fdwroutine->GetForeignUpperPaths      = db2GetForeignUpperPaths;
   fdwroutine->GetForeignJoinPaths       = db2GetForeignJoinPaths;
   fdwroutine->GetForeignPlan            = db2GetForeignPlan;
   fdwroutine->AnalyzeForeignTable       = db2AnalyzeForeignTable;

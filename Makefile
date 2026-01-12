@@ -4,6 +4,7 @@ MODULE_big   = db2_fdw
 OBJS         = source/db2_fdw.o\
                source/db2GetForeignPlan.o\
                source/db2GetForeignPaths.o\
+               source/db2GetForeignUpperPaths.o\
                source/db2GetForeignJoinPaths.o\
                source/db2AnalyzeForeignTable.o\
                source/db2ExplainForeignScan.o\
