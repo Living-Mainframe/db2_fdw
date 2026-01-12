@@ -35,7 +35,22 @@ extern void         db2free                   (void* p);
 
 /** local prototypes */
 void                appendAsType              (StringInfoData* dest, Oid type);
-char*               deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+char*               deparseExpr               (DB2Session* session, RelOptInfo* foreignrel, Expr*              expr, const DB2Table* db2Table, List** params);
+char*               deparseConstExpr          (DB2Session* session, RelOptInfo* foreignrel, Const*             expr, const DB2Table* db2Table, List** params);
+char*               deparseParamExpr          (DB2Session* session, RelOptInfo* foreignrel, Param*             expr, const DB2Table* db2Table, List** params);
+char*               deparseVarExpr            (DB2Session* session, RelOptInfo* foreignrel, Var*               expr, const DB2Table* db2Table, List** params);
+char*               deparseOpExpr             (DB2Session* session, RelOptInfo* foreignrel, OpExpr*            expr, const DB2Table* db2Table, List** params);
+char*               deparseScalarArrayOpExpr  (DB2Session* session, RelOptInfo* foreignrel, ScalarArrayOpExpr* expr, const DB2Table* db2Table, List** params);
+char*               deparseDistinctExpr       (DB2Session* session, RelOptInfo* foreignrel, DistinctExpr*      expr, const DB2Table* db2Table, List** params);
+char*               deparseNullIfExpr         (DB2Session* session, RelOptInfo* foreignrel, NullIfExpr*        expr, const DB2Table* db2Table, List** params);
+char*               deparseBoolExpr           (DB2Session* session, RelOptInfo* foreignrel, BoolExpr*          expr, const DB2Table* db2Table, List** params);
+char*               deparseCaseExpr           (DB2Session* session, RelOptInfo* foreignrel, CaseExpr*          expr, const DB2Table* db2Table, List** params);
+char*               deparseCoalesceExpr       (DB2Session* session, RelOptInfo* foreignrel, CoalesceExpr*      expr, const DB2Table* db2Table, List** params);
+char*               deparseFuncExpr           (DB2Session* session, RelOptInfo* foreignrel, FuncExpr*          expr, const DB2Table* db2Table, List** params);
+char*               deparseCoerceViaIOExpr    (CoerceViaIO* expr);
+#if PG_VERSION_NUM >= 100000
+char*               deparseSQLValueFuncExpr   (SQLValueFunction* expr);
+#endif
 char*               datumToString             (Datum datum, Oid type);
 char*               guessNlsLang              (char* nls_lang);
 char*               deparseDate               (Datum datum);
@@ -92,801 +107,950 @@ void appendAsType (StringInfoData* dest, Oid type) {
  *   will be stored in "params".
  */
 char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, const DB2Table* db2Table, List** params) {
-  char*              opername;
-  char*              left;
-  char*              right;
-  char*              arg;
-  char               oprkind;
-  #ifndef OLD_FDW_API
-  char               parname[10];
-  #endif
-  Const*             constant;
-  OpExpr*            oper;
-  ScalarArrayOpExpr* arrayoper;
-  CaseExpr*          caseexpr;
-  BoolExpr*          boolexpr;
-  CoalesceExpr*      coalesceexpr;
-  CoerceViaIO*       coerce;
-  Param*             param;
-  Var*               variable;
-  FuncExpr*          func;
-  Expr*              rightexpr;
-  ArrayExpr*         array;
-  ArrayCoerceExpr*   arraycoerce;
-  #if PG_VERSION_NUM >= 100000
-  SQLValueFunction*  sqlvalfunc;
-  #endif
-  regproc            typoutput;
-  HeapTuple          tuple;
-  ListCell*          cell;
-  StringInfoData     result;
-  Oid                leftargtype;
-  Oid                rightargtype;
-  Oid                schema;
-  short              db2type;
-  ArrayIterator      iterator;
-  Datum              datum;
-  bool               first_arg;
-  bool               isNull;
-  int                index;
-  StringInfoData     alias;
-  const DB2Table*    var_table;  /* db2Table that belongs to a Var */
+  char* retValue = NULL;
   db2Debug1("> %s::deparseExpr", __FILE__);
   db2Debug2("  expr: %x",expr);
   if (expr != NULL) {
+    db2Debug2("  expr->type: %d",expr->type);
     switch (expr->type) {
       case T_Const: {
-        constant = (Const *) expr;
-        if (constant->constisnull) {
-          /* only translate NULLs of a type DB2 can handle */
-          if (canHandleType (constant->consttype)) {
-            initStringInfo (&result);
-            appendStringInfo (&result, "NULL");
-          } else {
-            return NULL;
-          }
-        } else {
-          /* get a string representation of the value */
-          char *c = datumToString (constant->constvalue, constant->consttype);
-          if (c == NULL) {
-            return NULL;
-          } else {
-            initStringInfo (&result);
-            appendStringInfo (&result, "%s", c);
-          }
-        }
+        retValue = deparseConstExpr(session, foreignrel, (Const*)expr, db2Table, params);
       }
       break;
       case T_Param: {
-        param = (Param *) expr;
-        #ifdef OLD_FDW_API
-        /* don't try to push down parameters with 9.1 */
-        return NULL;
-        #else
-        /* don't try to handle interval parameters */
-        if (!canHandleType (param->paramtype) || param->paramtype == INTERVALOID)
-          return NULL;
-    
-        /* find the index in the parameter list */
-        index = 0;
-        foreach (cell, *params) {
-          ++index;
-          if (equal (param, (Node *) lfirst (cell)))
-            break;
-        }
-        if (cell == NULL) {
-          /* add the parameter to the list */
-          ++index;
-          *params = lappend (*params, param);
-        }
-    
-        /* parameters will be called :p1, :p2 etc. */
-        snprintf (parname, 10, ":p%d", index);
-        initStringInfo (&result);
-        appendAsType (&result, param->paramtype);
-        #endif /* OLD_FDW_API */
+        retValue = deparseParamExpr(session, foreignrel, (Param*) expr, db2Table, params);
       }
       break;
       case T_Var: {
-        variable = (Var *) expr;
-        var_table = NULL;
-    
-        /* check if the variable belongs to one of our foreign tables */
-        #ifdef JOIN_API
-        if (IS_SIMPLE_REL (foreignrel)) {
-        #endif /* JOIN_API */
-          if (variable->varno == foreignrel->relid && variable->varlevelsup == 0)
-            var_table = db2Table;
-        #ifdef JOIN_API
-        } else {
-          DB2FdwState* joinstate  = (DB2FdwState*) foreignrel->fdw_private;
-          DB2FdwState* outerstate = (DB2FdwState*) joinstate->outerrel->fdw_private;
-          DB2FdwState* innerstate = (DB2FdwState*) joinstate->innerrel->fdw_private;
-    
-          /* we can't get here if the foreign table has no columns, so this is safe */
-          if (variable->varno == outerstate->db2Table->cols[0]->varno && variable->varlevelsup == 0)
-            var_table = outerstate->db2Table;
-          if (variable->varno == innerstate->db2Table->cols[0]->varno && variable->varlevelsup == 0)
-            var_table = innerstate->db2Table;
-        }
-        #endif /* JOIN_API */
-        if (var_table) {
-          /* the variable belongs to a foreign table, replace it with the name */
-          /* we cannot handle system columns */
-          if (variable->varattno < 1)
-            return NULL;
-          /*
-           * Allow boolean columns here.
-           * They will be rendered as ("COL" <> 0).
-           */
-          if (!(canHandleType (variable->vartype) || variable->vartype == BOOLOID))
-            return NULL;
-          /* get var_table column index corresponding to this column (-1 if none) */
-          index = var_table->ncols - 1;
-          while (index >= 0 && var_table->cols[index]->pgattnum != variable->varattno)
-            --index;
-          /* if no DB2 column corresponds, translate as NULL */
-          if (index == -1) {
-            initStringInfo (&result);
-            appendStringInfo (&result, "NULL");
-            break;
-          }
-    
-          /*
-           * Don't try to convert a column reference if the type is
-           * converted from a non-string type in DB2 to a string type
-           * in PostgreSQL because functions and operators won't work the same.
-           */
-          db2type = c2dbType(var_table->cols[index]->colType);
-          if ((variable->vartype == TEXTOID || variable->vartype == BPCHAROID || variable->vartype == VARCHAROID)  && db2type != DB2_VARCHAR && db2type != DB2_CHAR)
-            return NULL;
-          initStringInfo (&result);
-          /* work around the lack of booleans in DB2 */
-          if (variable->vartype == BOOLOID) {
-            appendStringInfo (&result, "(");
-          }
-    
-          /* qualify with an alias based on the range table index */
-          initStringInfo (&alias);
-          ADD_REL_QUALIFIER (&alias, var_table->cols[index]->varno);
-    
-          appendStringInfo (&result, "%s%s", alias.data, var_table->cols[index]->colName);
-    
-          /* work around the lack of booleans in DB2 */
-          if (variable->vartype == BOOLOID) {
-            appendStringInfo (&result, " <> 0)");
-          }
-        } else {
-          /* treat it like a parameter */
-          #ifdef OLD_FDW_API
-          /* don't try to push down parameters with 9.1 */
-          return NULL;
-          #else
-          /* don't try to handle type interval */
-          if (!canHandleType (variable->vartype) || variable->vartype == INTERVALOID)
-            return NULL;
-    
-          /* find the index in the parameter list */
-          index = 0;
-          foreach (cell, *params) {
-            ++index;
-            if (equal (variable, (Node *) lfirst (cell)))
-              break;
-          }
-          if (cell == NULL) {
-            /* add the parameter to the list */
-            ++index;
-            *params = lappend (*params, variable);
-          }
-    
-          /* parameters will be called :p1, :p2 etc. */
-          initStringInfo (&result);
-          appendStringInfo (&result, ":p%d", index);
-          #endif /* OLD_FDW_API */
-        }
+        retValue = deparseVarExpr (session, foreignrel, (Var*)expr, db2Table, params);
       }
       break;
       case T_OpExpr: {
-        oper = (OpExpr *) expr;
-        /* get operator name, kind, argument type and schema */
-        tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (oper->opno));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for operator %u", oper->opno);
-        }
-        opername     = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
-        oprkind      = ((Form_pg_operator) GETSTRUCT (tuple))->oprkind;
-        leftargtype  = ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
-        rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
-        schema       = ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
-        ReleaseSysCache (tuple);
-        /* ignore operators in other than the pg_catalog schema */
-        if (schema != PG_CATALOG_NAMESPACE)
-          return NULL;
-        if (!canHandleType (rightargtype))
-          return NULL;
-        /*
-         * Don't translate operations on two intervals.
-         * INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND don't mix well.
-         */
-        if (leftargtype == INTERVALOID && rightargtype == INTERVALOID)
-          return NULL;
-        /* the operators that we can translate */
-        if (strcmp (opername, "=") == 0 || strcmp (opername, "<>") == 0
-        /* string comparisons are not safe */
-        || (strcmp (opername, ">")  == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID && rightargtype != NAMEOID && rightargtype != CHAROID)
-        || (strcmp (opername, "<")  == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID && rightargtype != NAMEOID && rightargtype != CHAROID)
-        || (strcmp (opername, ">=") == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID && rightargtype != NAMEOID && rightargtype != CHAROID)
-        || (strcmp (opername, "<=") == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID && rightargtype != NAMEOID && rightargtype != CHAROID)
-        || strcmp (opername, "+")   == 0
-        /* subtracting DATEs yields a NUMBER in DB2 */
-        || (strcmp (opername, "-")    == 0 && rightargtype != DATEOID      && rightargtype != TIMESTAMPOID  && rightargtype != TIMESTAMPTZOID)
-        ||  strcmp (opername, "*")    == 0 || strcmp (opername, "~~") == 0 || strcmp (opername, "!~~") == 0 || strcmp (opername, "~~*") == 0
-        ||  strcmp (opername, "!~~*") == 0 || strcmp (opername, "^")  == 0 || strcmp (opername, "%")   == 0 || strcmp (opername, "&")   == 0 
-        ||  strcmp (opername, "|/")   == 0 || strcmp (opername, "@")  == 0) {
-          left = deparseExpr (session, foreignrel, linitial (oper->args), db2Table, params);
-          if (left == NULL) {
-            db2free (opername);
-            return NULL;
-          }
-    
-          if (oprkind == 'b') {
-            /* binary operator */
-            right = deparseExpr (session, foreignrel, lsecond (oper->args), db2Table, params);
-            if (right == NULL) {
-              db2free (left);
-              db2free (opername);
-              return NULL;
-            }
-            initStringInfo (&result);
-            if (strcmp (opername, "~~") == 0) {
-              appendStringInfo (&result, "(%s LIKE %s ESCAPE '\\')", left, right);
-            } else if (strcmp (opername, "!~~") == 0) {
-              appendStringInfo (&result, "(%s NOT LIKE %s ESCAPE '\\')", left, right);
-            } else if (strcmp (opername, "~~*") == 0) {
-              appendStringInfo (&result, "(UPPER(%s) LIKE UPPER(%s) ESCAPE '\\')", left, right);
-            } else if (strcmp (opername, "!~~*") == 0) {
-              appendStringInfo (&result, "(UPPER(%s) NOT LIKE UPPER(%s) ESCAPE '\\')", left, right);
-            } else if (strcmp (opername, "^") == 0) {
-              appendStringInfo (&result, "POWER(%s, %s)", left, right);
-            } else if (strcmp (opername, "%") == 0) {
-              appendStringInfo (&result, "MOD(%s, %s)", left, right);
-            } else if (strcmp (opername, "&") == 0) {
-              appendStringInfo (&result, "BITAND(%s, %s)", left, right);
-            } else {
-              /* the other operators have the same name in DB2 */
-              appendStringInfo (&result, "(%s %s %s)", left, opername, right);
-            }
-            db2free (right);
-            db2free (left);
-          } else {
-            /* unary operator */
-            initStringInfo (&result);
-            if (strcmp (opername, "|/") == 0) {
-              appendStringInfo (&result, "SQRT(%s)", left);
-            } else if (strcmp (opername, "@") == 0) {
-              appendStringInfo (&result, "ABS(%s)", left);
-            } else {
-              /* unary + or - */
-              appendStringInfo (&result, "(%s%s)", opername, left);
-            }
-            db2free (left);
-          }
-        } else {
-          /* cannot translate this operator */
-          db2free (opername);
-          return NULL;
-        }
-        db2free (opername);
+        retValue = deparseOpExpr (session, foreignrel, (OpExpr*)expr, db2Table, params);
       }
       break;
       case T_ScalarArrayOpExpr: {
-        arrayoper = (ScalarArrayOpExpr *) expr;
-    
-        /* get operator name, left argument type and schema */
-        tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (arrayoper->opno));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for operator %u", arrayoper->opno);
-        }
-        opername    = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
-        leftargtype =           ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
-        schema      =           ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
-        ReleaseSysCache (tuple);
-    
-        /* get the type's output function */
-        tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (leftargtype));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for type %u", leftargtype);
-        }
-        typoutput = ((Form_pg_type) GETSTRUCT (tuple))->typoutput;
-        ReleaseSysCache (tuple);
-    
-        /* ignore operators in other than the pg_catalog schema */
-        if (schema != PG_CATALOG_NAMESPACE)
-          return NULL;
-    
-        /* don't try to push down anything but IN and NOT IN expressions */
-        if ((strcmp (opername, "=") != 0 || !arrayoper->useOr) && (strcmp (opername, "<>") != 0 || arrayoper->useOr))
-          return NULL;
-    
-        if (!canHandleType (leftargtype))
-          return NULL;
-    
-        left = deparseExpr (session, foreignrel, linitial (arrayoper->args), db2Table, params);
-        if (left == NULL)
-          return NULL;
-    
-        /* begin to compose result */
-        initStringInfo (&result);
-        appendStringInfo (&result, "(%s %s (", left, arrayoper->useOr ? "IN" : "NOT IN");
-    
-        /* the second (=last) argument can be Const, ArrayExpr or ArrayCoerceExpr */
-        rightexpr = (Expr *) llast (arrayoper->args);
-        switch (rightexpr->type) {
-          case T_Const: {
-            /* the second (=last) argument is a Const of ArrayType */
-            constant = (Const *) rightexpr;
-            /* using NULL in place of an array or value list is valid in DB2 and PostgreSQL */
-            if (constant->constisnull) {
-              appendStringInfo (&result, "NULL");
-            } else {
-              /* loop through the array elements */
-              iterator = array_create_iterator (DatumGetArrayTypeP (constant->constvalue), 0);
-              first_arg = true;
-              while (array_iterate (iterator, &datum, &isNull)) {
-                char *c;
-                if (isNull) {
-                  c = "NULL";
-                } else {
-                  c = datumToString (datum, leftargtype);
-                  if (c == NULL) {
-                    array_free_iterator (iterator);
-                    return NULL;
-                  }
-                }
-                /* append the argument */
-                appendStringInfo (&result, "%s%s", first_arg ? "" : ", ", c);
-                first_arg = false;
-              }
-              array_free_iterator (iterator);
-              /* don't push down empty arrays, since the semantics for NOT x = ANY(<empty array>) differ */
-              if (first_arg)
-                return NULL;
-            }
-          }
-          break;
-          case T_ArrayCoerceExpr: {
-            /* the second (=last) argument is an ArrayCoerceExpr */
-            arraycoerce = (ArrayCoerceExpr *) rightexpr;
-
-            /* if the conversion requires more than binary coercion, don't push it down */
-            #if PG_VERSION_NUM < 110000
-            if (arraycoerce->elemfuncid != InvalidOid)
-              return NULL;
-            #else
-            if (arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType)
-              return NULL;
-            #endif
-
-            /* the actual array is here */
-            rightexpr = arraycoerce->arg;
-          }
-          /* fall through ! */
-          case T_ArrayExpr: {
-            /* the second (=last) argument is an ArrayExpr */
-            array = (ArrayExpr *) rightexpr;
-
-            /* loop the array arguments */
-            first_arg = true;
-            foreach (cell, array->elements) {
-              /* convert the argument to a string */
-              char* element = deparseExpr (session, foreignrel, (Expr *) lfirst (cell), db2Table, params);
-
-              /* if any element cannot be converted, give up */
-              if (element == NULL)
-                return NULL;
-
-                /* append the argument */
-              appendStringInfo (&result, "%s%s", first_arg ? "" : ", ", element);
-              first_arg = false;
-            }
-
-            /* don't push down empty arrays, since the semantics for NOT x = ANY(<empty array>) differ */
-            if (first_arg)
-              return NULL;
-          }
-          break;
-          default:
-            return NULL;
-        }
-        /* two parentheses close the expression */
-        appendStringInfo (&result, "))");
+        retValue = deparseScalarArrayOpExpr (session, foreignrel, (ScalarArrayOpExpr*)expr, db2Table, params);
       }
       break;
       case T_DistinctExpr: {
-        /* get argument type */
-        tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (((DistinctExpr *) expr)->opno));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for operator %u", ((DistinctExpr *) expr)->opno);
-        }
-        rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
-        ReleaseSysCache (tuple);
-
-        if (!canHandleType (rightargtype))
-          return NULL;
-
-        left = deparseExpr (session, foreignrel, linitial (((DistinctExpr *) expr)->args), db2Table, params);
-        if (left == NULL) {
-          return NULL;
-        }
-        right = deparseExpr (session, foreignrel, lsecond (((DistinctExpr *) expr)->args), db2Table, params);
-        if (right == NULL) {
-          db2free (left);
-          return NULL;
-        }
-
-        initStringInfo (&result);
-        appendStringInfo (&result, "(%s IS DISTINCT FROM %s)", left, right);
+        retValue = deparseDistinctExpr(session, foreignrel, (DistinctExpr*)expr, db2Table, params);
       }
       break;
       case T_NullIfExpr: {
-        /* get argument type */
-        tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (((NullIfExpr *) expr)->opno));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for operator %u", ((NullIfExpr *) expr)->opno);
-        }
-        rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
-        ReleaseSysCache (tuple);
-
-        if (!canHandleType (rightargtype))
-          return NULL;
-
-        left = deparseExpr (session, foreignrel, linitial (((NullIfExpr *) expr)->args), db2Table, params);
-        if (left == NULL) {
-          return NULL;
-        }
-        right = deparseExpr (session, foreignrel, lsecond (((NullIfExpr *) expr)->args), db2Table, params);
-        if (right == NULL) {
-          db2free (left);
-          return NULL;
-        }
-
-        initStringInfo (&result);
-        appendStringInfo (&result, "NULLIF(%s, %s)", left, right);
+        retValue = deparseNullIfExpr(session, foreignrel, (NullIfExpr*)expr, db2Table, params);
       }
       break;
       case T_BoolExpr: {
-        boolexpr = (BoolExpr *) expr;
-
-        arg = deparseExpr (session, foreignrel, linitial (boolexpr->args), db2Table, params);
-        if (arg == NULL)
-          return NULL;
-
-        initStringInfo (&result);
-        appendStringInfo (&result, "(%s%s", boolexpr->boolop == NOT_EXPR ? "NOT " : "", arg);
-
-        do_each_cell(cell, boolexpr->args, list_next(boolexpr->args, list_head(boolexpr->args))) { 
-          arg = deparseExpr (session, foreignrel, (Expr *) lfirst (cell), db2Table, params);
-          if (arg == NULL) {
-            db2free (result.data);
-            return NULL;
-          }
-          appendStringInfo (&result, " %s %s", boolexpr->boolop == AND_EXPR ? "AND" : "OR", arg);
-        }
-        appendStringInfo (&result, ")");
+        retValue = deparseBoolExpr(session, foreignrel, (BoolExpr*)expr, db2Table, params);
       }
       break;
       case T_RelabelType: {
-        return deparseExpr (session, foreignrel, ((RelabelType *) expr)->arg, db2Table, params);
+        retValue = deparseExpr (session, foreignrel, ((RelabelType*)expr)->arg, db2Table, params);
       }
       break;
       case T_CoerceToDomain: {
-        return deparseExpr (session, foreignrel, ((CoerceToDomain *) expr)->arg, db2Table, params);
+        retValue = deparseExpr (session, foreignrel, ((CoerceToDomain*)expr)->arg, db2Table, params);
       }
       break;
       case T_CaseExpr: {
-        caseexpr = (CaseExpr *) expr;
-        if (!canHandleType (caseexpr->casetype)) {
-          return NULL;
+        retValue = deparseCaseExpr(session, foreignrel, (CaseExpr*)expr, db2Table, params);
+      }
+      break;
+      case T_CoalesceExpr: {
+        retValue = deparseCoalesceExpr(session, foreignrel, (CoalesceExpr*)expr, db2Table, params);
+      }
+      break;
+      case T_NullTest: {
+        StringInfoData result;
+        char*          arg = NULL;
+        db2Debug2("  T_NullTest");
+        arg = deparseExpr(session, foreignrel, ((NullTest*) expr)->arg, db2Table, params);
+        db2Debug2("  T_NullTest arg: %s", arg);
+        if (arg != NULL) {
+          initStringInfo (&result);
+          appendStringInfo (&result, "(%s IS %sNULL)", arg, ((NullTest*)expr)->nulltesttype == IS_NOT_NULL ? "NOT " : "");
         }
-        initStringInfo (&result);
-        appendStringInfo (&result, "CASE");
-        /* for the form "CASE arg WHEN ...", add first expression */
-        if (caseexpr->arg != NULL) {
-          arg = deparseExpr (session, foreignrel, caseexpr->arg, db2Table, params);
-          if (arg == NULL) {
-            db2free (result.data);
-            return NULL;
-          } else {
-            appendStringInfo (&result, " %s", arg);
-          }
-        }
-        /* append WHEN ... THEN clauses */
-        foreach (cell, caseexpr->args) {
-          CaseWhen *whenclause = (CaseWhen *) lfirst (cell);
-          /* WHEN */
-          if (caseexpr->arg == NULL) {
-            /* for CASE WHEN ..., use the whole expression */
-            arg = deparseExpr (session, foreignrel, whenclause->expr, db2Table, params);
-          } else {
-            /* for CASE arg WHEN ..., use only the right branch of the equality */
-            arg = deparseExpr (session, foreignrel, lsecond (((OpExpr *) whenclause->expr)->args), db2Table, params);
-          }
-          if (arg == NULL) {
-            db2free (result.data);
-            return NULL;
-          } else {
-            appendStringInfo (&result, " WHEN %s", arg);
-            db2free (arg);
-          }
+        retValue = (arg == NULL) ? arg : result.data;
+      }
+      break;
+      case T_FuncExpr: {
+        retValue = deparseFuncExpr(session, foreignrel, (FuncExpr*)expr, db2Table, params);
+      }
+      break;
+      case T_CoerceViaIO: {
+        retValue = deparseCoerceViaIOExpr((CoerceViaIO*) expr);
+      }
+      break;
+      #if PG_VERSION_NUM >= 100000
+      case T_SQLValueFunction: {
+        retValue = deparseSQLValueFuncExpr((SQLValueFunction*)expr);
+      }
+      break;
+      #endif
+      default: {
+        /* we cannot translate this to DB2 */
+        db2Debug2("  expression cannot be translated to DB2", __FILE__);
+      }
+      break;
+    }
+  }
+  db2Debug1("< %s::deparseExpr: %s", __FILE__, retValue);
+  return retValue;
+}
 
-          /* THEN */
-          arg = deparseExpr (session, foreignrel, whenclause->result, db2Table, params);
-          if (arg == NULL) {
-            db2free (result.data);
-            return NULL;
+char* deparseConstExpr         (DB2Session* session, RelOptInfo* foreignrel, Const*             expr, const DB2Table* db2Table, List** params) {
+  char*  value    = NULL;
+
+  db2Debug1("> %s::deparseConstExpr", __FILE__);
+  if (expr->constisnull) {
+    /* only translate NULLs of a type DB2 can handle */
+    if (canHandleType (expr->consttype)) {
+      StringInfoData result;
+      initStringInfo (&result);
+      appendStringInfo (&result, "NULL");
+      value = result.data;
+    }
+  } else {
+    /* get a string representation of the value */
+    char* c = datumToString (expr->constvalue, expr->consttype);
+    if (c != NULL) {
+      StringInfoData result;
+      initStringInfo (&result);
+      appendStringInfo (&result, "%s", c);
+      value = result.data;
+    }
+  }
+  db2Debug1("< %s::deparseConstExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseParamExpr         (DB2Session* session, RelOptInfo* foreignrel, Param*             expr, const DB2Table* db2Table, List** params) {
+  char* value = NULL;
+  #ifdef OLD_FDW_API
+  /* don't try to push down parameters with 9.1 */
+  db2Debug1("> %s::deparseParamExpr", __FILE__);
+  db2Debug2("  don't try to push down parameters with 9.1");
+  #else
+  ListCell* cell  = NULL;
+  char      parname[10];
+
+  db2Debug1("> %s::deparseParamExpr", __FILE__);
+  /* don't try to handle interval parameters */
+  if (!canHandleType (expr->paramtype) || expr->paramtype == INTERVALOID) {
+    db2Debug2("  !canHhandleType(expr->paramtype %d) || rxpr->paramtype == INTERVALOID)", expr->paramtype);
+  } else {
+    StringInfoData result;
+    /* find the index in the parameter list */
+    int index = 0;
+    foreach (cell, *params) {
+      ++index;
+      if (equal (expr, (Node *) lfirst (cell)))
+        break;
+    }
+    if (cell == NULL) {
+      /* add the parameter to the list */
+      ++index;
+      *params = lappend (*params, expr);
+    }
+    /* parameters will be called :p1, :p2 etc. */
+    snprintf (parname, 10, ":p%d", index);
+    initStringInfo (&result);
+    appendAsType (&result, expr->paramtype);
+    value = result.data;
+  }
+  #endif /* OLD_FDW_API */
+  db2Debug1("< %s::deparseParamExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseVarExpr           (DB2Session* session, RelOptInfo* foreignrel, Var*               expr, const DB2Table* db2Table, List** params) {
+  char*            value     = NULL;
+  const DB2Table*  var_table = NULL;  /* db2Table that belongs to a Var */
+
+  db2Debug1("> %s::deparseVarExpr", __FILE__);
+  /* check if the variable belongs to one of our foreign tables */
+  #ifdef JOIN_API
+  if (IS_SIMPLE_REL (foreignrel)) {
+  #endif /* JOIN_API */
+    if (expr->varno == foreignrel->relid && expr->varlevelsup == 0)
+      var_table = db2Table;
+  #ifdef JOIN_API
+  } else {
+    DB2FdwState* joinstate  = (DB2FdwState*) foreignrel->fdw_private;
+    DB2FdwState* outerstate = (DB2FdwState*) joinstate->outerrel->fdw_private;
+    DB2FdwState* innerstate = (DB2FdwState*) joinstate->innerrel->fdw_private;
+    /* we can't get here if the foreign table has no columns, so this is safe */
+    if (expr->varno == outerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
+      var_table = outerstate->db2Table;
+    if (expr->varno == innerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
+      var_table = innerstate->db2Table;
+  }
+  #endif /* JOIN_API */
+  if (var_table) {
+    /* the variable belongs to a foreign table, replace it with the name */
+    /* we cannot handle system columns */
+    db2Debug2("  varattno: %d",expr->varattno);
+    if (expr->varattno > 0) {
+      /** Allow boolean columns here.
+       * They will be rendered as ("COL" <> 0).
+       */
+      if (!(canHandleType (expr->vartype) || expr->vartype == BOOLOID)) {
+        db2Debug2("  !(canHandleType (vartype %d) || vartype == BOOLOID",expr->vartype);
+      } else {
+        /* get var_table column index corresponding to this column (-1 if none) */
+        int index = var_table->ncols - 1;
+        while (index >= 0 && var_table->cols[index]->pgattnum != expr->varattno) {
+          --index;
+        }
+        /* if no DB2 column corresponds, translate as NULL */
+        if (index == -1) {
+          StringInfoData result;
+          initStringInfo (&result);
+          appendStringInfo (&result, "NULL");
+          value = result.data;
+        } else {
+          /** Don't try to convert a column reference if the type is
+           * converted from a non-string type in DB2 to a string type
+           * in PostgreSQL because functions and operators won't work the same.
+           */
+          short db2type = c2dbType(var_table->cols[index]->colType);
+          db2Debug2("  db2type: %d", db2type);
+          if ((expr->vartype == TEXTOID || expr->vartype == BPCHAROID || expr->vartype == VARCHAROID)  && db2type != DB2_VARCHAR && db2type != DB2_CHAR) {
+            db2Debug2("  vartype: %d", expr->vartype);
           } else {
-            appendStringInfo (&result, " THEN %s", arg);
-            db2free (arg);
+            StringInfoData result;
+            StringInfoData alias;
+
+            initStringInfo (&result);
+            /* work around the lack of booleans in DB2 */
+            if (expr->vartype == BOOLOID) {
+              appendStringInfo (&result, "(");
+            }
+            /* qualify with an alias based on the range table index */
+            initStringInfo (&alias);
+            ADD_REL_QUALIFIER (&alias, var_table->cols[index]->varno);
+            appendStringInfo (&result, "%s%s", alias.data, var_table->cols[index]->colName);
+            /* work around the lack of booleans in DB2 */
+            if (expr->vartype == BOOLOID) {
+              appendStringInfo (&result, " <> 0)");
+            }
+            value = result.data;
           }
         }
+      }
+    }
+  } else {
+    #ifdef OLD_FDW_API
+    // treat it like a parameter
+    // don't try to push down parameters with 9.1
+    db2Debug2("  don't try to push down parameters with 9.1");
+    #else
+    // don't try to handle type interval
+    if (!canHandleType (expr->vartype) || expr->vartype == INTERVALOID) {
+      db2Debug2("  !canHandleType (vartype %d) || vartype == INTERVALOID", expr->vartype);
+    } else {
+      StringInfoData result;
+      ListCell*      cell   = NULL;
+      int            index  = 0;
+
+      /* find the index in the parameter list */
+      foreach (cell, *params) {
+        ++index;
+        if (equal (expr, (Node*) lfirst (cell)))
+          break;
+      }
+      if (cell == NULL) {
+        /* add the parameter to the list */
+        ++index;
+        *params = lappend (*params, expr);
+      }
+      /* parameters will be called :p1, :p2 etc. */
+      initStringInfo (&result);
+      appendStringInfo (&result, ":p%d", index);
+      value = result.data;
+    }
+    #endif /* OLD_FDW_API */
+  }
+  db2Debug1("< %s::deparseVarExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseOpExpr            (DB2Session* session, RelOptInfo* foreignrel, OpExpr*            expr, const DB2Table* db2Table, List** params) {
+  char*     value       = NULL;
+  char*     opername    = NULL;
+  char      oprkind     = 0x00;
+  Oid       rightargtype= 0;
+  Oid       leftargtype = 0;
+  Oid       schema      = 0;
+  HeapTuple tuple       ;
+
+  /* get operator name, kind, argument type and schema */
+  tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (expr->opno));
+  if (!HeapTupleIsValid (tuple)) {
+    elog (ERROR, "cache lookup failed for operator %u", expr->opno);
+  }
+  opername     = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
+  oprkind      = ((Form_pg_operator) GETSTRUCT (tuple))->oprkind;
+  leftargtype  = ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
+  rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
+  schema       = ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
+  ReleaseSysCache (tuple);
+  /* ignore operators in other than the pg_catalog schema */
+  if (schema != PG_CATALOG_NAMESPACE) {
+    db2Debug2("  schema != PG_CATALOG_NAMESPACE");
+  } else {
+    if (!canHandleType (rightargtype)) {
+      db2Debug2("  !canHandleType rightargtype(%d)", rightargtype);
+    } else {
+      /** Don't translate operations on two intervals.
+     * INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND don't mix well.
+     */
+      if (leftargtype == INTERVALOID && rightargtype == INTERVALOID) {
+        db2Debug2("  leftargtype == INTERVALOID && rightargtype == INTERVALOID");
+      } else {
+        /* the operators that we can translate */
+        if ((strcmp (opername, ">")    == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID    && rightargtype != NAMEOID && rightargtype != CHAROID)
+        ||  (strcmp (opername, "<")    == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID    && rightargtype != NAMEOID && rightargtype != CHAROID)
+        ||  (strcmp (opername, ">=")   == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID    && rightargtype != NAMEOID && rightargtype != CHAROID)
+        ||  (strcmp (opername, "<=")   == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID    && rightargtype != NAMEOID && rightargtype != CHAROID)
+        ||  (strcmp (opername, "-")    == 0 && rightargtype != DATEOID && rightargtype != TIMESTAMPOID && rightargtype != TIMESTAMPTZOID)
+        ||   strcmp (opername, "=")    == 0 || strcmp (opername, "<>")  == 0 || strcmp (opername, "+")   == 0 ||   strcmp (opername, "*")    == 0 
+        ||   strcmp (opername, "~~")   == 0 || strcmp (opername, "!~~") == 0 || strcmp (opername, "~~*") == 0 ||   strcmp (opername, "!~~*") == 0 
+        ||   strcmp (opername, "^")    == 0 || strcmp (opername, "%")   == 0 || strcmp (opername, "&")   == 0 ||   strcmp (opername, "|/")   == 0
+        ||   strcmp (opername, "@")  == 0) {
+          char* left = deparseExpr (session, foreignrel, linitial (expr->args), db2Table, params);
+          db2Debug2("  left: %s", left);
+          if (left != NULL) {
+            if (oprkind == 'b') {
+              /* binary operator */
+              char* right = deparseExpr (session, foreignrel, lsecond (expr->args), db2Table, params);
+              db2Debug2("  right: %s", right);
+              if (right != NULL) {
+                StringInfoData result;
+                initStringInfo (&result);
+                if (strcmp (opername, "~~") == 0) {
+                  appendStringInfo (&result, "(%s LIKE %s ESCAPE '\\')", left, right);
+                } else if (strcmp (opername, "!~~") == 0) {
+                  appendStringInfo (&result, "(%s NOT LIKE %s ESCAPE '\\')", left, right);
+                } else if (strcmp (opername, "~~*") == 0) {
+                  appendStringInfo (&result, "(UPPER(%s) LIKE UPPER(%s) ESCAPE '\\')", left, right);
+                } else if (strcmp (opername, "!~~*") == 0) {
+                  appendStringInfo (&result, "(UPPER(%s) NOT LIKE UPPER(%s) ESCAPE '\\')", left, right);
+                } else if (strcmp (opername, "^") == 0) {
+                  appendStringInfo (&result, "POWER(%s, %s)", left, right);
+                } else if (strcmp (opername, "%") == 0) {
+                  appendStringInfo (&result, "MOD(%s, %s)", left, right);
+                } else if (strcmp (opername, "&") == 0) {
+                  appendStringInfo (&result, "BITAND(%s, %s)", left, right);
+                } else {
+                  /* the other operators have the same name in DB2 */
+                  appendStringInfo (&result, "(%s %s %s)", left, opername, right);
+                }
+                value = result.data;
+              }
+            } else {
+              StringInfoData result;
+              initStringInfo (&result);
+              /* unary operator */
+              if (strcmp (opername, "|/") == 0) {
+                appendStringInfo (&result, "SQRT(%s)", left);
+              } else if (strcmp (opername, "@") == 0) {
+                appendStringInfo (&result, "ABS(%s)", left);
+              } else {
+                /* unary + or - */
+                appendStringInfo (&result, "(%s%s)", opername, left);
+              }
+              value = result.data;
+            }
+          }
+        } else {
+          /* cannot translate this operator */
+          db2Debug2("  cannot translate this opername: %s", opername);
+        }
+      }
+    }
+  }
+  db2free (opername);
+  return value;
+}
+
+char* deparseScalarArrayOpExpr (DB2Session* session, RelOptInfo* foreignrel, ScalarArrayOpExpr* expr, const DB2Table* db2Table, List** params) {
+  char*              value     = NULL;
+  char*              opername;
+  Oid                leftargtype;
+  Oid                schema;
+  HeapTuple          tuple;
+
+  db2Debug1("> %s::deparseExpr", __FILE__);
+  tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (expr->opno));
+  if (!HeapTupleIsValid (tuple)) {
+    elog (ERROR, "cache lookup failed for operator %u", expr->opno);
+  }
+  opername    = db2strdup(((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
+  leftargtype =           ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
+  schema      =           ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
+  ReleaseSysCache (tuple);
+  /* get the type's output function */
+  tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (leftargtype));
+  if (!HeapTupleIsValid (tuple)) {
+    elog (ERROR, "cache lookup failed for type %u", leftargtype);
+  }
+  ReleaseSysCache (tuple);
+  /* ignore operators in other than the pg_catalog schema */
+  if (schema != PG_CATALOG_NAMESPACE) {
+    db2Debug2("  schema != PG_CATALOG_NAMESPACE");
+  } else {
+    /* don't try to push down anything but IN and NOT IN expressions */
+    if ((strcmp (opername, "=") != 0 || !expr->useOr) && (strcmp (opername, "<>") != 0 || expr->useOr)) {
+      db2Debug2("  don't try to push down anything but IN and NOT IN expressions");
+    } else {
+      if (!canHandleType (leftargtype)) {
+        db2Debug2("  cannot Handle Type leftargtype (%d)", leftargtype);
+      } else {
+        char* left = deparseExpr (session, foreignrel, linitial (expr->args), db2Table, params);
+        db2Debug2("  left: %s", left);
+        if (left != NULL) {
+          Expr*          rightexpr = NULL;
+          bool           bResult   = true;
+          StringInfoData result;
+          /* begin to compose result */
+          initStringInfo (&result);
+          appendStringInfo (&result, "(%s %s (", left, expr->useOr ? "IN" : "NOT IN");
+          /* the second (=last) argument can be Const, ArrayExpr or ArrayCoerceExpr */
+          rightexpr = (Expr*)llast(expr->args);
+          switch (rightexpr->type) {
+            case T_Const: {
+              /* the second (=last) argument is a Const of ArrayType */
+              Const* constant = (Const*) rightexpr;
+              /* using NULL in place of an array or value list is valid in DB2 and PostgreSQL */
+              if (constant->constisnull) {
+                appendStringInfo (&result, "NULL");
+              } else {
+                Datum         datum;
+                bool          isNull;
+                ArrayIterator iterator = array_create_iterator (DatumGetArrayTypeP (constant->constvalue), 0);
+                bool          first_arg = true;
+
+                /* loop through the array elements */
+                while (array_iterate (iterator, &datum, &isNull)) {
+                  char *c;
+                  if (isNull) {
+                    c = "NULL";
+                  } else {
+                    c = datumToString (datum, leftargtype);
+                    db2Debug2("  c: %s",c);
+                    if (c == NULL) {
+                      array_free_iterator (iterator);
+                      bResult = false;
+                      break;
+                    }
+                  }
+                  /* append the argument */
+                  appendStringInfo (&result, "%s%s", first_arg ? "" : ", ", c);
+                  first_arg = false;
+                }
+                array_free_iterator (iterator);
+                db2Debug2("  first_arg: %s", first_arg ? "true":"false");
+                if (first_arg) {
+                  // don't push down empty arrays
+                  // since the semantics for NOT x = ANY(<empty array>) differ
+                  bResult = false;
+                }
+              }
+            }
+            break;
+            case T_ArrayCoerceExpr: {
+              /* the second (=last) argument is an ArrayCoerceExpr */
+              ArrayCoerceExpr* arraycoerce = (ArrayCoerceExpr *) rightexpr;
+              /* if the conversion requires more than binary coercion, don't push it down */
+              #if PG_VERSION_NUM < 110000
+              if (arraycoerce->elemfuncid != InvalidOid) {
+                db2Debug2("  arraycoerce->elemfuncid != InvalidOid");
+                bResult = false;
+                break;
+              }
+              #else
+              if (arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType) {
+                db2Debug2(" arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType");
+                bResult = false;
+                break;
+              }
+              #endif
+              /* the actual array is here */
+              rightexpr = arraycoerce->arg;
+            }
+            /* fall through ! */
+            case T_ArrayExpr: {
+              /* the second (=last) argument is an ArrayExpr */
+              ArrayExpr* array     = (ArrayExpr*) rightexpr;
+              ListCell*  cell      = NULL;
+              bool       first_arg = true;
+              /* loop the array arguments */
+              foreach (cell, array->elements) {
+                /* convert the argument to a string */
+                char* element = deparseExpr (session, foreignrel, (Expr *) lfirst (cell), db2Table, params);
+                db2Debug2("  element: %s", element);
+                if (element == NULL) {
+                  /* if any element cannot be converted, give up */
+                  bResult = false;
+                  break;
+                }
+                /* append the argument */
+                appendStringInfo (&result, "%s%s", first_arg ? "" : ", ", element);
+                first_arg = false;
+              }
+              db2Debug2("  first_arg: %s", first_arg ? "true" : "false");
+              if (first_arg) {
+                /* don't push down empty arrays, since the semantics for NOT x = ANY(<empty array>) differ */
+                bResult = false;
+                break;
+              }
+            }
+            break;
+            default: {
+              db2Debug2("  rightexpr->type(%d) default ",rightexpr->type);
+              bResult = false;
+            }
+            break;
+          }
+          // only when there is a usable result otherwise keep value to null
+          if (bResult) {
+            /* two parentheses close the expression */
+            appendStringInfo (&result, "))");
+            value = result.data;
+          }
+        }
+      }
+    }
+  }
+  db2Debug1("< %s::deparseExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseDistinctExpr      (DB2Session* session, RelOptInfo* foreignrel, DistinctExpr*      expr, const DB2Table* db2Table, List** params) {
+  char*     value        = NULL;
+  Oid       rightargtype = 0;
+  HeapTuple tuple;
+
+  db2Debug1("> %s::deparseDistinctExpr", __FILE__);
+  tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum ((expr)->opno));
+  if (!HeapTupleIsValid (tuple)) {
+    elog (ERROR, "cache lookup failed for operator %u", (expr)->opno);
+  }
+  rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
+  ReleaseSysCache (tuple);
+  if (!canHandleType (rightargtype)) {
+    db2Debug2(" cannot Handle Type rightargtype (%d)",rightargtype);
+  } else {
+    char* left = deparseExpr (session, foreignrel, linitial ((expr)->args), db2Table, params);
+    db2Debug2("  left: %s", left);
+    if (left != NULL) {
+      char* right = deparseExpr (session, foreignrel, lsecond ((expr)->args), db2Table, params);
+      db2Debug2("  right: %s", right);
+      if (right != NULL) {
+        StringInfoData result;
+        initStringInfo (&result);
+        appendStringInfo (&result, "(%s IS DISTINCT FROM %s)", left, right);
+        value = result.data;
+      }
+    }
+  }
+  db2Debug1("1 %s::deparseDistinctExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseNullIfExpr        (DB2Session* session, RelOptInfo* foreignrel, NullIfExpr*        expr, const DB2Table* db2Table, List** params) {
+  char*     value        = NULL;
+  Oid       rightargtype = 0;
+  HeapTuple tuple;
+
+  db2Debug1("> %s::deparseNullIfExpr", __FILE__);
+  tuple        = SearchSysCache1 (OPEROID, ObjectIdGetDatum ((expr)->opno));
+  if (!HeapTupleIsValid (tuple)) {
+    elog (ERROR, "cache lookup failed for operator %u", (expr)->opno);
+  }
+  rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
+  ReleaseSysCache (tuple);
+  if (!canHandleType (rightargtype)) {
+    db2Debug2("  cannot Handle Type rightargtype (%d)",rightargtype);
+  } else {
+    char* left = deparseExpr (session, foreignrel, linitial((expr)->args), db2Table, params);
+    db2Debug2("  left: %s", left);
+    if (left != NULL) {
+      char* right = deparseExpr (session, foreignrel, lsecond((expr)->args), db2Table, params);
+      db2Debug2("  right: %s", right);
+      if (right != NULL) {
+        StringInfoData result;
+        initStringInfo (&result);
+        appendStringInfo (&result, "NULLIF(%s, %s)", left, right);
+        value = result.data;
+      }
+    }
+  }
+  db2Debug1("< %s::deparseNullIfExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseBoolExpr          (DB2Session* session, RelOptInfo* foreignrel, BoolExpr*          expr, const DB2Table* db2Table, List** params) {
+  ListCell* cell     = NULL;
+  char*     arg      = NULL;
+  db2Debug1("> %s::deparseBoolExpr", __FILE__);
+  arg      = deparseExpr (session, foreignrel, linitial(expr->args), db2Table, params);
+  if (arg != NULL) {
+    StringInfoData result;
+    bool           bBreak = false;
+    initStringInfo (&result);
+    appendStringInfo (&result, "(%s%s", expr->boolop == NOT_EXPR ? "NOT " : "", arg);
+    do_each_cell(cell, expr->args, list_next(expr->args, list_head(expr->args))) { 
+      arg = deparseExpr (session, foreignrel, (Expr*)lfirst(cell), db2Table, params);
+      if (arg != NULL) {
+        appendStringInfo (&result, " %s %s", expr->boolop == AND_EXPR ? "AND" : "OR", arg);
+      } else {
+        bBreak = true;
+        break;
+      }
+    }
+    if (!bBreak) {
+      appendStringInfo (&result, ")");
+      arg = result.data;
+    } else {
+      db2free(result.data);
+      arg = NULL;
+    }
+  }
+  db2Debug1("< %s::deparseBoolExpr: %s", __FILE__, arg);
+  return arg;
+}
+
+char* deparseCaseExpr          (DB2Session* session, RelOptInfo* foreignrel, CaseExpr*          expr, const DB2Table* db2Table, List** params) {
+  char*      value   = NULL;
+  db2Debug1("> %s::deparseCaseExpr", __FILE__);
+  if (!canHandleType (expr->casetype)) {
+    db2Debug2("  cannot Handle Type caseexpr->casetype (%d)", expr->casetype);
+  } else {
+    StringInfoData result;
+    bool           bBreak    = false;
+    char*          arg       = NULL;
+    ListCell*      cell      = NULL;
+
+    initStringInfo   (&result);
+    appendStringInfo (&result, "CASE");
+
+    if (expr->arg != NULL) {
+      /* for the form "CASE arg WHEN ...", add first expression */
+      arg = deparseExpr (session, foreignrel, expr->arg, db2Table, params);
+      db2Debug2("  CASE %s WHEN ...", arg);
+      if (arg == NULL) {
+        appendStringInfo (&result, " %s", arg);
+      } else {
+        bBreak = true;
+      }
+    }
+    if (!bBreak) {
+      /* append WHEN ... THEN clauses */
+      foreach (cell, expr->args) {
+        CaseWhen* whenclause = (CaseWhen*) lfirst (cell);
+        /* WHEN */
+        if (expr->arg == NULL) {
+          /* for CASE WHEN ..., use the whole expression */
+          arg = deparseExpr (session, foreignrel, whenclause->expr, db2Table, params);
+        } else {
+          /* for CASE arg WHEN ..., use only the right branch of the equality */
+          arg = deparseExpr (session, foreignrel, lsecond (((OpExpr*) whenclause->expr)->args), db2Table, params);
+        }
+        db2Debug2(" WHEN %s ", arg);
+        if (arg != NULL) {
+          appendStringInfo (&result, " WHEN %s", arg);
+        } else {
+          bBreak = true;
+          break;
+        }    /* THEN */
+        arg = deparseExpr (session, foreignrel, whenclause->result, db2Table, params);
+        db2Debug2(" THEN %s ", arg);
+        if (arg != NULL) {
+          appendStringInfo (&result, " THEN %s", arg);
+        } else {
+          bBreak = true;
+          break;
+        }
+      }
+      if (!bBreak) {
         /* append ELSE clause if appropriate */
-        if (caseexpr->defresult != NULL) {
-          arg = deparseExpr (session, foreignrel, caseexpr->defresult, db2Table, params);
-          if (arg == NULL) {
-            db2free (result.data);
-            return NULL;
-          } else {
+        if (expr->defresult != NULL) {
+          arg = deparseExpr (session, foreignrel, expr->defresult, db2Table, params);
+          db2Debug2("  ELSE %s", arg);
+          if (arg != NULL) {
             appendStringInfo (&result, " ELSE %s", arg);
-            db2free (arg);
+          } else {
+            bBreak = true;
           }
         }
         /* append END */
         appendStringInfo (&result, " END");
       }
-      break;
-      case T_CoalesceExpr: {
-        coalesceexpr = (CoalesceExpr *) expr;
-
-        if (!canHandleType (coalesceexpr->coalescetype))
-          return NULL;
-
-        initStringInfo (&result);
-        appendStringInfo (&result, "COALESCE(");
-
-        first_arg = true;
-        foreach (cell, coalesceexpr->args) {
-          arg = deparseExpr (session, foreignrel, (Expr *) lfirst (cell), db2Table, params);
-          if (arg == NULL) {
-            db2free (result.data);
-            return NULL;
-          }
-
-          if (first_arg) {
-            appendStringInfo (&result, "%s", arg);
-            first_arg = false;
-          } else {
-            appendStringInfo (&result, ", %s", arg);
-          }
-          db2free(arg);
-        }
-
-        appendStringInfo (&result, ")");
-      }
-      break;
-      case T_NullTest: {
-        arg = deparseExpr (session, foreignrel, ((NullTest *) expr)->arg, db2Table, params);
-        if (arg == NULL)
-          return NULL;
-    
-        initStringInfo (&result);
-        appendStringInfo (&result, "(%s IS %sNULL)", arg, ((NullTest *) expr)->nulltesttype == IS_NOT_NULL ? "NOT " : "");
-      }
-      break;
-      case T_FuncExpr: {
-        func = (FuncExpr *) expr;
-    
-        if (!canHandleType (func->funcresulttype))
-          return NULL;
-    
-        /* do nothing for implicit casts */
-        if (func->funcformat == COERCE_IMPLICIT_CAST)
-          return deparseExpr (session, foreignrel, linitial (func->args), db2Table, params);
-    
-        /* get function name and schema */
-        tuple = SearchSysCache1 (PROCOID, ObjectIdGetDatum (func->funcid));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for function %u", func->funcid);
-        }
-        opername = db2strdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data);
-        schema = ((Form_pg_proc) GETSTRUCT (tuple))->pronamespace;
-        ReleaseSysCache (tuple);
-    
-        /* ignore functions in other than the pg_catalog schema */
-        if (schema != PG_CATALOG_NAMESPACE)
-          return NULL;
-    
-        /* the "normal" functions that we can translate */
-        if (strcmp (opername, "abs")         == 0 || strcmp (opername, "acos")         == 0 || strcmp (opername, "asin")             == 0
-        || strcmp (opername, "atan")         == 0 || strcmp (opername, "atan2")        == 0 || strcmp (opername, "ceil")             == 0
-        || strcmp (opername, "ceiling")      == 0 || strcmp (opername, "char_length")  == 0 || strcmp (opername, "character_length") == 0
-        || strcmp (opername, "concat")       == 0 || strcmp (opername, "cos")          == 0 || strcmp (opername, "exp")              == 0
-        || strcmp (opername, "initcap")      == 0 || strcmp (opername, "length")       == 0 || strcmp (opername, "lower")            == 0
-        || strcmp (opername, "lpad")         == 0 || strcmp (opername, "ltrim")        == 0 || strcmp (opername, "mod")              == 0
-        || strcmp (opername, "octet_length") == 0 || strcmp (opername, "position")     == 0 || strcmp (opername, "pow")              == 0
-        || strcmp (opername, "power")        == 0 || strcmp (opername, "replace")      == 0 || strcmp (opername, "round")            == 0
-        || strcmp (opername, "rpad")         == 0 || strcmp (opername, "rtrim")        == 0 || strcmp (opername, "sign")             == 0
-        || strcmp (opername, "sin")          == 0 || strcmp (opername, "sqrt")         == 0 || strcmp (opername, "strpos")           == 0
-        || strcmp (opername, "substr")       == 0 || strcmp (opername, "tan")          == 0 || strcmp (opername, "to_char")          == 0
-        || strcmp (opername, "to_date")      == 0 || strcmp (opername, "to_number")    == 0 || strcmp (opername, "to_timestamp")     == 0
-        || strcmp (opername, "translate")    == 0 || strcmp (opername, "trunc")        == 0 || strcmp (opername, "upper")            == 0
-        ||(strcmp (opername, "substring")    == 0 && list_length (func->args) == 3)) {
-          initStringInfo (&result);
-    
-          if (strcmp (opername, "ceiling") == 0)
-            appendStringInfo (&result, "CEIL(");
-          else if (strcmp (opername, "char_length") == 0 || strcmp (opername, "character_length") == 0)
-            appendStringInfo (&result, "LENGTH(");
-          else if (strcmp (opername, "pow") == 0)
-            appendStringInfo (&result, "POWER(");
-          else if (strcmp (opername, "octet_length") == 0)
-            appendStringInfo (&result, "LENGTHB(");
-          else if (strcmp (opername, "position") == 0 || strcmp (opername, "strpos") == 0)
-            appendStringInfo (&result, "INSTR(");
-          else if (strcmp (opername, "substring") == 0)
-            appendStringInfo (&result, "SUBSTR(");
-          else
-            appendStringInfo (&result, "%s(", opername);
-    
-          first_arg = true;
-          foreach (cell, func->args) {
-            arg = deparseExpr (session, foreignrel, lfirst (cell), db2Table, params);
-            if (arg == NULL) {
-              db2free (result.data);
-              db2free (opername);
-              return NULL;
-            }
-            if (first_arg) {
-              first_arg = false;
-              appendStringInfo (&result, "%s", arg);
-            } else {
-              appendStringInfo (&result, ", %s", arg);
-            }
-            db2free(arg);
-          }
-          appendStringInfo (&result, ")");
-        } else if (strcmp (opername, "date_part") == 0) {
-          /* special case: EXTRACT */
-          left = deparseExpr (session, foreignrel, linitial (func->args), db2Table, params);
-          if (left == NULL) {
-            db2free (opername);
-            return NULL;
-          }
-          /* can only handle these fields in DB2 */
-          if (strcmp (left, "'year'")          == 0 || strcmp (left, "'month'")           == 0
-          ||  strcmp (left, "'day'")           == 0 || strcmp (left, "'hour'")            == 0
-          || strcmp (left, "'minute'")         == 0 || strcmp (left, "'second'")          == 0
-          ||  strcmp (left, "'timezone_hour'") == 0 || strcmp (left, "'timezone_minute'") == 0) {
-            /* remove final quote */
-            left[strlen (left) - 1] = '\0';
-    
-            right = deparseExpr (session, foreignrel, lsecond (func->args), db2Table, params);
-            if (right == NULL) {
-              db2free (opername);
-              db2free (left);
-              return NULL;
-            }
-    
-            initStringInfo (&result);
-            appendStringInfo (&result, "EXTRACT(%s FROM %s)", left + 1, right);
-          } else {
-            db2free (opername);
-            db2free (left);
-            return NULL;
-          }
-    
-          db2free (left);
-          db2free (right);
-        } else if (strcmp (opername, "now") == 0 || strcmp (opername, "transaction_timestamp") == 0) {
-          /* special case: current timestamp */
-          initStringInfo (&result);
-          appendStringInfo (&result, "(CAST (?/*:now*/ AS TIMESTAMP))");
-        } else {
-          /* function that we cannot render for DB2 */
-          db2free (opername);
-          return NULL;
-        }
-        db2free (opername);
-      }
-      break;
-      case T_CoerceViaIO: {
-        /*
-         * We will only handle casts of 'now'.
-         */
-        coerce = (CoerceViaIO *) expr;
-    
-        /* only casts to these types are handled */
-        if (coerce->resulttype != DATEOID && coerce->resulttype != TIMESTAMPOID && coerce->resulttype != TIMESTAMPTZOID)
-          return NULL;
-    
-        /* the argument must be a Const */
-        if (coerce->arg->type != T_Const)
-          return NULL;
-    
-        /* the argument must be a not-NULL text constant */
-        constant = (Const *) coerce->arg;
-        if (constant->constisnull || (constant->consttype != CSTRINGOID && constant->consttype != TEXTOID))
-          return NULL;
-    
-        /* get the type's output function */
-        tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (constant->consttype));
-        if (!HeapTupleIsValid (tuple)) {
-          elog (ERROR, "cache lookup failed for type %u", constant->consttype);
-        }
-        typoutput = ((Form_pg_type) GETSTRUCT (tuple))->typoutput;
-        ReleaseSysCache (tuple);
-    
-        /* the value must be "now" */
-        if (strcmp (DatumGetCString (OidFunctionCall1 (typoutput, constant->constvalue)), "now") != 0)
-          return NULL;
-    
-        initStringInfo (&result);
-        switch (coerce->resulttype) {
-          case DATEOID:
-            appendStringInfo (&result, "TRUNC(CAST (CAST(?/*:now*/ AS TIMESTAMP) AS DATE))");
-          break;
-          case TIMESTAMPOID:
-            appendStringInfo (&result, "(CAST (CAST (?/*:now*/ AS TIMESTAMP) AS TIMESTAMP))");
-          break;
-          case TIMESTAMPTZOID:
-            appendStringInfo (&result, "(CAST (?/*:now*/ AS TIMESTAMP))");
-          break;
-          case TIMEOID:
-            appendStringInfo (&result, "(CAST (CAST (?/*:now*/ AS TIME) AS TIME))");
-          break;
-          case TIMETZOID:
-            appendStringInfo (&result, "(CAST (?/*:now*/ AS TIME))");
-          break;
-        }
-      }
-      break;
-      #if PG_VERSION_NUM >= 100000
-      case T_SQLValueFunction: {
-        sqlvalfunc = (SQLValueFunction *) expr;
-        switch (sqlvalfunc->op) {
-          case SVFOP_CURRENT_DATE:
-            initStringInfo (&result);
-            appendStringInfo (&result, "TRUNC(CAST (CAST(?/*:now*/ AS TIMESTAMP) AS DATE))");
-          break;
-          case SVFOP_CURRENT_TIMESTAMP:
-            initStringInfo (&result);
-            appendStringInfo (&result, "(CAST (?/*:now*/ AS TIMESTAMP))");
-          break;
-          case SVFOP_LOCALTIMESTAMP:
-            initStringInfo (&result);
-            appendStringInfo (&result, "(CAST (CAST (?/*:now*/ AS TIMESTAMP) AS TIMESTAMP))");
-          break;
-          case SVFOP_CURRENT_TIME:
-            initStringInfo (&result);
-            appendStringInfo (&result, "(CAST (?/*:now*/ AS TIME))");
-          break;
-          case SVFOP_LOCALTIME:
-            initStringInfo (&result);
-            appendStringInfo (&result, "(CAST (CAST (?/*:now*/ AS TIME) AS TIME))");
-          break;
-          default:
-            return NULL;		/* don't push down other functions */
-        }
-      }
-      break;
-      #endif
-      default:
-        /* we cannot translate this to DB2 */
-        return NULL;
+    }
+    if (!bBreak) {
+      value = result.data;
+    } else {
+      // in case somwhere within the construct we encountered an expression not supported
+      db2free(result.data);
+      value = NULL;
     }
   }
-  db2Debug1("< %s::deparseExpr", __FILE__);
-  return result.data;
+  db2Debug1("< %s::deparseCaseExpr: %s", __FILE__, value);
+  return value;
 }
+
+char* deparseCoalesceExpr      (DB2Session* session, RelOptInfo* foreignrel, CoalesceExpr*      expr, const DB2Table* db2Table, List** params) {
+  char*          value        = NULL;
+  db2Debug1("> %s::deparseCoalesceExpr", __FILE__);
+  if (!canHandleType (expr->coalescetype)) {
+    db2Debug2("  cannot Handle Type coalesceexpr->coalescetype (%d)", expr->coalescetype);
+  } else {
+    StringInfoData result;
+    char*          arg       = NULL;
+    bool           first_arg = true;
+    ListCell*      cell      = NULL;
+    initStringInfo   (&result);
+    appendStringInfo (&result, "COALESCE(");
+    foreach (cell, expr->args) {
+      arg = deparseExpr (session, foreignrel, (Expr*)lfirst(cell), db2Table, params);
+      db2Debug2("  arg: %s", arg);
+      if (arg != NULL) {
+        appendStringInfo(&result, ((first_arg) ? "%s" : ", %s"), arg);
+        first_arg = false;
+      } else {
+        break;
+      }
+    }
+    appendStringInfo (&result, ")");
+    value = (arg == NULL) ? arg : result.data;
+  }
+  db2Debug1("< %s::deparseCoalesceExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseFuncExpr          (DB2Session* session, RelOptInfo* foreignrel, FuncExpr*          expr, const DB2Table* db2Table, List** params) {
+  char*     value = NULL;
+  db2Debug1("> %s::deparseFuncExpr", __FILE__);
+  if (!canHandleType (expr->funcresulttype)) {
+    db2Debug2(" cannot handle funct->funcresulttype: %d",expr->funcresulttype);
+  } else if (expr->funcformat == COERCE_IMPLICIT_CAST) {
+      /* do nothing for implicit casts */
+      db2Debug2(" COERCE_IMPLICIT_CAST == expr->funcformat(%d)",expr->funcformat);
+      value = deparseExpr (session, foreignrel, linitial (expr->args), db2Table, params);
+  } else {
+    StringInfoData result;
+    Oid       schema;
+    char*     opername;
+    char*     left;
+    char*     right;
+    char*     arg;
+    bool      first_arg;
+    HeapTuple tuple;
+    /* get function name and schema */
+    tuple = SearchSysCache1 (PROCOID, ObjectIdGetDatum (expr->funcid));
+    if (!HeapTupleIsValid (tuple)) {
+      elog (ERROR, "cache lookup failed for function %u", expr->funcid);
+    }
+    opername = db2strdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data);
+    db2Debug2("  opername: %s",opername);
+    schema = ((Form_pg_proc) GETSTRUCT (tuple))->pronamespace;
+    db2Debug2("  schema: %d",schema);
+    ReleaseSysCache (tuple);
+    /* ignore functions in other than the pg_catalog schema */
+    if (schema != PG_CATALOG_NAMESPACE) {
+      db2Debug2("  T_FuncExpr: schema(%d) != PG_CATALOG_NAMESPACE", schema);
+      db2Debug1("< %s::deparseExpr: NULL", __FILE__);
+      return NULL;
+    }
+    /* the "normal" functions that we can translate */
+    if (strcmp (opername, "abs")          == 0 || strcmp (opername, "acos")         == 0 || strcmp (opername, "asin")             == 0
+    ||  strcmp (opername, "atan")         == 0 || strcmp (opername, "atan2")        == 0 || strcmp (opername, "ceil")             == 0
+    ||  strcmp (opername, "ceiling")      == 0 || strcmp (opername, "char_length")  == 0 || strcmp (opername, "character_length") == 0
+    ||  strcmp (opername, "concat")       == 0 || strcmp (opername, "cos")          == 0 || strcmp (opername, "exp")              == 0
+    ||  strcmp (opername, "initcap")      == 0 || strcmp (opername, "length")       == 0 || strcmp (opername, "lower")            == 0
+    ||  strcmp (opername, "lpad")         == 0 || strcmp (opername, "ltrim")        == 0 || strcmp (opername, "mod")              == 0
+    ||  strcmp (opername, "octet_length") == 0 || strcmp (opername, "position")     == 0 || strcmp (opername, "pow")              == 0
+    ||  strcmp (opername, "power")        == 0 || strcmp (opername, "replace")      == 0 || strcmp (opername, "round")            == 0
+    ||  strcmp (opername, "rpad")         == 0 || strcmp (opername, "rtrim")        == 0 || strcmp (opername, "sign")             == 0
+    ||  strcmp (opername, "sin")          == 0 || strcmp (opername, "sqrt")         == 0 || strcmp (opername, "strpos")           == 0
+    ||  strcmp (opername, "substr")       == 0 || strcmp (opername, "tan")          == 0 || strcmp (opername, "to_char")          == 0
+    ||  strcmp (opername, "to_date")      == 0 || strcmp (opername, "to_number")    == 0 || strcmp (opername, "to_timestamp")     == 0
+    ||  strcmp (opername, "translate")    == 0 || strcmp (opername, "trunc")        == 0 || strcmp (opername, "upper")            == 0
+    || (strcmp (opername, "substring")    == 0 && list_length (expr->args) == 3)) {
+      ListCell* cell;
+      initStringInfo (&result);
+      if (strcmp (opername, "ceiling") == 0)
+        appendStringInfo (&result, "CEIL(");
+      else if (strcmp (opername, "char_length") == 0 || strcmp (opername, "character_length") == 0)
+        appendStringInfo (&result, "LENGTH(");
+      else if (strcmp (opername, "pow") == 0)
+        appendStringInfo (&result, "POWER(");
+      else if (strcmp (opername, "octet_length") == 0)
+        appendStringInfo (&result, "LENGTHB(");
+      else if (strcmp (opername, "position") == 0 || strcmp (opername, "strpos") == 0)
+        appendStringInfo (&result, "INSTR(");
+      else if (strcmp (opername, "substring") == 0)
+        appendStringInfo (&result, "SUBSTR(");
+      else
+        appendStringInfo (&result, "%s(", opername);
+      first_arg = true;
+      foreach (cell, expr->args) {
+        arg = deparseExpr (session, foreignrel, lfirst (cell), db2Table, params);
+        if (arg == NULL) {
+          db2free (result.data);
+          db2Debug2("  T_FuncExpr: function %s that we cannot render for DB2", opername);
+          db2free (opername);
+          db2Debug1("< %s::deparseExpr: NULL", __FILE__);
+          return NULL;
+        }
+        if (first_arg) {
+          first_arg = false;
+          appendStringInfo (&result, "%s", arg);
+        } else {
+          appendStringInfo (&result, ", %s", arg);
+        }
+        db2free(arg);
+      }
+      appendStringInfo (&result, ")");
+    } else if (strcmp (opername, "date_part") == 0) {
+      /* special case: EXTRACT */
+      left = deparseExpr (session, foreignrel, linitial (expr->args), db2Table, params);
+      if (left == NULL) {
+        db2Debug2("  T_FuncExpr: function %s that we cannot render for DB2", opername);
+        db2free (opername);
+        db2Debug1("< %s::deparseExpr: NULL", __FILE__);
+        return NULL;
+      }
+      /* can only handle these fields in DB2 */
+      if (strcmp (left, "'year'")          == 0 || strcmp (left, "'month'")           == 0
+      ||  strcmp (left, "'day'")           == 0 || strcmp (left, "'hour'")            == 0
+      ||  strcmp (left, "'minute'")        == 0 || strcmp (left, "'second'")          == 0
+      ||  strcmp (left, "'timezone_hour'") == 0 || strcmp (left, "'timezone_minute'") == 0) {
+        /* remove final quote */
+        left[strlen (left) - 1] = '\0';
+        right = deparseExpr (session, foreignrel, lsecond (expr->args), db2Table, params);
+        if (right == NULL) {
+          db2Debug2("  T_FuncExpr: function %s that we cannot render for DB2", opername);
+          db2free (opername);
+          db2free (left);
+          db2Debug1("< %s::deparseExpr: NULL", __FILE__);
+          return NULL;
+        }
+        initStringInfo (&result);
+        appendStringInfo (&result, "EXTRACT(%s FROM %s)", left + 1, right);
+      } else {
+        db2Debug2("  T_FuncExpr: function %s that we cannot render for DB2", opername);
+        db2free (opername);
+        db2free (left);
+        db2Debug1("< %s::deparseExpr: NULL", __FILE__);
+        return NULL;
+      }
+      db2free (left);
+      db2free (right);
+    } else if (strcmp (opername, "now") == 0 || strcmp (opername, "transaction_timestamp") == 0) {
+      /* special case: current timestamp */
+      initStringInfo (&result);
+      appendStringInfo (&result, "(CAST (?/*:now*/ AS TIMESTAMP))");
+    } else {
+      /* function that we cannot render for DB2 */
+      db2Debug2("  T_FuncExpr: function %s that we cannot render for DB2", opername);
+      db2free (opername);
+      db2Debug1("< %s::deparseExpr: NULL", __FILE__);
+      return NULL;
+    }
+    db2free (opername);
+    value = result.data;
+  }
+  db2Debug1("< %s::deparseFuncExpr: %s", __FILE__, value);
+  return value;
+}
+
+char* deparseCoerceViaIOExpr   (CoerceViaIO* expr) {
+  char*        value = NULL;
+
+  db2Debug1("> %s::deparseCoerceViaIOExpr", __FILE__);
+  /* We will only handle casts of 'now'.   */
+  /* only casts to these types are handled */
+  if (expr->resulttype != DATEOID && expr->resulttype != TIMESTAMPOID && expr->resulttype != TIMESTAMPTZOID) {
+    db2Debug2("  only casts to DATEOID, TIMESTAMPOID and TIMESTAMPTZOID are handled");
+  } else if (expr->arg->type != T_Const) {
+  /* the argument must be a Const */
+    db2Debug2("  T_CoerceViaIO: the argument must be a Const");
+  } else {
+    Const* constant = (Const *) expr->arg;
+    if (constant->constisnull || (constant->consttype != CSTRINGOID && constant->consttype != TEXTOID)) {
+    /* the argument must be a not-NULL text constant */
+      db2Debug2("  T_CoerceViaIO: the argument must be a not-NULL text constant");
+    } else {
+      /* get the type's output function */
+      HeapTuple tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (constant->consttype));
+      regproc   typoutput;
+      if (!HeapTupleIsValid (tuple)) {
+        elog (ERROR, "cache lookup failed for type %u", constant->consttype);
+      }
+      typoutput = ((Form_pg_type) GETSTRUCT (tuple))->typoutput;
+      ReleaseSysCache (tuple);
+      /* the value must be "now" */
+      if (strcmp (DatumGetCString (OidFunctionCall1 (typoutput, constant->constvalue)), "now") != 0) {
+        db2Debug2("  value must be 'now'");
+      } else {
+        switch (expr->resulttype) {
+          case DATEOID:
+            value = "TRUNC(CAST (CAST(?/*:now*/ AS TIMESTAMP) AS DATE))";
+          break;
+          case TIMESTAMPOID:
+            value = "(CAST (CAST (?/*:now*/ AS TIMESTAMP) AS TIMESTAMP))";
+          break;
+          case TIMESTAMPTZOID:
+            value = "(CAST (?/*:now*/ AS TIMESTAMP))";
+          break;
+          case TIMEOID:
+            value = "(CAST (CAST (?/*:now*/ AS TIME) AS TIME))";
+          break;
+          case TIMETZOID:
+            value = "(CAST (?/*:now*/ AS TIME))";
+          break;
+        }
+      }
+    }
+  }
+  db2Debug1("< %s::deparseCoerceViaIOExpr: %s", __FILE__, value);
+  return value;
+}
+
+#if PG_VERSION_NUM >= 100000
+char* deparseSQLValueFuncExpr  (SQLValueFunction* expr) {
+  char* value = NULL;
+  db2Debug1("> %s::deparseSQLValueFuncExpr", __FILE__);
+  switch (expr->op) {
+    case SVFOP_CURRENT_DATE:
+      value = "TRUNC(CAST (CAST(?/*:now*/ AS TIMESTAMP) AS DATE))";
+    break;
+    case SVFOP_CURRENT_TIMESTAMP:
+      value = "(CAST (?/*:now*/ AS TIMESTAMP))";
+    break;
+    case SVFOP_LOCALTIMESTAMP:
+      value = "(CAST (CAST (?/*:now*/ AS TIMESTAMP) AS TIMESTAMP))";
+    break;
+    case SVFOP_CURRENT_TIME:
+      value = "(CAST (?/*:now*/ AS TIME))";
+    break;
+    case SVFOP_LOCALTIME:
+      value = "(CAST (CAST (?/*:now*/ AS TIME) AS TIME))";
+    break;
+    default:
+      /* don't push down other functions */
+      db2Debug2("  op %d cannot be translated to DB2", expr->op);
+      value = NULL;
+    break;
+  }
+  db2Debug1("< %s::deparseSQLValueFuncExpr: %s", __FILE__, value);
+  return value;
+}
+#endif
 
 /** datumToString
  *   Convert a Datum to a string by calling the type output function.
