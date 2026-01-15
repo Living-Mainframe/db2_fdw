@@ -131,9 +131,18 @@ DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char
   DB2ConnEntry* step = NULL;
   db2Debug2("  > findconnEntry");
   for (step = start; step != NULL; step = step->right){
-    /* NULL-safe comparison for JWT auth where user may be NULL */
-    int srv_match = (step->srvname && srvname) ? strcmp(step->srvname, srvname) == 0 : step->srvname == srvname;
-    int uid_match = (step->uid && user) ? strcmp(step->uid, user) == 0 : step->uid == user;
+    /* NULL-safe comparison for JWT auth where user may be NULL or empty */
+    /* Treat NULL and empty string as equivalent */
+    int srv_null_or_empty = (!step->srvname || step->srvname[0] == '\0');
+    int srvname_null_or_empty = (!srvname || srvname[0] == '\0');
+    int srv_match = (srv_null_or_empty && srvname_null_or_empty) ||
+                    (!srv_null_or_empty && !srvname_null_or_empty && strcmp(step->srvname, srvname) == 0);
+
+    int uid_null_or_empty = (!step->uid || step->uid[0] == '\0');
+    int user_null_or_empty = (!user || user[0] == '\0');
+    int uid_match = (uid_null_or_empty && user_null_or_empty) ||
+                    (!uid_null_or_empty && !user_null_or_empty && strcmp(step->uid, user) == 0);
+
     if (srv_match && uid_match) {
       break;
     }
