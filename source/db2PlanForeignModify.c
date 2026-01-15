@@ -483,6 +483,8 @@ List* serializePlanData (DB2FdwState* fdwState) {
   result = lappend (result, serializeString (fdwState->user));
   /* password */
   result = lappend (result, serializeString (fdwState->password));
+  /* jwt_token */
+  result = lappend (result, serializeString (fdwState->jwt_token));
   /* nls_lang */
   result = lappend (result, serializeString (fdwState->nls_lang));
   /* query */
