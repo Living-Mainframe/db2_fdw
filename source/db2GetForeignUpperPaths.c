@@ -142,6 +142,7 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
 DB2FdwState* db2CloneFdwStateUpper(PlannerInfo* root, const DB2FdwState* fdw_in, RelOptInfo* input_rel, RelOptInfo* output_rel) {
   DB2FdwState* copy = NULL;
 
+  db2Debug1("> %s::db2CloneFdwStateUpper", __FILE__);
   if (fdw_in != NULL) {
     copy = (DB2FdwState*) db2alloc("fdw_state_upper", sizeof(DB2FdwState));
 
@@ -187,6 +188,7 @@ DB2FdwState* db2CloneFdwStateUpper(PlannerInfo* root, const DB2FdwState* fdw_in,
     /* paramList is constructed at execution time from fdw_exprs. */
     copy->paramList = NULL;
   }
+  db2Debug1("< %s::db2CloneFdwStateUpper : %x", __FILE__, copy);
   return copy;
 }
 
@@ -194,6 +196,7 @@ DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
   DB2Table* dst = NULL;
   int i;
 
+  db2Debug1("> %s::db2CloneDb2TableForPlan", __FILE__);
   if (src != NULL) {
     dst = (DB2Table*) db2alloc("db2_table_clone", sizeof(DB2Table));
 
@@ -212,12 +215,14 @@ DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
       dst->cols = NULL;
     }
   }
+  db2Debug1("< %s::db2CloneDb2TableForPlan : %x", __FILE__, dst);
   return dst;
 }
 
 DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
   DB2Column* dst = NULL;
 
+  db2Debug1("> %s::db2CloneDb2ColumnForPlan", __FILE__);
   if (src != NULL) {
     dst = (DB2Column*) db2alloc("db2_column_clone", sizeof(DB2Column));
     /* start with a struct copy, then fix up pointer members */
@@ -231,11 +236,13 @@ DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
     dst->val_len  = 0;
     dst->val_null = 1;
   }
+  db2Debug1("< %s::db2CloneDb2ColumnForPlan : %x", __FILE__, dst);
   return dst;
 }
 
 bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in) {
   bool fResult = false;
+
   db2Debug1("> %s::db2_is_shippable", __FILE__);
   if (root == NULL || root->parse == NULL || input_rel == NULL || output_rel == NULL || fdw_in == NULL) {
     db2Debug2("  missing context; not shippable");
