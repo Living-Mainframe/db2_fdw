@@ -47,6 +47,7 @@ char*               deparseBoolExpr           (DB2Session* session, RelOptInfo* 
 char*               deparseCaseExpr           (DB2Session* session, RelOptInfo* foreignrel, CaseExpr*          expr, const DB2Table* db2Table, List** params);
 char*               deparseCoalesceExpr       (DB2Session* session, RelOptInfo* foreignrel, CoalesceExpr*      expr, const DB2Table* db2Table, List** params);
 char*               deparseFuncExpr           (DB2Session* session, RelOptInfo* foreignrel, FuncExpr*          expr, const DB2Table* db2Table, List** params);
+char*               deparseAggref             (DB2Session* session, RelOptInfo* foreignrel, Aggref*            expr, const DB2Table* db2Table, List** params);
 char*               deparseCoerceViaIOExpr    (CoerceViaIO* expr);
 #if PG_VERSION_NUM >= 100000
 char*               deparseSQLValueFuncExpr   (SQLValueFunction* expr);
@@ -188,6 +189,10 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
       }
       break;
       #endif
+      case T_Aggref: {
+        retValue = deparseAggref(session, foreignrel, (Aggref*)expr, db2Table, params);
+      }
+      break;
       default: {
         /* we cannot translate this to DB2 */
         db2Debug2("  expression cannot be translated to DB2", __FILE__);
@@ -1051,6 +1056,109 @@ char* deparseSQLValueFuncExpr  (SQLValueFunction* expr) {
   return value;
 }
 #endif
+
+char* deparseAggref            (DB2Session* session, RelOptInfo* foreignrel, Aggref*            expr, const DB2Table* db2Table, List** params) {
+  char* value = NULL;
+
+  db2Debug1("> %s::deparseAggref", __FILE__);
+  if (expr == NULL) {
+    db2Debug2("  expr is NULL");
+  } else {
+    /* Resolve aggregate function name (OID -> pg_proc.proname). */
+    HeapTuple tuple   = SearchSysCache1(PROCOID, ObjectIdGetDatum(expr->aggfnoid));
+    char*     aggname = NULL;
+    char*     nspname = NULL;
+    if (!HeapTupleIsValid(tuple)) {
+      elog(ERROR, "cache lookup failed for function %u", expr->aggfnoid);
+    } else {
+      Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(tuple);
+      aggname = pstrdup(NameStr(procform->proname));
+      /* Optional: capture schema for debugging/qualification decisions. */
+      if (OidIsValid(procform->pronamespace)) {
+        HeapTuple ntup = SearchSysCache1(NAMESPACEOID, ObjectIdGetDatum(procform->pronamespace));
+        if (HeapTupleIsValid(ntup)) {
+          Form_pg_namespace nspform = (Form_pg_namespace) GETSTRUCT(ntup);
+          nspname = pstrdup(NameStr(nspform->nspname));
+          ReleaseSysCache(ntup);
+        }
+      }
+      ReleaseSysCache(tuple);
+    }
+    db2Debug2("  aggref->aggfnoid=%u name=%s%s%s", expr->aggfnoid,
+              nspname ? nspname : "",
+              nspname ? "." : "",
+              aggname ? aggname : "<unknown>");
+    /* We only support deparsing simple, standard aggregates for now.
+     * (This can be expanded to ordered-set / FILTER / WITHIN GROUP later.)
+     */
+    if (expr->aggorder != NIL) {
+      db2Debug2("  aggregate ORDER BY not supported for pushdown");
+    } else if (aggname != NULL) {
+      const char*    db2func  = NULL;
+      bool           distinct = (expr->aggdistinct != NIL);
+      bool           ok = true;
+   
+      if (strcmp(aggname, "count") == 0) db2func = "COUNT";
+      else if (strcmp(aggname, "sum") == 0) db2func = "SUM";
+      else if (strcmp(aggname, "avg") == 0) db2func = "AVG";
+      else if (strcmp(aggname, "min") == 0) db2func = "MIN";
+      else if (strcmp(aggname, "max") == 0) db2func = "MAX";
+      else {
+        /* Unknown aggregate name: we can still report it (above), but don't emit SQL. */
+        db2Debug2("  aggregate '%s' not supported for DB2 deparse", aggname);
+      } 
+      if (db2func != NULL) {
+        StringInfoData result;
+        initStringInfo(&result);
+        appendStringInfo(&result, "%s(", db2func);
+        if (distinct) {
+          appendStringInfoString(&result, "DISTINCT ");
+        }
+        if (expr->aggstar) {
+          /* COUNT(*) */
+          appendStringInfoString(&result, "*");
+        } else {
+          ListCell* lc;
+          bool      first_arg = true;
+
+          foreach (lc, expr->args) {
+            Node* argnode = (Node*) lfirst(lc);
+            Expr* argexpr = NULL;
+            char* argsql;
+
+            if (argnode == NULL) {
+              ok = false;
+              break;
+            }
+            if (argnode->type == T_TargetEntry) {
+              argexpr = ((TargetEntry*) argnode)->expr;
+            } else {
+              argexpr = (Expr*) argnode;
+            }
+            
+            argsql = deparseExpr(session, foreignrel, argexpr, db2Table, params);
+            if (argsql == NULL) {
+              ok = false;
+              break;
+            }
+            
+            appendStringInfo(&result, "%s%s", first_arg ? "" : ", ", argsql);
+            first_arg = false;
+          }
+        }
+        if (!ok) {
+          db2Debug2("  could not deparse aggregate args");
+        } else {
+            appendStringInfoChar(&result, ')');
+            value = result.data;
+        }
+      }
+    }
+  }
+
+  db2Debug1("< %s::deparseAggref: %s", __FILE__, value);
+  return value;
+}
 
 /** datumToString
  *   Convert a Datum to a string by calling the type output function.
