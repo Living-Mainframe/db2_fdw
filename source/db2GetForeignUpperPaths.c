@@ -4,88 +4,132 @@
 #include <optimizer/paths.h>
 #include <optimizer/pathnode.h>
 #include <optimizer/clauses.h>
+#include <optimizer/tlist.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug3                 (const char* message, ...);
 extern void*        db2alloc                  (const char* type, size_t size);
 extern char*        db2strdup                 (const char* source);
+extern char*        deparseExpr               (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
 
 /** local prototypes */
 void                db2GetForeignUpperPaths   (PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra);
 DB2FdwState*        db2CloneFdwStateUpper     (PlannerInfo* root, const DB2FdwState* fdw_in, RelOptInfo* input_rel, RelOptInfo* output_rel);
 DB2Table*           db2CloneDb2TableForPlan   (const DB2Table* src);
 DB2Column*          db2CloneDb2ColumnForPlan  (const DB2Column* src);
+bool                db2_is_shippable          (PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in);
+bool                db2_is_shippable_expr     (PlannerInfo* root, RelOptInfo* foreignrel, const DB2FdwState* fdw_in, Expr* expr, const char* label);
 
 void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra) {
-  DB2FdwState* fdw_in = NULL;
-
   db2Debug1("> %s::db2GetForeignUpperPaths",__FILE__);
+  if (root != NULL && root->parse != NULL) {
+    DB2FdwState* fdw_in = NULL;
+    Query*       query  = root->parse;
+    db2Debug3(" query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
+    db2Debug3(" query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
+    db2Debug3(" query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
+    db2Debug3(" query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
+    db2Debug3(" query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
+    db2Debug3(" query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
+    db2Debug3(" query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
+    db2Debug3(" query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
+    db2Debug3(" query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
+    db2Debug3(" query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
     switch (stage) {
       case UPPERREL_SETOP:              // UNION/INTERSECT/EXCEPT
-        db2Debug2("  query contains UNION/INTERSECT/EXCEPT");
+        db2Debug2("  stage: %d - UPPERREL_SETOP", stage);
       break;
-      case UPPERREL_PARTIAL_GROUP_AGG: {  // partial grouping/aggregation
-        db2Debug2("  query contains partial grouping/aggregation");
-        fdw_in = (DB2FdwState*)input_rel->fdw_private;
-      }
+      case UPPERREL_PARTIAL_GROUP_AGG:  // partial grouping/aggregation
+        db2Debug2("  stage: %d - UPPERREL_PARTIAL_GROUP_AGG", stage);
+        db2Debug2("  query->hasAggs: %d", query->hasAggs);
+        db2Debug2("  query->groupClause: %x", query->groupClause);
+        if (query->hasAggs || query->groupClause != NIL) {
+          fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        }
       break;
       case UPPERREL_GROUP_AGG: {        // grouping/aggregation
-        db2Debug2("  query contains grouping/aggregation");
-        fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        db2Debug2("  stage: %d - UPPERREL_GROUP_AGG", stage);
+        db2Debug2("  query->hasAggs: %d", query->hasAggs);
+        db2Debug2("  query->groupClause: %x", query->groupClause);
+        if (query->hasAggs || query->groupClause != NIL) {
+          fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        }
       }
       break;
-      case UPPERREL_WINDOW:             // window functions
-        db2Debug2("  query contains window functions");
+      case UPPERREL_WINDOW: {           // window functions
+        db2Debug2("  stage: %d - UPPERREL_WINDOW", stage);
+        db2Debug2("  query->hasWindowFuncs: %d", query->hasWindowFuncs);
+        if (query->hasWindowFuncs) {
+          fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        }
+      }
       break;
-      case UPPERREL_PARTIAL_DISTINCT:   // partial "SELECT DISTINCT"
-        db2Debug2("  query contains partial distinct");
+      case UPPERREL_PARTIAL_DISTINCT: { // partial "SELECT DISTINCT"
+        db2Debug2("  stage: %d - UPPERREL_PARTIAL_DISTINCT", stage);
+        db2Debug2("  query->hasDistinctOn: %d", query->hasDistinctOn);
+        if (query->hasDistinctOn) {
+          fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        }
+      }
       break;
-      case UPPERREL_DISTINCT:           // "SELECT DISTINCT"
-        db2Debug2("  query contains distinct");
+      case UPPERREL_DISTINCT: {         // "SELECT DISTINCT"
+        db2Debug2("  stage: %d - UPPERREL_DISTINCT", stage);
+        db2Debug2("  query->hasDistinctOn: %d", query->hasDistinctOn);
+        if (query->hasDistinctOn) {
+          fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        }
+      }
       break;
       case UPPERREL_ORDERED:            // ORDER BY
-        db2Debug2("  query contains order by");
+        db2Debug2("  stage: %d - UPPERREL_ORDERED", stage);
+        db2Debug2("  query->setOperations: %x", query->setOperations);
+        if (query->setOperations != NULL) {
+          fdw_in = (DB2FdwState*)input_rel->fdw_private;
+        }
       break;
       case UPPERREL_FINAL:              // any remaining top-level actions
-        db2Debug2("  query contains other top-level actions");
+        db2Debug2("  stage: %d - UPPERREL_FINAL", stage);
+        fdw_in = (DB2FdwState*)input_rel->fdw_private;
       break;
       default:                          // unknown stage type
-        db2Debug2("  unknown stage type");
+        db2Debug2("  stage: %d - unknown", stage);
       break;
     }
     if (fdw_in != NULL) {
-      // 1) Reject unsupported cases quickly
-      if (db2_groupagg_supported(root, output_rel)) {
-        // 2) Verify all GROUP keys, Aggrefs, HAVING are deparsable for DB2
-        if (db2_groupagg_shippable(root, input_rel, output_rel, fdw_in)) {
-          // 3) Create a new state for the upper rel (copy + mark as aggregate) 
-          DB2FdwState* state = db2CloneFdwStateUpper(root, fdw_in, input_rel, output_rel);
-//          state->is_upper = true;
-//          state->upper_kind = UPPERREL_GROUP_AGG;
-          // Estimate rows/cost (can be crude initially)
-          output_rel->rows = clamp_row_est(output_rel->rows);
-
-          Path* path = (Path*) create_foreign_upper_path( root
-                                                        , output_rel
-                                                        , output_rel->reltarget /* pathtarget */
-                                                        , output_rel->rows
-                                                        , 0                     /* disabled nodes (PG18+) if needed */
-                                                        , state->startup_cost
-                                                        , state->startup_cost + output_rel->rows * 10.0
-                                                        , NIL                   /* no pathkeys initially */
-                                                        , NULL                  /* required_outer */
-                                                        , NULL                  /* fdw_outerpath */
-                                                        , (void*)state
-                                                        );
-
-          add_path(output_rel, path);
-        }
+      // verify all GROUP keys, Aggrefs, HAVING are deparsable for DB2
+      if (db2_is_shippable(root, stage, input_rel, output_rel, fdw_in)) {
+        // create a new state for the upper rel (copy + mark as aggregate)
+        Path*        path  = NULL;
+        DB2FdwState* state = db2CloneFdwStateUpper(root, fdw_in, input_rel, output_rel);
+//        state->is_upper   = true;
+//        state->upper_kind = stage;
+        // Estimate rows/cost (can be crude initially)
+        output_rel->rows = clamp_row_est(output_rel->rows);
+        path = (Path*) create_foreign_upper_path( root
+                                                , output_rel
+                                                , output_rel->reltarget /* pathtarget */
+                                                , output_rel->rows
+                                                , 0                     /* disabled nodes (PG18+) if needed */
+                                                , state->startup_cost
+                                                , state->startup_cost + output_rel->rows * 10.0
+                                                , NIL                   /* no pathkeys initially */
+                                                , NULL                  /* required_outer */
+                                                , NULL                  /* fdw_outerpath */
+                                                , (void*)state
+                                                );
+//        add_path(output_rel, path);
       }
+    } else {
+      db2Debug2("  not pushable");
     }
-    db2Debug1("< %s::db2GetForeignUpperPaths",__FILE__);
+  } else {
+    db2Debug2("  no root or no query");
+  }
+  db2Debug1("< %s::db2GetForeignUpperPaths",__FILE__);
 }
 
 /** db2CloneFdwStateUpper
@@ -188,4 +232,101 @@ DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
     dst->val_null = 1;
   }
   return dst;
+}
+
+bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in) {
+  bool fResult = false;
+  db2Debug1("> %s::db2_is_shippable", __FILE__);
+  if (root == NULL || root->parse == NULL || input_rel == NULL || output_rel == NULL || fdw_in == NULL) {
+    db2Debug2("  missing context; not shippable");
+    fResult = false;
+  } else {
+    Query* query = query = root->parse;
+    /* Conservatively reject query shapes we don't yet know how to translate.
+     * (This can be relaxed as we add DB2 SQL support.)
+     */
+    if (query->hasSubLinks || query->hasWindowFuncs || query->hasDistinctOn || query->hasTargetSRFs || query->hasForUpdate || query->hasModifyingCTE || query->hasRecursive || query->hasRowSecurity) {
+      db2Debug2("  query has unsupported features; not shippable");
+      fResult = false;
+    } else {
+      switch (stage) {
+        case UPPERREL_PARTIAL_GROUP_AGG:
+        case UPPERREL_GROUP_AGG: {
+          ListCell* lc = NULL;
+
+          fResult = true;
+          /* 1) GROUP BY expressions must be deparsable. */
+          foreach (lc, query->groupClause) {
+            SortGroupClause* grp = (SortGroupClause*) lfirst(lc);
+            TargetEntry*     tle = get_sortgroupclause_tle(grp, query->targetList);
+            if (tle == NULL || tle->expr == NULL) {
+              db2Debug2("  missing GROUP BY target entry; not shippable");
+              fResult = false;
+              break;
+            } 
+            if (!db2_is_shippable_expr(root, input_rel, fdw_in, (Expr*) tle->expr, "GROUP BY")) {
+              fResult = false;
+              break;
+            }
+          }
+
+          if (fResult) {
+            /* 2) HAVING clause must be deparsable (if present). */
+            if (query->havingQual != NULL) {
+              if (!db2_is_shippable_expr(root, input_rel, fdw_in, (Expr*) query->havingQual, "HAVING")) {
+                fResult = false;
+              }
+            }
+          }
+
+          if (fResult) {
+            /* 3) Output target expressions must be deparsable too. */
+            foreach (lc, output_rel->reltarget->exprs) {
+              Expr* expr = (Expr*) lfirst(lc);
+              if (!db2_is_shippable_expr(root, input_rel, fdw_in, expr, "SELECT")) {
+                fResult = false;
+                break;
+              }
+            }
+          }
+        }
+        break;
+        default: {
+          db2Debug2("  stage %d not supported; not shippable", stage);
+          fResult = false;
+        }
+        break;
+      }
+    }
+  }
+  db2Debug1("< %s::db2_is_shippable : %s", __FILE__, fResult ? "true" : "false");
+  return fResult;
+}
+
+bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, const DB2FdwState* fdw_in, Expr* expr, const char* label) {
+  bool  fResult  = false;
+
+  db2Debug1("> %s::db2_is_shippable_expr", __FILE__);
+  if (expr == NULL) {
+    fResult = true;
+  } else if (fdw_in == NULL) {
+    fResult = false;
+  } else if (contain_agg_clause((Node*) expr)) {
+    List* params   = NIL;
+    char* deparsed = NULL;
+    deparsed = deparseExpr(fdw_in->session, foreignrel, expr, fdw_in->db2Table, &params);
+    db2Debug2("  deparsed: %s", deparsed);
+    fResult = (deparsed != NULL);
+  } else if (contain_window_function((Node*) expr)) {
+    db2Debug2("  %s contains window function; not shippable", label ? label : "expr");
+    fResult = false;
+  } else {
+    List* params   = NIL;
+    char* deparsed = NULL;
+    deparsed = deparseExpr(fdw_in->session, foreignrel, expr, fdw_in->db2Table, &params);
+    db2Debug2("  deparsed: %s", deparsed);
+    fResult = (deparsed != NULL);
+  }
+  db2Debug1("> %s::db2_is_shippable_expr : %s", __FILE__, fResult ? "true" : "false");
+  return fResult;
 }
