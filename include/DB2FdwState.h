@@ -35,8 +35,7 @@ typedef struct db2FdwState {
   unsigned long       prefetch;      // number of rows to prefetch
   char*               order_clause;  // for sort-pushdown
   char*               where_clause;  // deparsed where clause
-  /*
-   * Restriction clauses, divided into safe and unsafe to pushdown subsets.
+  /** Restriction clauses, divided into safe and unsafe to pushdown subsets.
    *
    * For a base foreign relation this is a list of clauses along-with
    * RestrictInfo wrapper. Keeping RestrictInfo wrapper helps while dividing
