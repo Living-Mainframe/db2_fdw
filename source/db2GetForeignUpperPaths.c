@@ -26,19 +26,19 @@ bool                db2_is_shippable_expr     (PlannerInfo* root, RelOptInfo* fo
 
 void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra) {
   db2Debug1("> %s::db2GetForeignUpperPaths",__FILE__);
-  if (root != NULL && root->parse != NULL) {
+  if (root != NULL && root->parse != NULL && output_rel->fdw_private == NULL) {
     DB2FdwState* fdw_in = NULL;
     Query*       query  = root->parse;
-    db2Debug3(" query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
-    db2Debug3(" query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
-    db2Debug3(" query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
-    db2Debug3(" query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
-    db2Debug3(" query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
-    db2Debug3(" query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
-    db2Debug3(" query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
-    db2Debug3(" query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
-    db2Debug3(" query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
-    db2Debug3(" query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
+    db2Debug3("  query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
+    db2Debug3("  query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
+    db2Debug3("  query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
+    db2Debug3("  query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
+    db2Debug3("  query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
+    db2Debug3("  query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
+    db2Debug3("  query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
+    db2Debug3("  query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
+    db2Debug3("  query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
+    db2Debug3("  query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
     switch (stage) {
       case UPPERREL_SETOP:              // UNION/INTERSECT/EXCEPT
         db2Debug2("  stage: %d - UPPERREL_SETOP", stage);
@@ -93,7 +93,6 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
       break;
       case UPPERREL_FINAL:              // any remaining top-level actions
         db2Debug2("  stage: %d - UPPERREL_FINAL", stage);
-        fdw_in = (DB2FdwState*)input_rel->fdw_private;
       break;
       default:                          // unknown stage type
         db2Debug2("  stage: %d - unknown", stage);
@@ -108,26 +107,39 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
 //        state->is_upper   = true;
 //        state->upper_kind = stage;
         // Estimate rows/cost (can be crude initially)
-        output_rel->rows = clamp_row_est(output_rel->rows);
+        output_rel->rows    = clamp_row_est(output_rel->rows);
+        state->startup_cost = 10000.0;
+        state->total_cost   = state->startup_cost + output_rel->rows * 10.0;
         path = (Path*) create_foreign_upper_path( root
-                                                , output_rel
-                                                , output_rel->reltarget /* pathtarget */
+                                                , input_rel
+#if PG_VERSION_NUM >= 90600
+                                                , input_rel->reltarget /* pathtarget */
+#endif
                                                 , output_rel->rows
+#if PG_VERSION_NUM >= 180000
                                                 , 0                     /* disabled nodes (PG18+) if needed */
+#endif
                                                 , state->startup_cost
-                                                , state->startup_cost + output_rel->rows * 10.0
-                                                , NIL                   /* no pathkeys initially */
+                                                , state->total_cost
+                                                , NIL
+#if PG_VERSION_NUM >= 90500
                                                 , NULL                  /* required_outer */
-                                                , NULL                  /* fdw_outerpath */
+#endif
+#if PG_VERSION_NUM >= 170000
+                                                , NIL                   /* fdw_outerpath */
+#endif
                                                 , (void*)state
                                                 );
-//        add_path(output_rel, path);
+//        add_path(input_rel, path);
       }
     } else {
       db2Debug2("  not pushable");
     }
   } else {
-    db2Debug2("  no root or no query");
+    db2Debug2("  skipping this call");
+    db2Debug2("  root: %x", root);
+    db2Debug2("  root->parse: %x", root->parse);
+    db2Debug2("  output_rel->fdw_private: %x", output_rel->fdw_private);
   }
   db2Debug1("< %s::db2GetForeignUpperPaths",__FILE__);
 }
