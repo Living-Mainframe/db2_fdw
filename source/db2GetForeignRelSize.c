@@ -14,12 +14,11 @@
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern void         db2Debug1                 (const char* message, ...);
-extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern char*        deparseWhereConditions    (PlannerInfo* root, RelOptInfo* baserel);
 extern void         db2free                   (void* p);
 
 /** local prototypes */
 void  db2GetForeignRelSize  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
-char* deparseWhereConditions(DB2FdwState* fdwState, RelOptInfo* baserel, List** local_conds, List** remote_conds);
 
 /** db2GetForeignRelSize
  *   Get an DB2FdwState for this foreign scan.
@@ -34,6 +33,8 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
   db2Debug1("> db2GetForeignRelSize");
   /* get connection options, connect and get the remote table description */
   fdwState = db2GetFdwState(foreigntableid, NULL, true);
+  /* store the state so that the other planning functions can use it */
+  baserel->fdw_private = (void *) fdwState;
   /** Store the table OID in each table column.
    * This is redundant for base relations, but join relations will
    * have columns from different tables, and we have to keep track of them.
@@ -46,11 +47,7 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
    * Those conditions that can be pushed down will be collected into
    * an DB2 WHERE clause.
    */
-  fdwState->where_clause = deparseWhereConditions ( fdwState
-                                                  , baserel
-                                                  , &(fdwState->local_conds)
-                                                  , &(fdwState->remote_conds)
-                                                  );
+  fdwState->where_clause = deparseWhereConditions ( root, baserel );
 
   /* release DB2 session (will be cached) */
   db2free (fdwState->session);
@@ -71,39 +68,5 @@ void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreignta
   }
   /* estimate total cost as startup cost + 10 * (returned rows) */
   fdwState->total_cost = fdwState->startup_cost + baserel->rows * 10.0;
-  /* store the state so that the other planning functions can use it */
-  baserel->fdw_private = (void *) fdwState;
   db2Debug1("< db2GetForeignRelSize");
-}
-
-/** deparseWhereConditions
- *   Classify conditions into remote_conds or local_conds.
- *   Those conditions that can be pushed down will be collected into
- *   an DB2 WHERE clause that is returned.
- */
-char* deparseWhereConditions (DB2FdwState *fdwState, RelOptInfo * baserel, List ** local_conds, List ** remote_conds) {
-  List*          conditions = baserel->baserestrictinfo;
-  ListCell*      cell;
-  char*          where;
-  char*          keyword = "WHERE";
-  StringInfoData where_clause;
-
-  db2Debug1("> deparseWhereCondition");
-  initStringInfo (&where_clause);
-  foreach (cell, conditions) {
-    /* check if the condition can be pushed down */
-    where = deparseExpr (fdwState->session, baserel, ((RestrictInfo *) lfirst (cell))->clause, fdwState->db2Table, &(fdwState->params));
-    if (where != NULL) {
-      *remote_conds = lappend (*remote_conds, ((RestrictInfo *) lfirst (cell))->clause);
-
-      /* append new WHERE clause to query string */
-      appendStringInfo (&where_clause, " %s %s", keyword, where);
-      keyword = "AND";
-      db2free (where);
-    } else {
-      *local_conds = lappend (*local_conds, ((RestrictInfo *) lfirst (cell))->clause);
-    }
-  }
-  db2Debug1("< deparseWhereCondition - where_clause: '%s'",where_clause.data);
-  return where_clause.data;
 }

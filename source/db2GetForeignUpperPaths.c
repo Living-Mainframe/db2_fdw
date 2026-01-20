@@ -14,15 +14,16 @@ extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
 extern void*        db2alloc                  (const char* type, size_t size);
 extern char*        db2strdup                 (const char* source);
-extern char*        deparseExpr               (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern void*        db2free                   (void* p);
+extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 
 /** local prototypes */
 void                db2GetForeignUpperPaths   (PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra);
-DB2FdwState*        db2CloneFdwStateUpper     (PlannerInfo* root, const DB2FdwState* fdw_in, RelOptInfo* input_rel, RelOptInfo* output_rel);
-DB2Table*           db2CloneDb2TableForPlan   (const DB2Table* src);
-DB2Column*          db2CloneDb2ColumnForPlan  (const DB2Column* src);
-bool                db2_is_shippable          (PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in);
-bool                db2_is_shippable_expr     (PlannerInfo* root, RelOptInfo* foreignrel, const DB2FdwState* fdw_in, Expr* expr, const char* label);
+static DB2FdwState* db2CloneFdwStateUpper     (PlannerInfo* root, const DB2FdwState* fdw_in, RelOptInfo* input_rel, RelOptInfo* output_rel);
+static DB2Table*    db2CloneDb2TableForPlan   (const DB2Table* src);
+static DB2Column*   db2CloneDb2ColumnForPlan  (const DB2Column* src);
+static bool         db2_is_shippable          (PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in);
+static bool         db2_is_shippable_expr     (PlannerInfo* root, RelOptInfo* foreignrel, const DB2FdwState* fdw_in, Expr* expr, const char* label);
 
 void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra) {
   db2Debug1("> %s::db2GetForeignUpperPaths",__FILE__);
@@ -151,7 +152,7 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
  *   rewrite the params list (createQuery will NULL out entries). We must avoid
  *   those mutations affecting the original baserel/joinrel planning state.
  */
-DB2FdwState* db2CloneFdwStateUpper(PlannerInfo* root, const DB2FdwState* fdw_in, RelOptInfo* input_rel, RelOptInfo* output_rel) {
+static DB2FdwState* db2CloneFdwStateUpper(PlannerInfo* root, const DB2FdwState* fdw_in, RelOptInfo* input_rel, RelOptInfo* output_rel) {
   DB2FdwState* copy = NULL;
 
   db2Debug1("> %s::db2CloneFdwStateUpper", __FILE__);
@@ -204,7 +205,7 @@ DB2FdwState* db2CloneFdwStateUpper(PlannerInfo* root, const DB2FdwState* fdw_in,
   return copy;
 }
 
-DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
+static DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
   DB2Table* dst = NULL;
   int i;
 
@@ -231,7 +232,7 @@ DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
   return dst;
 }
 
-DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
+static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
   DB2Column* dst = NULL;
 
   db2Debug1("> %s::db2CloneDb2ColumnForPlan", __FILE__);
@@ -252,7 +253,7 @@ DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
   return dst;
 }
 
-bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in) {
+static bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel, const DB2FdwState* fdw_in) {
   bool fResult = false;
 
   db2Debug1("> %s::db2_is_shippable", __FILE__);
@@ -322,7 +323,7 @@ bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* in
   return fResult;
 }
 
-bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, const DB2FdwState* fdw_in, Expr* expr, const char* label) {
+static bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, const DB2FdwState* fdw_in, Expr* expr, const char* label) {
   bool  fResult  = false;
 
   db2Debug1("> %s::db2_is_shippable_expr", __FILE__);
@@ -333,18 +334,20 @@ bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, const DB2F
   } else if (contain_agg_clause((Node*) expr)) {
     List* params   = NIL;
     char* deparsed = NULL;
-    deparsed = deparseExpr(fdw_in->session, foreignrel, expr, fdw_in->db2Table, &params);
+    deparsed = deparseExpr(root, foreignrel, expr, &params);
     db2Debug2("  deparsed: %s", deparsed);
     fResult = (deparsed != NULL);
+    db2free(deparsed);
   } else if (contain_window_function((Node*) expr)) {
     db2Debug2("  %s contains window function; not shippable", label ? label : "expr");
     fResult = false;
   } else {
     List* params   = NIL;
     char* deparsed = NULL;
-    deparsed = deparseExpr(fdw_in->session, foreignrel, expr, fdw_in->db2Table, &params);
+    deparsed = deparseExpr(root, foreignrel, expr, &params);
     db2Debug2("  deparsed: %s", deparsed);
     fResult = (deparsed != NULL);
+    db2free(deparsed);
   }
   db2Debug1("> %s::db2_is_shippable_expr : %s", __FILE__, fResult ? "true" : "false");
   return fResult;

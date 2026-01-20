@@ -15,13 +15,13 @@
 
 /** external prototypes */
 extern void         db2Debug1                 (const char* message, ...);
-extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 extern char*        db2strdup                 (const char* source);
 extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 void db2GetForeignJoinPaths(PlannerInfo* root, RelOptInfo* joinrel, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinType jointype, JoinPathExtraData* extra);
-bool foreign_join_ok       (PlannerInfo* root, RelOptInfo* joinrel, JoinType jointype, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinPathExtraData* extra);
+static bool foreign_join_ok       (PlannerInfo* root, RelOptInfo* joinrel, JoinType jointype, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinPathExtraData* extra);
 
 /** db2GetForeignJoinPaths
  *   Add possible ForeignPath to joinrel if the join is safe to push down.
@@ -129,7 +129,7 @@ void db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInf
  *   to the foreign server. As a side effect, save information we obtain in this
  *   function to DB2FdwState passed in.
  */
-bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType jointype, RelOptInfo * outerrel, RelOptInfo * innerrel, JoinPathExtraData * extra) {
+static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType jointype, RelOptInfo * outerrel, RelOptInfo * innerrel, JoinPathExtraData * extra) {
   DB2FdwState* fdwState     = NULL;
   DB2FdwState* fdwState_o   = NULL;
   DB2FdwState* fdwState_i   = NULL;
@@ -175,10 +175,10 @@ bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType jointyp
    * Check which ones can be pushed down.
    */
   foreach (lc, otherclauses) {
-    char *tmp = NULL;
+    char *tmp  = NULL;
     Expr *expr = (Expr *) lfirst (lc);
 
-    tmp = deparseExpr (fdwState->session, joinrel, expr, fdwState->db2Table, &(fdwState->params));
+    tmp = deparseExpr (root, joinrel, expr, &(fdwState->params));
 
     if (tmp == NULL)
       fdwState->local_conds = lappend (fdwState->local_conds, expr);

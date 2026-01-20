@@ -15,11 +15,13 @@
 
 /** external prototypes */
 extern void         db2Debug1                 (const char* message, ...);
-extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 
 /** local prototypes */
 void  db2GetForeignPaths  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
-Expr* find_em_expr_for_rel(EquivalenceClass * ec, RelOptInfo * rel);
+#ifndef OLD_FDW_API
+static Expr* find_em_expr_for_rel(EquivalenceClass * ec, RelOptInfo * rel);
+#endif
 
 /** db2GetForeignPaths
  *   Create a ForeignPath node and add it as only possible path.
@@ -62,7 +64,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
         can_pushdown = false;
     }
 
-    if (can_pushdown && ((sort_clause = deparseExpr (fdwState->session, baserel, em_expr, fdwState->db2Table, &(fdwState->params))) != NULL)) {
+    if (can_pushdown && ((sort_clause = deparseExpr (root, baserel, em_expr, &(fdwState->params))) != NULL)) {
       /* keep usable_pathkeys for later use. */
       usable_pathkeys = lappend (usable_pathkeys, pathkey);
 
@@ -126,7 +128,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
  *   Find an equivalence class member expression, all of whose Vars come from
  *   the indicated relation.
  */
-Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
+static Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
   ListCell* lc_em = NULL;
   Expr*     result = NULL;
   db2Debug1("> find_em_expr_for_rel");

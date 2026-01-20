@@ -67,13 +67,6 @@
 #endif  /* PG_VERSION_NUM */
 #endif /* POSTGRES_H */
 
-/* this one is safe to include and gives us Oid */
-/*
-#include <postgres_ext.h>
-#include <stdbool.h>
-#include <sys/types.h>
-*/
-
 /* db2_fdw version */
 #define DB2_FDW_VERSION "18.1.1"
 /* number of bytes to read per LOB chunk */
@@ -130,13 +123,6 @@ typedef enum {
   FDW_OUT_OF_MEMORY,
   FDW_SERIALIZATION_FAILURE
 } db2error;
-
-/*
-#ifndef SQL_H_SQLCLI1
-#include "DB2FdwState.h"
-#include "DB2FdwOption.h"
-#endif
-*/
 
 #define OPT_NLS_LANG          "nls_lang"
 #define OPT_DBSERVER          "dbserver"

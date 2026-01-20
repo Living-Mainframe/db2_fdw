@@ -21,7 +21,7 @@
 
 /** external prototypes */
 extern List*        serializePlanData         (DB2FdwState* fdwState);
-extern char*        deparseExpr               (DB2Session* session, RelOptInfo * foreignrel, Expr* expr, const DB2Table* db2Table, List** params);
+extern void         deparseFromExprForRel     (PlannerInfo* root, RelOptInfo* foreignrel, StringInfo buf, List** params_list);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
@@ -30,13 +30,10 @@ extern void         db2free                   (void* p);
 extern char*        db2strdup                 (const char* p);
 
 /** local prototypes */
-const char*  get_jointype_name     (JoinType jointype);
-List*        build_tlist_to_deparse(RelOptInfo* foreignrel);
-void         getUsedColumns        (Expr* expr, DB2Table* db2Table, int foreignrelid);
-void         appendConditions      (List* exprs, StringInfo buf, RelOptInfo* joinrel, List** params_list);
-char*        createQuery           (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, List* query_pathkeys);
-void         deparseFromExprForRel (DB2FdwState* fdwState, StringInfo buf, RelOptInfo* foreignrel, List** params_list);
 ForeignScan* db2GetForeignPlan     (PlannerInfo* root, RelOptInfo* foreignrel, Oid foreigntableid, ForeignPath* best_path, List* tlist, List* scan_clauses , Plan* outer_plan);
+static void  createQuery           (PlannerInfo* root, RelOptInfo* foreignrel, bool modify, List* query_pathkeys);
+static void  getUsedColumns        (Expr* expr, DB2Table* db2Table, int foreignrelid);
+static List* build_tlist_to_deparse(RelOptInfo* foreignrel);
 
 /** db2GetForeignPlan
  *   Construct a ForeignScan node containing the serialized DB2FdwState,
@@ -140,7 +137,7 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
     }
   }
   /* create remote query */
-  fdwState->query = createQuery (fdwState, foreignrel, for_update, best_path->path.pathkeys);
+  createQuery (root, foreignrel, for_update, best_path->path.pathkeys);
   db2Debug2("  db2_fdw: remote query is: %s", fdwState->query);
   /* get PostgreSQL column data types, check that they match DB2's */
   for (i = 0; i < fdwState->db2Table->ncols; ++i) {
@@ -176,7 +173,8 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
  *   which will be translated to ORDER BY clauses if possible.
  *   As a side effect for base relations, we also mark the used columns in db2Table.
  */
-char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, List* query_pathkeys) {
+static void createQuery (PlannerInfo* root, RelOptInfo* foreignrel, bool modify, List* query_pathkeys) {
+  DB2FdwState*   fdwState = (DB2FdwState*) foreignrel->fdw_private;
   ListCell*      cell;
   bool           in_quote = false;
   int            i, index;
@@ -234,7 +232,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
 
   /* append FROM clause */
   appendStringInfo (&query, " FROM ");
-  deparseFromExprForRel (fdwState, &query, foreignrel, &(fdwState->params));
+  deparseFromExprForRel (root, foreignrel, &query, &(fdwState->params));
 
   /*
    * For inner joins, all conditions that are pushed down get added
@@ -294,89 +292,16 @@ if (!pg_md5_hash (query.data, strlen (query.data), md5)) {
   initStringInfo (&result);
   appendStringInfo (&result, "SELECT /*%s*/ %s", md5, query.data);
   db2free (query.data);
-
-  db2Debug1("< createQuery returns: '%s'",result.data);
-  return result.data;
-}
-
-/** deparseFromExprForRel
- *   Construct FROM clause for given relation.
- *   The function constructs ... JOIN ... ON ... for join relation. For a base
- *   relation it just returns the table name.
- *   All tables get an alias based on the range table index.
- */
-void deparseFromExprForRel (DB2FdwState* fdwState, StringInfo buf, RelOptInfo* foreignrel, List** params_list) {
-  db2Debug1("> deparseFromExprForRel");
-  db2Debug2("  buf: '%s",buf->data);
-  if (IS_SIMPLE_REL (foreignrel)) {
-    appendStringInfo (buf, "%s", fdwState->db2Table->name);
-
-    appendStringInfo (buf, " %s%d", REL_ALIAS_PREFIX, foreignrel->relid);
-  } else {
-    /* join relation */
-    RelOptInfo *rel_o = fdwState->outerrel;
-    RelOptInfo *rel_i = fdwState->innerrel;
-    StringInfoData join_sql_o;
-    StringInfoData join_sql_i;
-    DB2FdwState* fdwState_o = (DB2FdwState*) rel_o->fdw_private;
-    DB2FdwState* fdwState_i = (DB2FdwState*) rel_i->fdw_private;
-
-    /* Deparse outer relation */
-    initStringInfo (&join_sql_o);
-    deparseFromExprForRel (fdwState_o, &join_sql_o, rel_o, params_list);
-
-    /* Deparse inner relation */
-    initStringInfo (&join_sql_i);
-    deparseFromExprForRel (fdwState_i, &join_sql_i, rel_i, params_list);
-
-    /*
-     * For a join relation FROM clause entry is deparsed as
-     *
-     * (outer relation) <join type> (inner relation) ON joinclauses
-     */
-    appendStringInfo (buf, "(%s %s JOIN %s ON ", join_sql_o.data, get_jointype_name (fdwState->jointype), join_sql_i.data);
-
-    /* we can only get here if the join is pushed down, so there are join clauses */
-    Assert (fdwState->joinclauses);
-    appendConditions (fdwState->joinclauses, buf, foreignrel, params_list);
-
-    /* End the FROM clause entry. */
-    appendStringInfo (buf, ")");
-  }
-  db2Debug2("  buf: '%s'",buf->data);
-  db2Debug1("< deparseFromExprForRel");
-}
-
-/** appendConditions
- *  Deparse conditions from the provided list and append them to buf.
- *    The conditions in the list are assumed to be ANDed.
- *    This function is used to deparse JOIN ... ON clauses.
- */
-void appendConditions(List* exprs, StringInfo buf, RelOptInfo* joinrel, List** params_list) {
-    ListCell *lc = NULL;
-    bool is_first = true;
-    char *where = NULL;
-
-    db2Debug1("> appendConditions( buf = '%s' )", buf->data);
-    foreach (lc, exprs)
-    {
-        Expr *expr = (Expr *)lfirst(lc);
-        /* connect expressions with AND */
-        if (!is_first)
-            appendStringInfo(buf, " AND ");
-        /* deparse and append a join condition */
-        where = deparseExpr(NULL, joinrel, expr, NULL, params_list);
-        appendStringInfo(buf, "%s", where);
-        is_first = false;
-    }
-    db2Debug2("  buf.data: '%s'", buf->data);
-    db2Debug1("< appendConditions");
+  fdwState->query = (result.len > 0) ? db2strdup(result.data) : NULL;
+  db2free(result.data);
+  db2Debug2("  query: %s",fdwState->query);
+  db2Debug1("< createQuery");
 }
 
 /** getUsedColumns
  *   Set "used=true" in db2Table for all columns used in the expression.
  */
-void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
+static void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
   ListCell* cell;
   Var*      variable;
   int       index;
@@ -598,7 +523,7 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
  * The output targetlist contains the columns that need to be fetched from the
  * foreign server for the given relation.
  */
-List* build_tlist_to_deparse (RelOptInfo* foreignrel) {
+static List* build_tlist_to_deparse (RelOptInfo* foreignrel) {
   List*        tlist    = NIL;
   DB2FdwState* fdwState = (DB2FdwState*) foreignrel->fdw_private;
 
@@ -614,30 +539,3 @@ List* build_tlist_to_deparse (RelOptInfo* foreignrel) {
   return tlist;
 }
 
-/** Output join name for given join type 
- */
-const char* get_jointype_name (JoinType jointype) {
-  char* type = NULL;
-  db2Debug1("> get_jointype_name");
-  switch (jointype) {
-    case JOIN_INNER:
-      type = "INNER";
-    break;
-    case JOIN_LEFT:
-      type = "LEFT";
-    break;
-    case JOIN_RIGHT:
-      type = "RIGHT";
-    break;
-    case JOIN_FULL:
-      type= "FULL";
-    break;
-    default:
-      /* Shouldn't come here, but protect from buggy code. */
-      elog (ERROR, "unsupported join type %d", jointype);
-    break;
-  }
-  db2Debug2("  type: '%s'",type);
-  db2Debug1("< get_jointype_name");
-  return type;
-}
