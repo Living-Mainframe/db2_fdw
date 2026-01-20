@@ -63,7 +63,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
   RTEPermissionInfo *perminfo = getRTEPermissionInfo(root->parse->rteperminfos, rte);
   updated_cols = bms_copy(perminfo->updatedCols);
 #else
-  updated_cols = bms_copy(rte->modifiedCols);
+  updated_cols = bms_copy(rte->updatedCols);
 #endif  /* PG_VERSION_NUM >= 160000 */
   db2Debug1("> db2PlanForeignModify");
 

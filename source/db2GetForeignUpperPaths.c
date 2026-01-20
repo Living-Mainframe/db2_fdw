@@ -35,7 +35,9 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
     db2Debug3("  query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
     db2Debug3("  query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
     db2Debug3("  query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
+    #if PG_VERSION_NUM >= 180000
     db2Debug3("  query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
+    #endif
     db2Debug3("  query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
     db2Debug3("  query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
     db2Debug3("  query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
@@ -69,6 +71,7 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
         }
       }
       break;
+      #if PG_VERSION_NUM >= 150000
       case UPPERREL_PARTIAL_DISTINCT: { // partial "SELECT DISTINCT"
         db2Debug2("  stage: %d - UPPERREL_PARTIAL_DISTINCT", stage);
         db2Debug2("  query->hasDistinctOn: %d", query->hasDistinctOn);
@@ -77,6 +80,7 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
         }
       }
       break;
+      #endif
       case UPPERREL_DISTINCT: {         // "SELECT DISTINCT"
         db2Debug2("  stage: %d - UPPERREL_DISTINCT", stage);
         db2Debug2("  query->hasDistinctOn: %d", query->hasDistinctOn);
