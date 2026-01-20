@@ -3,15 +3,9 @@
 #include <parser/parse_relation.h>
 #include <parser/parsetree.h>
 #include <utils/builtins.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -69,19 +63,13 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
   RTEPermissionInfo *perminfo = getRTEPermissionInfo(root->parse->rteperminfos, rte);
   updated_cols = bms_copy(perminfo->updatedCols);
 #else
-#if PG_VERSION_NUM >= 90500
-  updated_cols = bms_copy(rte->updatedCols);
-#else
   updated_cols = bms_copy(rte->modifiedCols);
-#endif  /* PG_VERSION_NUM >= 90500 */
 #endif  /* PG_VERSION_NUM >= 160000 */
   db2Debug1("> db2PlanForeignModify");
 
-#if PG_VERSION_NUM >= 90500
 /* we don't support INSERT ... ON CONFLICT */
   if (plan->onConflictAction != ONCONFLICT_NONE)
     ereport(ERROR, (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION), errmsg("INSERT with ON CONFLICT clause is not supported")));
-#endif  /* PG_VERSION_NUM */
 
   /* check if the foreign table is scanned and we already planned that scan */
   if (resultRelation < root->simple_rel_array_size 

@@ -10,15 +10,9 @@
 #include <utils/datetime.h>
 #include <utils/guc.h>
 #include <utils/syscache.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -62,9 +56,7 @@ static void         deparseCoalesceExpr       (CoalesceExpr*      expr, deparse_
 static void         deparseFuncExpr           (FuncExpr*          expr, deparse_expr_cxt* ctx);
 static void         deparseAggref             (Aggref*            expr, deparse_expr_cxt* ctx);
 static void         deparseCoerceViaIOExpr    (CoerceViaIO*       expr, deparse_expr_cxt* ctx);
-#if PG_VERSION_NUM >= 100000
 static void         deparseSQLValueFuncExpr   (SQLValueFunction*  expr, deparse_expr_cxt* ctx);
-#endif
 char*               datumToString             (Datum datum, Oid type);
 char*               guessNlsLang              (char* nls_lang);
 char*               deparseDate               (Datum datum);
@@ -305,12 +297,10 @@ static void deparseExprInt           (Expr*              expr, deparse_expr_cxt*
         deparseCoerceViaIOExpr((CoerceViaIO*) expr, ctx);
       }
       break;
-      #if PG_VERSION_NUM >= 100000
       case T_SQLValueFunction: {
         deparseSQLValueFuncExpr((SQLValueFunction*)expr, ctx);
       }
       break;
-      #endif
       case T_Aggref: {
         deparseAggref((Aggref*)expr, ctx);
       }
@@ -667,19 +657,11 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
               /* the second (=last) argument is an ArrayCoerceExpr */
               ArrayCoerceExpr* arraycoerce = (ArrayCoerceExpr *) rightexpr;
               /* if the conversion requires more than binary coercion, don't push it down */
-              #if PG_VERSION_NUM < 110000
-              if (arraycoerce->elemfuncid != InvalidOid) {
-                db2Debug2("  arraycoerce->elemfuncid != InvalidOid");
-                bResult = false;
-                break;
-              }
-              #else
               if (arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType) {
                 db2Debug2(" arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType");
                 bResult = false;
                 break;
               }
-              #endif
               /* the actual array is here */
               rightexpr = arraycoerce->arg;
             }
@@ -1104,7 +1086,6 @@ static void deparseCoerceViaIOExpr   (CoerceViaIO*       expr, deparse_expr_cxt*
   db2Debug1("< %s::deparseCoerceViaIOExpr: %s", __FILE__, ctx->buf->data);
 }
 
-#if PG_VERSION_NUM >= 100000
 static void deparseSQLValueFuncExpr  (SQLValueFunction*  expr, deparse_expr_cxt* ctx) {
   db2Debug1("> %s::deparseSQLValueFuncExpr", __FILE__);
   switch (expr->op) {
@@ -1130,7 +1111,6 @@ static void deparseSQLValueFuncExpr  (SQLValueFunction*  expr, deparse_expr_cxt*
   }
   db2Debug1("< %s::deparseSQLValueFuncExpr: %s", __FILE__, ctx->buf->data);
 }
-#endif
 
 static void deparseAggref            (Aggref*            expr, deparse_expr_cxt* ctx) {
   db2Debug1("> %s::deparseAggref", __FILE__);

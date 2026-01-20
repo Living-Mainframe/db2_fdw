@@ -41,30 +41,16 @@
 /* GetConfigOptionByName has a new signature from 9.6 on */
 #define GetConfigOptionByName(name, varname) GetConfigOptionByName(name, varname, false)
 
-#if PG_VERSION_NUM < 110000
-/* backport macro from V11 */
-#define TupleDescAttr(tupdesc, i) ((tupdesc)->attrs[(i)])
-#endif /* PG_VERSION_NUM */
 
 /* list API has changed in v13 */
-#if PG_VERSION_NUM < 130000
-#define list_next(l, e) lnext((e))
-#define do_each_cell(cell, list, element) for_each_cell(cell, (element))
-#else
 #define list_next(l, e) lnext((l), (e))
 #define do_each_cell(cell, list, element) for_each_cell(cell, (list), (element))
-#endif  /* PG_VERSION_NUM */
 
 /* older versions don't have JSONOID */
 #ifndef JSONOID
 #define JSONOID InvalidOid
 #endif
 
-/* "table_open" was "heap_open" before v12 */
-#if PG_VERSION_NUM < 120000
-#define table_open(x, y) heap_open(x, y)
-#define table_close(x, y) heap_close(x, y)
-#endif  /* PG_VERSION_NUM */
 #endif /* POSTGRES_H */
 
 /* db2_fdw version */

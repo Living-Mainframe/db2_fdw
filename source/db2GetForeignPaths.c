@@ -1,15 +1,9 @@
 #include <postgres.h>
 #include <nodes/nodeFuncs.h>
 #include <optimizer/pathnode.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -100,9 +94,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
   /* add the only path */
   add_path (baserel, (Path *) create_foreignscan_path (root
                                                       ,baserel
-  #if PG_VERSION_NUM >= 90600
                                                       ,NULL  /* default pathtarget */
-  #endif  /* PG_VERSION_NUM */
                                                       ,baserel->rows
   #if PG_VERSION_NUM >= 180000
                                                       ,0  /* no disabled plan nodes */
@@ -111,9 +103,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
                                                       ,fdwState->total_cost
                                                       ,usable_pathkeys
                                                       ,baserel->lateral_relids
-  #if PG_VERSION_NUM >= 90500
                                                       ,NULL  /* no extra plan */
-  #endif  /* PG_VERSION_NUM */
   #if PG_VERSION_NUM >= 170000
                                                       ,NIL   /* no fdw_restrictinfo */
   #endif  /* PG_VERSION_NUM */

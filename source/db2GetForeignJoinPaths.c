@@ -1,15 +1,9 @@
 #include <postgres.h>
 #include <optimizer/pathnode.h>
 #include <optimizer/restrictinfo.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -98,11 +92,7 @@ void db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInf
   fdwState->total_cost   = total_cost;
 
   /* create a new join path */
-#if PG_VERSION_NUM < 120000
-  joinpath = create_foreignscan_path ( root
-#else
   joinpath = create_foreign_join_path( root
-#endif  /* PG_VERSION_NUM */
                                      , joinrel
                                      , NULL  /* default pathtarget */
                                      , rows

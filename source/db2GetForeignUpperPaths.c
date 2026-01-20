@@ -113,9 +113,7 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
         state->total_cost   = state->startup_cost + output_rel->rows * 10.0;
         path = (Path*) create_foreign_upper_path( root
                                                 , input_rel
-#if PG_VERSION_NUM >= 90600
                                                 , input_rel->reltarget /* pathtarget */
-#endif
                                                 , output_rel->rows
 #if PG_VERSION_NUM >= 180000
                                                 , 0                     /* disabled nodes (PG18+) if needed */
@@ -123,9 +121,7 @@ void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptI
                                                 , state->startup_cost
                                                 , state->total_cost
                                                 , NIL
-#if PG_VERSION_NUM >= 90500
                                                 , NULL                  /* required_outer */
-#endif
 #if PG_VERSION_NUM >= 170000
                                                 , NIL                   /* fdw_outerpath */
 #endif

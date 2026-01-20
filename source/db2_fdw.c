@@ -22,15 +22,9 @@
 #include <utils/array.h>
 #include <utils/guc.h>
 #include <utils/syscache.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwOption.h"
 
@@ -424,11 +418,7 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
                 )
               );
     }
-#if PG_VERSION_NUM < 120000
-    srvId = HeapTupleGetOid(tup);
-#else
     srvId = ((Form_pg_foreign_server)GETSTRUCT(tup))->oid;
-#endif
     table_close (rel, AccessShareLock);
     /* get the foreign server, the user mapping and the FDW */
     server  = GetForeignServer (srvId);
