@@ -2,6 +2,7 @@ EXTENSION    = db2_fdw
 EXTVERSION   = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 MODULE_big   = db2_fdw
 OBJS         = source/db2_fdw.o\
+               source/db2_deparse.o\
                source/db2GetForeignPlan.o\
                source/db2GetForeignPaths.o\
                source/db2GetForeignUpperPaths.o\
