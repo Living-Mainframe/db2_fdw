@@ -74,12 +74,11 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
       #endif
       appendStringInfoString (&orderedquery, (pathkey->pk_nulls_first) ? " NULLS FIRST" : " NULLS LAST");
     } else {
-      /*
-       * The planner and executor don't have any clever strategy for
-       * taking data sorted by a prefix of the query's pathkeys and
-       * getting it to be sorted by all of those pathekeys.  We'll just
-       * end up resorting the entire data set.  So, unless we can push
-       * down all of the query pathkeys, forget it.
+      /** The planner and executor don't have any clever strategy for
+       *  taking data sorted by a prefix of the query's pathkeys and
+       *  getting it to be sorted by all of those pathekeys.  We'll just
+       *  end up resorting the entire data set.  So, unless we can push
+       *  down all of the query pathkeys, forget it.
        */
       list_free (usable_pathkeys);
       usable_pathkeys = NIL;

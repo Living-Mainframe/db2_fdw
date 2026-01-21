@@ -167,6 +167,9 @@ typedef enum {
 typedef enum { CASE_KEEP, CASE_LOWER, CASE_SMART } fold_t;
 
 #define REL_ALIAS_PREFIX    "r"
+#define SUBQUERY_REL_ALIAS_PREFIX	"s"
+#define SUBQUERY_COL_ALIAS_PREFIX	"c"
+
 /* Handy macro to add relation name qualification */
 #define ADD_REL_QUALIFIER(buf, varno)  appendStringInfo((buf), "%s%d.", REL_ALIAS_PREFIX, (varno))
 #define serializeInt(x)                makeConst(INT4OID, -1, InvalidOid, 4, Int32GetDatum((int32)(x)), false, true)
