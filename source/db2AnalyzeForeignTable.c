@@ -11,7 +11,7 @@
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern int          db2IsStatementOpen        (DB2Session* session);
-extern void         db2PrepareQuery           (DB2Session* session, const char* query, DB2Table* db2Table, unsigned long prefetch);
+extern void         db2PrepareQuery           (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
@@ -126,7 +126,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
 
   db2Debug3("  loop through query results");
   /* loop through query results */
-  while (db2IsStatementOpen (fdw_state->session) ? db2FetchNext (fdw_state->session) : (db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, fdw_state->prefetch), db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList))) {
+  while (db2IsStatementOpen (fdw_state->session) ? db2FetchNext (fdw_state->session) : (db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, fdw_state->prefetch, fdw_state->fetch_size), db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList))) {
     /* allow user to interrupt ANALYZE */
     #if PG_VERSION_NUM >= 180000
     vacuum_delay_point (true);

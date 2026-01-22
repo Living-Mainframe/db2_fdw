@@ -42,7 +42,8 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
   char*        table    = NULL;
   char*        maxlong  = NULL;
   char*        sample   = NULL;
-  char*        fetch    = NULL;
+  char*        prefetch = NULL;
+  char*        fetchsz  = NULL;
   char*        noencerr = NULL;
   char*        batchsz  = NULL;
   long max_long;
@@ -74,7 +75,9 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
     if (strcmp (def->defname, OPT_SAMPLE) == 0)
       sample  = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_PREFETCH) == 0)
-      fetch = STRVAL(def->arg);
+      prefetch = STRVAL(def->arg);
+    if (strcmp (def->defname, OPT_FETCHSZ) == 0)
+      fetchsz = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_NO_ENCODING_ERROR) == 0)
       noencerr = STRVAL(def->arg);
     if (strcmp (def->defname, OPT_BATCH_SIZE) == 0)
@@ -96,12 +99,18 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
   }
 
   /* convert "prefetch" to number (or use default) */
-  if (fetch == NULL)
+  if (prefetch == NULL)
     fdwState->prefetch = DEFAULT_PREFETCH;
   else
-    fdwState->prefetch = (unsigned long) strtoul (fetch, NULL, 0);
+    fdwState->prefetch = (unsigned long) strtoul (prefetch, NULL, 0);
 
-  /* check if options are ok */
+  /* convert "fetchsize" to number (or use default) */
+  if (fetchsz == NULL)
+    fdwState->fetch_size = DEFAULT_FETCHSZ;
+  else
+    fdwState->fetch_size = (int) strtol (fetchsz, NULL, 0);
+
+    /* check if options are ok */
   if (table == NULL)
     ereport (ERROR, (errcode (ERRCODE_FDW_OPTION_NAME_NOT_FOUND), errmsg ("required option \"%s\" in foreign table \"%s\" missing", OPT_TABLE, pgtablename)));
 

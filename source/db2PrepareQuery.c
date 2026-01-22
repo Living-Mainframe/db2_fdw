@@ -21,7 +21,7 @@ extern SQLSMALLINT  c2param              (SQLSMALLINT fparamType);
 extern char*        param2name           (SQLSMALLINT fparamType);
 
 /** internal prototypes */
-void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch);
+void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize);
 
 /** db2PrepareQuery
  *   Prepares an SQL statement for execution.
@@ -31,7 +31,7 @@ void                db2PrepareQuery      (DB2Session* session, const char *query
  *   - For DML statements, allocates LOB locators for the RETURNING clause in db2Table.
  *   - Set the prefetch options.
  */
-void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch) {
+void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize) {
   int        i          = 0;
   int        col_pos    = 0;
   int        is_select  = 0;
@@ -55,7 +55,8 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
   db2Debug2("  session->stmtp->hsql: %d",session->stmtp->hsql);
   /* set prefetch options */
   if (is_select) {
-    unsigned long  prefetch_rows = prefetch;
+    SQLULEN prefetch_rows = prefetch;
+    SQLULEN cur_fetchsize = fetchsize;
     db2Debug3("  IS_SELECT");
     if (for_update) {
       db2Debug3("  FOR UPDATE");
@@ -81,6 +82,13 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
       }
       db2Debug3("  set cursor static");
     }
+    // Fetch rows per network roundtrip
+    rc = SQLSetStmtAttr(session->stmtp->hsql, SQL_ATTR_ROW_ARRAY_SIZE, (SQLPOINTER)cur_fetchsize, 0);
+    rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
+    if (rc != SQL_SUCCESS) {
+      db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLSetStmtAttr failed to set fetchsize in statement handle", db2Message);
+    }
+    db2Debug2("  set cursor fetchsize: %d",cur_fetchsize);
     // Prefetch rows per block for scrollable (non-dynamic) cursors
     rc = SQLSetStmtAttr(session->stmtp->hsql, SQL_ATTR_PREFETCH_NROWS, (SQLPOINTER)prefetch_rows, 0);
     rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);

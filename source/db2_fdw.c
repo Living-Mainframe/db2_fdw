@@ -64,6 +64,7 @@ DB2FdwOption valid_options[] = {
   {OPT_READONLY         , ForeignTableRelationId      , false},
   {OPT_SAMPLE           , ForeignTableRelationId      , false},
   {OPT_PREFETCH         , ForeignTableRelationId      , false},
+  {OPT_FETCHSZ          , ForeignTableRelationId      , false},
   {OPT_KEY              , AttributeRelationId         , false},
 #if PG_VERSION_NUM >= 140000
   {OPT_BATCH_SIZE       , ForeignServerRelationId     , false},
@@ -269,11 +270,24 @@ PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
       char *val = STRVAL(def->arg);
       char *endptr;
       unsigned long prefetch = strtol (val, &endptr, 0);
-      if (val[0] == '\0' || *endptr != '\0' || prefetch < 0 || prefetch > 10240)
+      if (val[0] == '\0' || *endptr != '\0' || prefetch < 0 || prefetch > DB2_MAX_ATTR_PREFETCH_NROWS)
         ereport ( ERROR
                 , ( errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE)
                   , errmsg ("invalid value for option \"%s\"", def->defname)
-                  , errhint ("Valid values in this context are integers between 0 and 10240.")
+                  , errhint ("Valid values in this context are integers between 0 and %d.", DB2_MAX_ATTR_PREFETCH_NROWS)
+                  )
+                );
+    }
+    /* check valid values for "fetchsize" */
+    if (strcmp (def->defname, OPT_FETCHSZ) == 0) {
+      char *val = STRVAL(def->arg);
+      char *endptr;
+      unsigned long fetchsz = strtol (val, &endptr, 0);
+      if (val[0] == '\0' || *endptr != '\0' || fetchsz < 0 || fetchsz > DB2_MAX_ATTR_ROW_ARRAY_SIZE)
+        ereport ( ERROR
+                , ( errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE)
+                  , errmsg ("invalid value for option \"%s\"", def->defname)
+                  , errhint ("Valid values in this context are integers between 1 and %d.", DB2_MAX_ATTR_ROW_ARRAY_SIZE)
                   )
                 );
     }

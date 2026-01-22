@@ -61,11 +61,14 @@
 #define SUBMESSAGE_LEN    200
 #define EXPLAIN_LINE_SIZE 1000
 #define DEFAULT_MAX_LONG  32767
-#define DEFAULT_PREFETCH  200
+#define DEFAULT_PREFETCH  0
+#define DEFAULT_FETCHSZ   1
 #define DEFAULT_BATCHSZ   100
 #define TABLE_NAME_LEN    129
 #define COLUMN_NAME_LEN   129
 #define SQLSTATE_LEN      6
+#define DB2_MAX_ATTR_PREFETCH_NROWS 1024
+#define DB2_MAX_ATTR_ROW_ARRAY_SIZE 32768
 
 #ifdef SQL_H_SQLCLI1
 #include "HdlEntry.h"
@@ -124,6 +127,7 @@ typedef enum {
 #define OPT_PREFETCH          "prefetch"
 #define OPT_NO_ENCODING_ERROR "no_encoding_error"
 #define OPT_BATCH_SIZE        "batch_size"
+#define OPT_FETCHSZ           "fetchsize"
 
 /* types for the DB2 table description */
 typedef enum {
