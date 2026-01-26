@@ -88,6 +88,9 @@ typedef struct deparse_expr_cxt {
 extern short              c2dbType                  (short fcType);
 extern void               db2Debug1                 (const char* message, ...);
 extern void               db2Debug2                 (const char* message, ...);
+extern void               db2Debug3                 (const char* message, ...);
+extern void               db2Debug4                 (const char* message, ...);
+extern void               db2Debug5                 (const char* message, ...);
 extern void*              db2alloc                  (const char* type, size_t size);
 extern void*              db2strdup                 (const char* source);
 extern void               db2free                   (void* p);
@@ -176,8 +179,9 @@ static void         printRemotePlaceholder    (Oid paramtype, int32 paramtypmod,
  *	- local_conds contains expressions that can't be evaluated remotely
  */
 void classifyConditions(PlannerInfo* root, RelOptInfo* baserel, List* input_conds, List** remote_conds, List** local_conds) {
-  ListCell* lc;
+  ListCell* lc  = NULL;
 
+  db2Debug1("> %s::classifyConditions",__FILE__);
   *remote_conds = NIL;
   *local_conds  = NIL;
 
@@ -189,6 +193,7 @@ void classifyConditions(PlannerInfo* root, RelOptInfo* baserel, List* input_cond
     else
       *local_conds = lappend(*local_conds, ri);
   }
+  db2Debug1("< %s::classifyConditions",__FILE__);
 }
 
 /** Returns true if given expr is safe to evaluate on the foreign server.
@@ -197,8 +202,9 @@ bool is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expr) {
   foreign_glob_cxt glob_cxt;
   foreign_loc_cxt  loc_cxt;
   DB2FdwState*     fpinfo  = (DB2FdwState*) (baserel->fdw_private);
-  bool             bResult = false;
+  bool             fResult = false;
 
+  db2Debug1("> %s::is_foreign_expr",__FILE__);
   // Check that the expression consists of nodes that are safe to execute remotely.
   glob_cxt.root       = root;
   glob_cxt.foreignrel = baserel;
@@ -216,12 +222,13 @@ bool is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expr) {
        * Future versions might be able to make this choice with more granularity.  (We check this last because it requires a lot of expensive catalog lookups.)
        */
       if (!contain_mutable_functions((Node*) expr)) {
-        bResult = true;
+        fResult = true;
       }
     }
   }
+  db2Debug1("< %s::is_foreign_expr : %s",__FILE__, (fResult) ? "true": "false");
   /* OK to evaluate on the remote server */
-  return bResult;
+  return fResult;
 }
 
 /** Check if expression is safe to execute remotely, and return true if so.
@@ -241,566 +248,554 @@ bool is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expr) {
  * currently considered here.
  */
 static bool foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, foreign_loc_cxt* outer_cxt, foreign_loc_cxt* case_arg_cxt) {
-  bool            check_type  = true;
-  DB2FdwState*    fpinfo      = NULL;
-  foreign_loc_cxt inner_cxt;
-  Oid             collation;
-  FDWCollateState state;
+  bool  fResult = true;
+
+  db2Debug4("> %s::foreign_expr_walker",__FILE__);
   /* Need do nothing for empty subexpressions */
-  if (node == NULL)
-    return true;
-  /* May need server info from baserel's fdw_private struct */
-  fpinfo = (DB2FdwState*) glob_cxt->foreignrel->fdw_private;
-  /* Set up inner_cxt for possible recursion to child nodes */
-  inner_cxt.collation = InvalidOid;
-  inner_cxt.state     = FDW_COLLATE_NONE;
-  switch (nodeTag(node)) {
-    case T_Var: {
-      Var		   *var = (Var *) node;
-      /** If the Var is from the foreign table, we consider its
-       * collation (if any) safe to use.  If it is from another
-       * table, we treat its collation the same way as we would a
-       * Param's collation, ie it's not safe for it to have a
-       * non-default collation.
-       */
-      if (bms_is_member(var->varno, glob_cxt->relids) && var->varlevelsup == 0) {
-        /* Var belongs to foreign table */
-        /** System columns other than ctid should not be sent to
-         * the remote, since we don't make any effort to ensure
-         * that local and remote values match (tableoid, in
-         * particular, almost certainly doesn't match).
-         */
-        if (var->varattno < 0 && var->varattno != SelfItemPointerAttributeNumber)
-          return false;
+  if (node != NULL) {
+    bool            check_type  = true;
+    DB2FdwState*    fpinfo      = (DB2FdwState*) glob_cxt->foreignrel->fdw_private;
+    foreign_loc_cxt inner_cxt;
+    Oid             collation;
+    FDWCollateState state;
 
-        /* Else check the collation */
-        collation = var->varcollid;
-        state = OidIsValid(collation) ? FDW_COLLATE_SAFE : FDW_COLLATE_NONE;
-      } else {
-        /* Var belongs to some other table */
-        collation = var->varcollid;
-        if (collation == InvalidOid || collation == DEFAULT_COLLATION_OID) {
-          /** It's noncollatable, or it's safe to combine with a
-           * collatable foreign Var, so set state to NONE.
+    /* Set up inner_cxt for possible recursion to child nodes */
+    inner_cxt.collation = InvalidOid;
+    inner_cxt.state     = FDW_COLLATE_NONE;
+    switch (nodeTag(node)) {
+      case T_Var: {
+        Var*  var = (Var*) node;
+        /* If the Var is from the foreign table, we consider its collation (if any) safe to use.
+         * If it is from another table, we treat its collation the same way as we would a Param's collation, 
+         * ie it's not safe for it to have a non-default collation.
+         */
+        if (bms_is_member(var->varno, glob_cxt->relids) && var->varlevelsup == 0) {
+          /* Var belongs to foreign table
+           * System columns other than ctid should not be sent to the remote, since we don't make any effort to ensure
+           * that local and remote values match (tableoid, in particular, almost certainly doesn't match).
            */
-          state = FDW_COLLATE_NONE;
+          if (var->varattno < 0 && var->varattno != SelfItemPointerAttributeNumber)
+            return false;
+
+          /* Else check the collation */
+          collation = var->varcollid;
+          state = OidIsValid(collation) ? FDW_COLLATE_SAFE : FDW_COLLATE_NONE;
         } else {
-          /** Do not fail right away, since the Var might appear
-           * in a collation-insensitive context.
-           */
-          state = FDW_COLLATE_UNSAFE;
-        }
-      }
-    }
-    break;
-    case T_Const: {
-      Const* c = (Const *) node;
-
-      /** Constants of regproc and related types can't be shipped
-       * unless the referenced object is shippable.  But NULL's ok.
-       * (See also the related code in dependency.c.)
-       */
-      if (!c->constisnull) {
-        switch (c->consttype) {
-          case REGPROCOID:
-          case REGPROCEDUREOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), ProcedureRelationId, fpinfo))
-              return false;
-          break;
-          case REGOPEROID:
-          case REGOPERATOROID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), OperatorRelationId, fpinfo))
-              return false;
-          break;
-          case REGCLASSOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), RelationRelationId, fpinfo))
-              return false;
-          break;
-          case REGTYPEOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), TypeRelationId, fpinfo))
-              return false;
-          break;
-          case REGCOLLATIONOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), CollationRelationId, fpinfo))
-              return false;
-          break;
-          case REGCONFIGOID:
-            /** For text search objects only, we weaken the normal shippability criterion to 
-             *  allow all OIDs below FirstNormalObjectId.  Without this, none of the initdb-installed
-             *  TS configurations would be shippable, which would be quite annoying.
-             */
-            if (DatumGetObjectId(c->constvalue) >= FirstNormalObjectId && !is_shippable(DatumGetObjectId(c->constvalue), TSConfigRelationId, fpinfo))
-              return false;
-          break;
-          case REGDICTIONARYOID:
-            if (DatumGetObjectId(c->constvalue) >= FirstNormalObjectId && !is_shippable(DatumGetObjectId(c->constvalue), TSDictionaryRelationId, fpinfo))
-              return false;
-          break;
-          case REGNAMESPACEOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), NamespaceRelationId, fpinfo))
-              return false;
-          break;
-          case REGROLEOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), AuthIdRelationId, fpinfo))
-              return false;
-          break;
-          #ifdef REGDATABASEOID
-          case REGDATABASEOID:
-            if (!is_shippable(DatumGetObjectId(c->constvalue), DatabaseRelationId, fpinfo))
-              return false;
-          break;
-          #endif
-        }
-      }
-
-      /** If the constant has nondefault collation, either it's of a
-       * non-builtin type, or it reflects folding of a CollateExpr.
-       * It's unsafe to send to the remote unless it's used in a
-       * non-collation-sensitive context.
-       */
-      collation = c->constcollid;
-      state     = (collation == InvalidOid || collation == DEFAULT_COLLATION_OID) ? FDW_COLLATE_NONE : FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_Param: {
-      Param	   *p = (Param *) node;
-
-      /** If it's a MULTIEXPR Param, punt.  We can't tell from here whether the referenced sublink/subplan contains any remote
-       *  Vars; if it does, handling that is too complicated to consider supporting at present.  Fortunately, MULTIEXPR
-       *  Params are not reduced to plain PARAM_EXEC until the end of planning, so we can easily detect this case.  (Normal
-       *  PARAM_EXEC Params are safe to ship because their values come from somewhere else in the plan tree; but a MULTIEXPR
-       *  references a sub-select elsewhere in the same targetlist, so we'd be on the hook to evaluate it somehow if we wanted
-       *  to handle such cases as direct foreign updates.)
-       */
-      if (p->paramkind == PARAM_MULTIEXPR)
-        return false;
-
-      /** Collation rule is same as for Consts and non-foreign Vars. */
-      collation = p->paramcollid;
-      state     = (collation == InvalidOid || collation == DEFAULT_COLLATION_OID) ? FDW_COLLATE_NONE : FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_SubscriptingRef: {
-      SubscriptingRef *sr = (SubscriptingRef *) node;
-      // Assignment should not be in restrictions.
-      if (sr->refassgnexpr != NULL)
-        return false;
-      // Recurse into the remaining subexpressions.
-      // The container subscripts will not affect collation of the SubscriptingRef result, so do those first and reset inner_cxt afterwards.
-      if (!foreign_expr_walker((Node *) sr->refupperindexpr, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      inner_cxt.collation = InvalidOid;
-      inner_cxt.state     = FDW_COLLATE_NONE;
-      if (!foreign_expr_walker((Node *) sr->reflowerindexpr, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      inner_cxt.collation = InvalidOid;
-      inner_cxt.state = FDW_COLLATE_NONE;
-      if (!foreign_expr_walker((Node *) sr->refexpr, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // Container subscripting typically yields same collation as refexpr's, but in case it doesn't, use same logic as for function nodes.
-      collation = sr->refcollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_FuncExpr: {
-      FuncExpr* fe = (FuncExpr*) node;
-
-      /* If function used by the expression is not shippable, it can't be sent to remote because it might have incompatible
-       * semantics on remote side.
-       */
-      if (!is_shippable(fe->funcid, ProcedureRelationId, fpinfo))
-        return false;
-
-      // Recurse to input subexpressions.
-      if (!foreign_expr_walker((Node *) fe->args, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-
-      // If function's input collation is not derived from a foreign Var, it can't be sent to remote.
-      if (fe->inputcollid == InvalidOid)
-        /* OK, inputs are all noncollatable */ ;
-      else if (inner_cxt.state != FDW_COLLATE_SAFE || fe->inputcollid != inner_cxt.collation)
-        return false;
-
-      /* Detect whether node is introducing a collation not derived from a foreign Var.  (If so, we just mark it unsafe for now
-       * rather than immediately returning false, since the parent node might not care.)
-       */
-      collation = fe->funccollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_OpExpr:
-    case T_DistinctExpr: {  /* struct-equivalent to OpExpr */
-      OpExpr*   oe = (OpExpr*) node;
-
-      // Similarly, only shippable operators can be sent to remote.
-      // (If the operator is shippable, we assume its underlying function is too.)
-      if (!is_shippable(oe->opno, OperatorRelationId, fpinfo))
-        return false;
-
-      // Recurse to input subexpressions.
-      if (!foreign_expr_walker((Node *) oe->args, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-
-      // If operator's input collation is not derived from a foreign Var, it can't be sent to remote.
-      if (oe->inputcollid == InvalidOid)
-        /* OK, inputs are all noncollatable */ ;
-      else if (inner_cxt.state != FDW_COLLATE_SAFE || oe->inputcollid != inner_cxt.collation)
-        return false;
-
-      // Result-collation handling is same as for functions
-      collation = oe->opcollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_ScalarArrayOpExpr: {
-      ScalarArrayOpExpr *oe = (ScalarArrayOpExpr *) node;
-
-      // Again, only shippable operators can be sent to remote.
-      if (!is_shippable(oe->opno, OperatorRelationId, fpinfo))
-        return false;
-
-      // Recurse to input subexpressions.
-      if (!foreign_expr_walker((Node *) oe->args, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-
-      // If operator's input collation is not derived from a foreign Var, it can't be sent to remote.
-      if (oe->inputcollid == InvalidOid)
-        /* OK, inputs are all noncollatable */ ;
-      else if (inner_cxt.state != FDW_COLLATE_SAFE || oe->inputcollid != inner_cxt.collation)
-        return false;
-
-      // Output is always boolean and so noncollatable.
-      collation = InvalidOid;
-      state = FDW_COLLATE_NONE;
-    }
-    break;
-    case T_RelabelType: {
-      RelabelType* r = (RelabelType*) node;
-      // Recurse to input subexpression.
-      if (!foreign_expr_walker((Node *) r->arg, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // RelabelType must not introduce a collation not derived from an input foreign Var (same logic as for a real function).
-      collation = r->resultcollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_ArrayCoerceExpr: {
-      ArrayCoerceExpr *e = (ArrayCoerceExpr *) node;
-      // Recurse to input subexpression.
-      if (!foreign_expr_walker((Node *) e->arg, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // T_ArrayCoerceExpr must not introduce a collation not derived from an input foreign Var (same logic as for a function).
-      collation = e->resultcollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_BoolExpr: {
-      BoolExpr*   b = (BoolExpr*) node;
-      // Recurse to input subexpressions.
-      if (!foreign_expr_walker((Node*) b->args, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // Output is always boolean and so noncollatable.
-      collation = InvalidOid;
-      state = FDW_COLLATE_NONE;
-    }
-    break;
-    case T_NullTest: {
-      NullTest*   nt = (NullTest*) node;
-      // Recurse to input subexpressions.
-      if (!foreign_expr_walker((Node*) nt->arg, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // Output is always boolean and so noncollatable.
-      collation = InvalidOid;
-      state     = FDW_COLLATE_NONE;
-    }
-    break;
-    case T_CaseExpr: {
-      CaseExpr*       ce = (CaseExpr*) node;
-      foreign_loc_cxt arg_cxt;
-      foreign_loc_cxt tmp_cxt;
-      ListCell*       lc;
-      // Recurse to CASE's arg expression, if any.  Its collation has to be saved aside for use while examining CaseTestExprs within the WHEN expressions.
-      arg_cxt.collation = InvalidOid;
-      arg_cxt.state     = FDW_COLLATE_NONE;
-      if (ce->arg) {
-        if (!foreign_expr_walker((Node *) ce->arg, glob_cxt, &arg_cxt, case_arg_cxt))
-          return false;
-      }
-
-      // Examine the CaseWhen subexpressions.
-      foreach(lc, ce->args) {
-        CaseWhen*   cw = lfirst_node(CaseWhen, lc);
-        if (ce->arg) {
-          /* In a CASE-with-arg, the parser should have produced WHEN clauses of the form "CaseTestExpr = RHS",
-           * possibly with an implicit coercion inserted above the CaseTestExpr.  However in an expression that's
-           * been through the optimizer, the WHEN clause could be almost anything (since the equality operator
-           * could have been expanded into an inline function).
-           * In such cases forbid pushdown, because deparseCaseExpr can't handle it.
-           */
-          Node* whenExpr = (Node*) cw->expr;
-          List* opArgs   = NULL;
-          if (!IsA(whenExpr, OpExpr))
-            return false;
-          opArgs = ((OpExpr *) whenExpr)->args;
-          if (list_length(opArgs) != 2 || !IsA(strip_implicit_coercions(linitial(opArgs)), CaseTestExpr))
-            return false;
-        }
-        /* Recurse to WHEN expression, passing down the arg info.
-         * Its collation doesn't affect the result (really, it should be boolean and thus not have a collation).
-         */
-        tmp_cxt.collation = InvalidOid;
-        tmp_cxt.state     = FDW_COLLATE_NONE;
-        if (!foreign_expr_walker((Node *) cw->expr, glob_cxt, &tmp_cxt, &arg_cxt))
-          return false;
-        /* Recurse to THEN expression. */
-        if (!foreign_expr_walker((Node *) cw->result, glob_cxt, &inner_cxt, case_arg_cxt))
-          return false;
-      }
-      // Recurse to ELSE expression.
-      if (!foreign_expr_walker((Node *) ce->defresult, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      /* Detect whether node is introducing a collation not derived from a foreign Var.  (If so, we just mark it unsafe for now
-       * rather than immediately returning false, since the parent node might not care.)  This is the same as for function
-       * nodes, except that the input collation is derived from only the THEN and ELSE subexpressions.
-       */
-      collation = ce->casecollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_CaseTestExpr: {
-      CaseTestExpr* c = (CaseTestExpr*) node;
-      // Punt if we seem not to be inside a CASE arg WHEN.
-      if (!case_arg_cxt)
-        return false;
-      // Otherwise, any nondefault collation attached to the CaseTestExpr node must be derived from foreign Var(s) in the CASE arg.
-      collation = c->collation;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (case_arg_cxt->state == FDW_COLLATE_SAFE && collation == case_arg_cxt->collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_ArrayExpr: {
-      ArrayExpr*  a = (ArrayExpr *) node;
-      // Recurse to input subexpressions.
-      if (!foreign_expr_walker((Node *) a->elements, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // ArrayExpr must not introduce a collation not derived from an input foreign Var (same logic as for a function).
-      collation = a->array_collid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    case T_List: {
-      List*     l  = (List*) node;
-      ListCell* lc = NULL;
-      // Recurse to component subexpressions.
-      foreach(lc, l) {
-        if (!foreign_expr_walker((Node *) lfirst(lc), glob_cxt, &inner_cxt, case_arg_cxt))
-          return false;
-      }
-      // When processing a list, collation state just bubbles up from the list elements.
-      collation = inner_cxt.collation;
-      state     = inner_cxt.state;
-      // Don't apply exprType() to the list.
-      check_type = false;
-    }
-    break;
-    case T_Aggref: {
-      Aggref*   agg = (Aggref*) node;
-      ListCell* lc  = NULL;
-      // Not safe to pushdown when not in grouping context
-      if (!IS_UPPER_REL(glob_cxt->foreignrel))
-        return false;
-      // Only non-split aggregates are pushable.
-      if (agg->aggsplit != AGGSPLIT_SIMPLE)
-        return false;
-      // As usual, it must be shippable.
-      if (!is_shippable(agg->aggfnoid, ProcedureRelationId, fpinfo))
-        return false;
-      // Recurse to input args. aggdirectargs, aggorder and aggdistinct are all present in args, so no need to check their shippability explicitly.
-      foreach(lc, agg->args) {
-        Node*   n = (Node*) lfirst(lc);
-        // If TargetEntry, extract the expression from it
-        if (IsA(n, TargetEntry)) {
-          TargetEntry* tle = (TargetEntry*) n;
-          n = (Node*) tle->expr;
-        }
-        if (!foreign_expr_walker(n, glob_cxt, &inner_cxt, case_arg_cxt))
-          return false;
-      }
-      // For aggorder elements, check whether the sort operator, if specified, is shippable or not.
-      if (agg->aggorder) {
-        foreach(lc, agg->aggorder) {
-          SortGroupClause*  srt = (SortGroupClause*) lfirst(lc);
-          Oid             sortcoltype;
-          TypeCacheEntry* typentry;
-          TargetEntry*    tle;
-
-          tle         = get_sortgroupref_tle(srt->tleSortGroupRef, agg->args);
-          sortcoltype = exprType((Node *) tle->expr);
-          typentry    = lookup_type_cache(sortcoltype, TYPECACHE_LT_OPR | TYPECACHE_GT_OPR);
-          // Check shippability of non-default sort operator.
-          if (srt->sortop != typentry->lt_opr && srt->sortop != typentry->gt_opr && !is_shippable(srt->sortop, OperatorRelationId, fpinfo))
-            return false;
-        }
-      }
-      // Check aggregate filter
-      if (!foreign_expr_walker((Node *) agg->aggfilter, glob_cxt, &inner_cxt, case_arg_cxt))
-        return false;
-      // If aggregate's input collation is not derived from a foreign Var, it can't be sent to remote.
-      if (agg->inputcollid == InvalidOid)
-        /* OK, inputs are all noncollatable */ ;
-      else if (inner_cxt.state != FDW_COLLATE_SAFE || agg->inputcollid != inner_cxt.collation)
-        return false;
-      /* Detect whether node is introducing a collation not derived from a foreign Var.  (If so, we just mark it unsafe for now
-       * rather than immediately returning false, since the parent node might not care.)
-       */
-      collation = agg->aggcollid;
-      if (collation == InvalidOid)
-        state = FDW_COLLATE_NONE;
-      else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
-        state = FDW_COLLATE_SAFE;
-      else if (collation == DEFAULT_COLLATION_OID)
-        state = FDW_COLLATE_NONE;
-      else
-        state = FDW_COLLATE_UNSAFE;
-    }
-    break;
-    default:
-      /** If it's anything else, assume it's unsafe.  This list can be
-       * expanded later, but don't forget to add deparse support below.
-       */
-      return false;
-  }
-  /** If result type of given expression is not shippable, it can't be sent
-   * to remote because it might have incompatible semantics on remote side.
-   */
-  if (check_type && !is_shippable(exprType(node), TypeRelationId, fpinfo))
-    return false;
-  /** Now, merge my collation information into my parent's state. */
-  if (state > outer_cxt->state) {
-    /* Override previous parent state */
-    outer_cxt->collation = collation;
-    outer_cxt->state = state;
-  }	else if (state == outer_cxt->state) {
-    /* Merge, or detect error if there's a collation conflict */
-    switch (state) {
-      case FDW_COLLATE_NONE: {
-        /* Nothing + nothing is still nothing */
-      }
-      break;
-      case FDW_COLLATE_SAFE: {
-        if (collation != outer_cxt->collation) {
-          /** Non-default collation always beats default.*/
-          if (outer_cxt->collation == DEFAULT_COLLATION_OID) {
-            /* Override previous parent state */
-            outer_cxt->collation = collation;
-          } else if (collation != DEFAULT_COLLATION_OID) {
-            /** Conflict; show state as indeterminate.  We don't
-             * want to "return false" right away, since parent
-             * node might not care about collation.
-             */
-            outer_cxt->state = FDW_COLLATE_UNSAFE;
+          /* Var belongs to some other table */
+          collation = var->varcollid;
+          if (collation == InvalidOid || collation == DEFAULT_COLLATION_OID) {
+            /* It's noncollatable, or it's safe to combine with a collatable foreign Var, so set state to NONE. */
+            state = FDW_COLLATE_NONE;
+          } else {
+            /* Do not fail right away, since the Var might appear in a collation-insensitive context. */
+            state = FDW_COLLATE_UNSAFE;
           }
         }
       }
       break;
-      case FDW_COLLATE_UNSAFE: {
-        /* We're still conflicted ... */
+      case T_Const: {
+        Const* c = (Const*) node;
+  
+        /** Constants of regproc and related types can't be shipped
+         * unless the referenced object is shippable.  But NULL's ok.
+         * (See also the related code in dependency.c.)
+         */
+        if (!c->constisnull) {
+          switch (c->consttype) {
+            case REGPROCOID:
+            case REGPROCEDUREOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), ProcedureRelationId, fpinfo))
+                return false;
+            break;
+            case REGOPEROID:
+            case REGOPERATOROID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), OperatorRelationId, fpinfo))
+                return false;
+            break;
+            case REGCLASSOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), RelationRelationId, fpinfo))
+                return false;
+            break;
+            case REGTYPEOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), TypeRelationId, fpinfo))
+                return false;
+            break;
+            case REGCOLLATIONOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), CollationRelationId, fpinfo))
+                return false;
+            break;
+            case REGCONFIGOID:
+              /* For text search objects only, we weaken the normal shippability criterion to allow all OIDs below FirstNormalObjectId.
+               * Without this, none of the initdb-installed TS configurations would be shippable, which would be quite annoying.
+               */
+              if (DatumGetObjectId(c->constvalue) >= FirstNormalObjectId && !is_shippable(DatumGetObjectId(c->constvalue), TSConfigRelationId, fpinfo))
+                return false;
+            break;
+            case REGDICTIONARYOID:
+              if (DatumGetObjectId(c->constvalue) >= FirstNormalObjectId && !is_shippable(DatumGetObjectId(c->constvalue), TSDictionaryRelationId, fpinfo))
+                return false;
+            break;
+            case REGNAMESPACEOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), NamespaceRelationId, fpinfo))
+                return false;
+            break;
+            case REGROLEOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), AuthIdRelationId, fpinfo))
+                return false;
+            break;
+            #ifdef REGDATABASEOID
+            case REGDATABASEOID:
+              if (!is_shippable(DatumGetObjectId(c->constvalue), DatabaseRelationId, fpinfo))
+                return false;
+            break;
+            #endif
+          }
+        }
+        /* If the constant has nondefault collation, either it's of a non-builtin type, or it reflects folding of a CollateExpr.
+         * It's unsafe to send to the remote unless it's used in a non-collation-sensitive context.
+         */
+        collation = c->constcollid;
+        state     = (collation == InvalidOid || collation == DEFAULT_COLLATION_OID) ? FDW_COLLATE_NONE : FDW_COLLATE_UNSAFE;
       }
       break;
+      case T_Param: {
+        Param	   *p = (Param *) node;
+  
+        /** If it's a MULTIEXPR Param, punt.  We can't tell from here whether the referenced sublink/subplan contains any remote
+         *  Vars; if it does, handling that is too complicated to consider supporting at present.  Fortunately, MULTIEXPR
+         *  Params are not reduced to plain PARAM_EXEC until the end of planning, so we can easily detect this case.  (Normal
+         *  PARAM_EXEC Params are safe to ship because their values come from somewhere else in the plan tree; but a MULTIEXPR
+         *  references a sub-select elsewhere in the same targetlist, so we'd be on the hook to evaluate it somehow if we wanted
+         *  to handle such cases as direct foreign updates.)
+         */
+        if (p->paramkind == PARAM_MULTIEXPR)
+          return false;
+  
+        /** Collation rule is same as for Consts and non-foreign Vars. */
+        collation = p->paramcollid;
+        state     = (collation == InvalidOid || collation == DEFAULT_COLLATION_OID) ? FDW_COLLATE_NONE : FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_SubscriptingRef: {
+        SubscriptingRef *sr = (SubscriptingRef *) node;
+        // Assignment should not be in restrictions.
+        if (sr->refassgnexpr != NULL)
+          return false;
+        // Recurse into the remaining subexpressions.
+        // The container subscripts will not affect collation of the SubscriptingRef result, so do those first and reset inner_cxt afterwards.
+        if (!foreign_expr_walker((Node *) sr->refupperindexpr, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        inner_cxt.collation = InvalidOid;
+        inner_cxt.state     = FDW_COLLATE_NONE;
+        if (!foreign_expr_walker((Node *) sr->reflowerindexpr, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        inner_cxt.collation = InvalidOid;
+        inner_cxt.state = FDW_COLLATE_NONE;
+        if (!foreign_expr_walker((Node *) sr->refexpr, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // Container subscripting typically yields same collation as refexpr's, but in case it doesn't, use same logic as for function nodes.
+        collation = sr->refcollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_FuncExpr: {
+        FuncExpr* fe = (FuncExpr*) node;
+  
+        /* If function used by the expression is not shippable, it can't be sent to remote because it might have incompatible
+         * semantics on remote side.
+         */
+        if (!is_shippable(fe->funcid, ProcedureRelationId, fpinfo))
+          return false;
+  
+        // Recurse to input subexpressions.
+        if (!foreign_expr_walker((Node *) fe->args, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+  
+        // If function's input collation is not derived from a foreign Var, it can't be sent to remote.
+        if (fe->inputcollid == InvalidOid)
+          /* OK, inputs are all noncollatable */ ;
+        else if (inner_cxt.state != FDW_COLLATE_SAFE || fe->inputcollid != inner_cxt.collation)
+          return false;
+  
+        /* Detect whether node is introducing a collation not derived from a foreign Var.  (If so, we just mark it unsafe for now
+         * rather than immediately returning false, since the parent node might not care.)
+         */
+        collation = fe->funccollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_OpExpr:
+      case T_DistinctExpr: {  /* struct-equivalent to OpExpr */
+        OpExpr*   oe = (OpExpr*) node;
+        
+        // Similarly, only shippable operators can be sent to remote.
+        // (If the operator is shippable, we assume its underlying function is too.)
+        if (!is_shippable(oe->opno, OperatorRelationId, fpinfo))
+          return false;
+
+        // Recurse to input subexpressions.
+        if (!foreign_expr_walker((Node *) oe->args, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+
+        // If operator's input collation is not derived from a foreign Var, it can't be sent to remote.
+        if (oe->inputcollid == InvalidOid)
+          /* OK, inputs are all noncollatable */ ;
+        else if (inner_cxt.state != FDW_COLLATE_SAFE || oe->inputcollid != inner_cxt.collation)
+          return false;
+
+        // Result-collation handling is same as for functions
+        collation = oe->opcollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_ScalarArrayOpExpr: {
+        ScalarArrayOpExpr *oe = (ScalarArrayOpExpr *) node;
+  
+        // Again, only shippable operators can be sent to remote.
+        if (!is_shippable(oe->opno, OperatorRelationId, fpinfo))
+          return false;
+  
+        // Recurse to input subexpressions.
+        if (!foreign_expr_walker((Node *) oe->args, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+  
+        // If operator's input collation is not derived from a foreign Var, it can't be sent to remote.
+        if (oe->inputcollid == InvalidOid)
+          /* OK, inputs are all noncollatable */ ;
+        else if (inner_cxt.state != FDW_COLLATE_SAFE || oe->inputcollid != inner_cxt.collation)
+          return false;
+  
+        // Output is always boolean and so noncollatable.
+        collation = InvalidOid;
+        state = FDW_COLLATE_NONE;
+      }
+      break;
+      case T_RelabelType: {
+        RelabelType* r = (RelabelType*) node;
+        // Recurse to input subexpression.
+        if (!foreign_expr_walker((Node *) r->arg, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // RelabelType must not introduce a collation not derived from an input foreign Var (same logic as for a real function).
+        collation = r->resultcollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_ArrayCoerceExpr: {
+        ArrayCoerceExpr *e = (ArrayCoerceExpr *) node;
+        // Recurse to input subexpression.
+        if (!foreign_expr_walker((Node *) e->arg, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // T_ArrayCoerceExpr must not introduce a collation not derived from an input foreign Var (same logic as for a function).
+        collation = e->resultcollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_BoolExpr: {
+        BoolExpr*   b = (BoolExpr*) node;
+        // Recurse to input subexpressions.
+        if (!foreign_expr_walker((Node*) b->args, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // Output is always boolean and so noncollatable.
+        collation = InvalidOid;
+        state = FDW_COLLATE_NONE;
+      }
+      break;
+      case T_NullTest: {
+        NullTest*   nt = (NullTest*) node;
+        // Recurse to input subexpressions.
+        if (!foreign_expr_walker((Node*) nt->arg, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // Output is always boolean and so noncollatable.
+        collation = InvalidOid;
+        state     = FDW_COLLATE_NONE;
+      }
+      break;
+      case T_CaseExpr: {
+        CaseExpr*       ce = (CaseExpr*) node;
+        foreign_loc_cxt arg_cxt;
+        foreign_loc_cxt tmp_cxt;
+        ListCell*       lc;
+        // Recurse to CASE's arg expression, if any.  Its collation has to be saved aside for use while examining CaseTestExprs within the WHEN expressions.
+        arg_cxt.collation = InvalidOid;
+        arg_cxt.state     = FDW_COLLATE_NONE;
+        if (ce->arg) {
+          if (!foreign_expr_walker((Node *) ce->arg, glob_cxt, &arg_cxt, case_arg_cxt))
+            return false;
+        }
+  
+        // Examine the CaseWhen subexpressions.
+        foreach(lc, ce->args) {
+          CaseWhen*   cw = lfirst_node(CaseWhen, lc);
+          if (ce->arg) {
+            /* In a CASE-with-arg, the parser should have produced WHEN clauses of the form "CaseTestExpr = RHS",
+             * possibly with an implicit coercion inserted above the CaseTestExpr.  However in an expression that's
+             * been through the optimizer, the WHEN clause could be almost anything (since the equality operator
+             * could have been expanded into an inline function).
+             * In such cases forbid pushdown, because deparseCaseExpr can't handle it.
+             */
+            Node* whenExpr = (Node*) cw->expr;
+            List* opArgs   = NULL;
+            if (!IsA(whenExpr, OpExpr))
+              return false;
+            opArgs = ((OpExpr *) whenExpr)->args;
+            if (list_length(opArgs) != 2 || !IsA(strip_implicit_coercions(linitial(opArgs)), CaseTestExpr))
+              return false;
+          }
+          /* Recurse to WHEN expression, passing down the arg info.
+           * Its collation doesn't affect the result (really, it should be boolean and thus not have a collation).
+           */
+          tmp_cxt.collation = InvalidOid;
+          tmp_cxt.state     = FDW_COLLATE_NONE;
+          if (!foreign_expr_walker((Node *) cw->expr, glob_cxt, &tmp_cxt, &arg_cxt))
+            return false;
+          /* Recurse to THEN expression. */
+          if (!foreign_expr_walker((Node *) cw->result, glob_cxt, &inner_cxt, case_arg_cxt))
+            return false;
+        }
+        // Recurse to ELSE expression.
+        if (!foreign_expr_walker((Node *) ce->defresult, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        /* Detect whether node is introducing a collation not derived from a foreign Var.  (If so, we just mark it unsafe for now
+         * rather than immediately returning false, since the parent node might not care.)  This is the same as for function
+         * nodes, except that the input collation is derived from only the THEN and ELSE subexpressions.
+         */
+        collation = ce->casecollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_CaseTestExpr: {
+        CaseTestExpr* c = (CaseTestExpr*) node;
+        // Punt if we seem not to be inside a CASE arg WHEN.
+        if (!case_arg_cxt)
+          return false;
+        // Otherwise, any nondefault collation attached to the CaseTestExpr node must be derived from foreign Var(s) in the CASE arg.
+        collation = c->collation;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (case_arg_cxt->state == FDW_COLLATE_SAFE && collation == case_arg_cxt->collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_ArrayExpr: {
+        ArrayExpr*  a = (ArrayExpr *) node;
+        // Recurse to input subexpressions.
+        if (!foreign_expr_walker((Node *) a->elements, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // ArrayExpr must not introduce a collation not derived from an input foreign Var (same logic as for a function).
+        collation = a->array_collid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      case T_List: {
+        List*     l  = (List*) node;
+        ListCell* lc = NULL;
+        // Recurse to component subexpressions.
+        foreach(lc, l) {
+          if (!foreign_expr_walker((Node *) lfirst(lc), glob_cxt, &inner_cxt, case_arg_cxt))
+            return false;
+        }
+        // When processing a list, collation state just bubbles up from the list elements.
+        collation = inner_cxt.collation;
+        state     = inner_cxt.state;
+        // Don't apply exprType() to the list.
+        check_type = false;
+      }
+      break;
+      case T_Aggref: {
+        Aggref*   agg = (Aggref*) node;
+        ListCell* lc  = NULL;
+        // Not safe to pushdown when not in grouping context
+        if (!IS_UPPER_REL(glob_cxt->foreignrel))
+          return false;
+        // Only non-split aggregates are pushable.
+        if (agg->aggsplit != AGGSPLIT_SIMPLE)
+          return false;
+        // As usual, it must be shippable.
+        if (!is_shippable(agg->aggfnoid, ProcedureRelationId, fpinfo))
+          return false;
+        // Recurse to input args. aggdirectargs, aggorder and aggdistinct are all present in args, so no need to check their shippability explicitly.
+        foreach(lc, agg->args) {
+          Node*   n = (Node*) lfirst(lc);
+          // If TargetEntry, extract the expression from it
+          if (IsA(n, TargetEntry)) {
+            TargetEntry* tle = (TargetEntry*) n;
+            n = (Node*) tle->expr;
+          }
+          if (!foreign_expr_walker(n, glob_cxt, &inner_cxt, case_arg_cxt))
+            return false;
+        }
+        // For aggorder elements, check whether the sort operator, if specified, is shippable or not.
+        if (agg->aggorder) {
+          foreach(lc, agg->aggorder) {
+            SortGroupClause*  srt = (SortGroupClause*) lfirst(lc);
+            Oid             sortcoltype;
+            TypeCacheEntry* typentry;
+            TargetEntry*    tle;
+  
+            tle         = get_sortgroupref_tle(srt->tleSortGroupRef, agg->args);
+            sortcoltype = exprType((Node *) tle->expr);
+            typentry    = lookup_type_cache(sortcoltype, TYPECACHE_LT_OPR | TYPECACHE_GT_OPR);
+            // Check shippability of non-default sort operator.
+            if (srt->sortop != typentry->lt_opr && srt->sortop != typentry->gt_opr && !is_shippable(srt->sortop, OperatorRelationId, fpinfo))
+              return false;
+          }
+        }
+        // Check aggregate filter
+        if (!foreign_expr_walker((Node *) agg->aggfilter, glob_cxt, &inner_cxt, case_arg_cxt))
+          return false;
+        // If aggregate's input collation is not derived from a foreign Var, it can't be sent to remote.
+        if (agg->inputcollid == InvalidOid)
+          /* OK, inputs are all noncollatable */ ;
+        else if (inner_cxt.state != FDW_COLLATE_SAFE || agg->inputcollid != inner_cxt.collation)
+          return false;
+        /* Detect whether node is introducing a collation not derived from a foreign Var.  (If so, we just mark it unsafe for now
+         * rather than immediately returning false, since the parent node might not care.)
+         */
+        collation = agg->aggcollid;
+        if (collation == InvalidOid)
+          state = FDW_COLLATE_NONE;
+        else if (inner_cxt.state == FDW_COLLATE_SAFE && collation == inner_cxt.collation)
+          state = FDW_COLLATE_SAFE;
+        else if (collation == DEFAULT_COLLATION_OID)
+          state = FDW_COLLATE_NONE;
+        else
+          state = FDW_COLLATE_UNSAFE;
+      }
+      break;
+      default:
+        /* If it's anything else, assume it's unsafe.
+         * This list can be expanded later, but don't forget to add deparse support below.
+         */
+        return false;
+    }
+    /* If result type of given expression is not shippable, it can't be sent to remote because it might have incompatible semantics on remote side. */
+    if (check_type && !is_shippable(exprType(node), TypeRelationId, fpinfo))
+      return false;
+    /* Now, merge my collation information into my parent's state. */
+    if (state > outer_cxt->state) {
+      /* Override previous parent state */
+      outer_cxt->collation  = collation;
+      outer_cxt->state      = state;
+    }	else if (state == outer_cxt->state) {
+      /* Merge, or detect error if there's a collation conflict */
+      switch (state) {
+        case FDW_COLLATE_NONE: {
+          /* Nothing + nothing is still nothing */
+        }
+        break;
+        case FDW_COLLATE_SAFE: {
+          if (collation != outer_cxt->collation) {
+            /** Non-default collation always beats default.*/
+            if (outer_cxt->collation == DEFAULT_COLLATION_OID) {
+              /* Override previous parent state */
+              outer_cxt->collation = collation;
+            } else if (collation != DEFAULT_COLLATION_OID) {
+              /* Conflict; show state as indeterminate. 
+               * We don't want to "return false" right away, since parent node might not care about collation. 
+               */
+              outer_cxt->state = FDW_COLLATE_UNSAFE;
+            }
+          }
+        }
+        break;
+        case FDW_COLLATE_UNSAFE: {
+          /* We're still conflicted ... */
+        }
+        break;
+      }
     }
   }
   /* It looks OK */
-  return true;
+  db2Debug4("< %s::foreign_expr_walker : %s",__FILE__, (fResult) ? "true" : "false");
+  return fResult;
 }
 
-/** Returns true if given expr is something we'd have to send the value of
- * to the foreign server.
+/** Returns true if given expr is something we'd have to send the value of to the foreign server.
  *
- * This should return true when the expression is a shippable node that
- * deparseExpr would add to context->params_list.  Note that we don't care
- * if the expression *contains* such a node, only whether one appears at top
- * level.  We need this to detect cases where setrefs.c would recognize a
- * false match between an fdw_exprs item (which came from the params_list)
- * and an entry in fdw_scan_tlist (which we're considering putting the given
- * expression into).
+ * This should return true when the expression is a shippable node that deparseExpr would add to context->params_list.
+ * Note that we don't care if the expression *contains* such a node, only whether one appears at top level. 
+ * We need this to detect cases where setrefs.c would recognize a false match between an fdw_exprs item (which came from the params_list)
+ * and an entry in fdw_scan_tlist (which we're considering putting the given expression into).
  */
 bool is_foreign_param(PlannerInfo* root, RelOptInfo* baserel, Expr* expr) {
-  bool bResult = false;
+  bool  fResult = false;
+  db2Debug1("> %s::is_foreign_param", __FILE__);
+  db2Debug2("  expr: %x", expr);
   if (expr != NULL) {
+    db2Debug5("  ((Node*)expr)->type: %d", nodeTag(expr));
     switch (nodeTag(expr)) {
       case T_Var: {
           /* It would have to be sent unless it's a foreign Var */
-          Var*          var    = (Var *) expr;
+          Var*          var    = (Var*) expr;
           DB2FdwState*  fpinfo = (DB2FdwState*) (baserel->fdw_private);
           Relids        relids;
 
           relids  = (IS_UPPER_REL(baserel)) ? fpinfo->outerrel->relids : baserel->relids;
-          bResult = !(bms_is_member(var->varno, relids) && var->varlevelsup == 0);
+          fResult = !(bms_is_member(var->varno, relids) && var->varlevelsup == 0);
       }
       break;
       case T_Param:
         /* Params always have to be sent to the foreign server */
-        bResult = true;
+        fResult = true;
       default:
       break;
     }
   }
-  return bResult;
+  db2Debug1("< %s::is_foreign_param : %s",__FILE__, (fResult) ? "true" : "false");
+  return fResult;
 }
 
 /** Returns true if it's safe to push down the sort expression described by
@@ -809,19 +804,19 @@ bool is_foreign_param(PlannerInfo* root, RelOptInfo* baserel, Expr* expr) {
 bool is_foreign_pathkey(PlannerInfo* root, RelOptInfo* baserel, PathKey* pathkey) {
   EquivalenceClass* pathkey_ec = pathkey->pk_eclass;
   DB2FdwState*      fpinfo     = (DB2FdwState*) baserel->fdw_private;
-  bool              bResult    = false;
+  bool              fResult    = false;
 
-  /** is_foreign_expr would detect volatile expressions as well, but checking
-   * ec_has_volatile here saves some cycles.
-   */
+  db2Debug4("> %s::is_foreign_pathkey",__FILE__);
+  /* is_foreign_expr would detect volatile expressions as well, but checking ec_has_volatile here saves some cycles. */
   if (!pathkey_ec->ec_has_volatile) {
     /* can't push down the sort if the pathkey's opfamily is not shippable */
     if (is_shippable(pathkey->pk_opfamily, OperatorFamilyRelationId, fpinfo)) {
       /* can push if a suitable EC member exists */
-      bResult = (find_em_for_rel(root, pathkey_ec, baserel) != NULL);
+      fResult = (find_em_for_rel(root, pathkey_ec, baserel) != NULL);
     }
   }
-  return bResult;
+  db2Debug4("< %s::is_foreign_pathkey : %s",__FILE__, (fResult) ? "true" : "false");
+  return fResult;
 }
 
 /* Convert type OID + typmod info into a type name we can ship to the remote server.
@@ -833,12 +828,16 @@ bool is_foreign_pathkey(PlannerInfo* root, RelOptInfo* baserel, PathKey* pathkey
  * We assume here that built-in types are all in pg_catalog and need not be qualified; otherwise, qualify.
  */
 static char* deparse_type_name(Oid type_oid, int32 typemod) {
-  bits16  flags = FORMAT_TYPE_TYPEMOD_GIVEN;
+  bits16  flags   = FORMAT_TYPE_TYPEMOD_GIVEN;
+  char*   result  = NULL;
 
+  db2Debug4("> %s::deparse_type_name",__FILE__);
   if (!is_builtin(type_oid))
     flags |= FORMAT_TYPE_FORCE_QUALIFY;
 
-  return format_type_extended(type_oid, typemod, flags);
+  result  = format_type_extended(type_oid, typemod, flags);
+  db2Debug4("< %s::deparse_type_name : %s",__FILE__, result);
+  return result;
 }
 
 /** appendAsType
@@ -875,33 +874,33 @@ void appendAsType (StringInfoData* dest, Oid type) {
 /** Deparse GROUP BY clause.
  */
 static void appendGroupByClause(List* tlist, deparse_expr_cxt* context) {
-  StringInfo  buf   = context->buf;
   Query*      query = context->root->parse;
-  ListCell*   lc    = NULL;
-  bool        first = true;
 
+  db2Debug4("> %s::appendGroupByClause",__FILE__);
   /* Nothing to be done, if there's no GROUP BY clause in the query. */
-  if (!query->groupClause)
-    return;
+  if (query->groupClause) {
+    StringInfo  buf   = context->buf;
+    ListCell*   lc    = NULL;
+    bool        first = true;
 
-  appendStringInfoString(buf, " GROUP BY ");
+    appendStringInfoString(buf, " GROUP BY ");
+    /* Queries with grouping sets are not pushed down, so we don't expect grouping sets here. */
+    Assert(!query->groupingSets);
 
-  /** Queries with grouping sets are not pushed down, so we don't expect grouping sets here.
-   */
-  Assert(!query->groupingSets);
-
-  /* We intentionally print query->groupClause not processed_groupClause, leaving it to the remote planner to get rid of any redundant GROUP BY
-   * items again.  This is necessary in case processed_groupClause reduced to empty, and in any case the redundancy situation on the remote might
-   * be different than what we think here.
-   */
-  foreach(lc, query->groupClause) {
-    SortGroupClause *grp = (SortGroupClause *) lfirst(lc);
-
-    if (!first)
-      appendStringInfoString(buf, ", ");
-    first = false;
-    deparseSortGroupClause(grp->tleSortGroupRef, tlist, true, context);
+    /* We intentionally print query->groupClause not processed_groupClause, leaving it to the remote planner to get rid of any redundant GROUP BY
+     * items again.  This is necessary in case processed_groupClause reduced to empty, and in any case the redundancy situation on the remote might
+     * be different than what we think here.
+     */
+    foreach(lc, query->groupClause) {
+      SortGroupClause *grp = (SortGroupClause*) lfirst(lc);
+      if (!first)
+        appendStringInfoString(buf, ", ");
+      first = false;
+      deparseSortGroupClause(grp->tleSortGroupRef, tlist, true, context);
+    }
+    db2Debug5("  clause: %s", buf->data);
   }
+  db2Debug4("< %s::appendGroupByClause",__FILE__);
 }
 
 /** Deparse ORDER BY clause defined by the given pathkeys.
@@ -913,11 +912,12 @@ static void appendGroupByClause(List* tlist, deparse_expr_cxt* context) {
  * should have verified that there is one) and deparse it.
  */
 static void appendOrderByClause(List* pathkeys, bool has_final_sort, deparse_expr_cxt* context) {
-  ListCell*   lcell;
-  int         nestlevel;
+  ListCell*   lcell     = NULL;
+  int         nestlevel = 0;
   StringInfo  buf       = context->buf;
   bool        gotone    = false;
 
+  db2Debug4("> %s::appendOrderByClause",__FILE__);
   /* Make sure any constants in the exprs are printed portably */
   nestlevel = set_transmission_modes();
 
@@ -941,11 +941,12 @@ static void appendOrderByClause(List* pathkeys, bool has_final_sort, deparse_exp
 
     em_expr = em->em_expr;
 
-    /* If the member is a Const expression then we needn't add it to the ORDER BY clause.  This can happen in UNION ALL queries where the
-		 * union child targetlist has a Const.  Adding these would be wasteful, but also, for INT columns, an integer literal would be
-		 * seen as an ordinal column position rather than a value to sort by.
-		 * deparseConst() does have code to handle this, but it seems less effort on all accounts just to skip these for ORDER BY clauses.
-		 */
+    /* If the member is a Const expression then we needn't add it to the ORDER BY clause. 
+     * This can happen in UNION ALL queries where the union child targetlist has a Const.
+     * Adding these would be wasteful, but also, for INT columns, an integer literal would be seen as an ordinal column position rather 
+     * than a value to sort by.
+     * deparseConst() does have code to handle this, but it seems less effort on all accounts just to skip these for ORDER BY clauses.
+     */
     if (IsA(em_expr, Const))
       continue;
 
@@ -967,6 +968,8 @@ static void appendOrderByClause(List* pathkeys, bool has_final_sort, deparse_exp
     appendOrderBySuffix(oprid, exprType((Node *) em_expr), pathkey->pk_nulls_first, context);
   }
   reset_transmission_modes(nestlevel);
+  db2Debug5("  clause: %s", context->buf->data);
+  db2Debug4("< %s::appendOrderByClause",__FILE__);
 }
 
 /** Deparse LIMIT/OFFSET clause.
@@ -976,6 +979,7 @@ static void appendLimitClause(deparse_expr_cxt* context) {
   StringInfo    buf       = context->buf;
   int           nestlevel = 0;
 
+  db2Debug4("> %s::appendLimitClause",__FILE__);
   /* Make sure any constants in the exprs are printed portably */
   nestlevel = set_transmission_modes();
 
@@ -988,6 +992,8 @@ static void appendLimitClause(deparse_expr_cxt* context) {
     deparseExprInt((Expr*) root->parse->limitOffset, context);
   }
   reset_transmission_modes(nestlevel);
+  db2Debug5("  clause: %s", context->buf->data);
+  db2Debug4("< %s::appendLimitClause",__FILE__);
 }
 
 /** appendFunctionName
@@ -998,6 +1004,7 @@ static void appendFunctionName(Oid funcid, deparse_expr_cxt *context) {
   HeapTuple     proctup;
   Form_pg_proc  procform;
 
+  db2Debug4("> %s::appendFunctionName",__FILE__);
   proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
   if (!HeapTupleIsValid(proctup))
     elog(ERROR, "cache lookup failed for function %u", funcid);
@@ -1010,6 +1017,8 @@ static void appendFunctionName(Oid funcid, deparse_expr_cxt *context) {
   /* Always print the function name */
   appendStringInfoString(buf, quote_identifier(NameStr(procform->proname)));
   ReleaseSysCache(proctup);
+  db2Debug5("  function name: %s", context->buf->data);
+  db2Debug4("< %s::appendFunctionName",__FILE__);
 }
 
 /** Append the ASC, DESC, USING <OPERATOR> and NULLS FIRST / NULLS LAST parts of an ORDER BY clause.
@@ -1018,6 +1027,7 @@ static void appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first, d
   StringInfo      buf = context->buf;
   TypeCacheEntry* typentry;
 
+  db2Debug4("< %s::appendOrderBySuffix",__FILE__);
   /* See whether operator is default < or > for sort expr's datatype. */
   typentry = lookup_type_cache(sortcoltype, TYPECACHE_LT_OPR | TYPECACHE_GT_OPR);
 
@@ -1026,11 +1036,10 @@ static void appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first, d
   else if (sortop == typentry->gt_opr)
     appendStringInfoString(buf, " DESC");
   else {
-    HeapTuple	opertup;
-    Form_pg_operator operform;
+    HeapTuple         opertup;
+    Form_pg_operator  operform;
 
     appendStringInfoString(buf, " USING ");
-
     /* Append operator name. */
     opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(sortop));
     if (!HeapTupleIsValid(opertup))
@@ -1039,11 +1048,10 @@ static void appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first, d
     deparseOperatorName(buf, operform);
     ReleaseSysCache(opertup);
   }
+  appendStringInfo(buf, " NULLS %s", (nulls_first) ? "FIRST" : "LAST");
 
-  if (nulls_first)
-    appendStringInfoString(buf, " NULLS FIRST");
-  else
-    appendStringInfoString(buf, " NULLS LAST");
+  db2Debug5("  order by suffix: %s", buf->data);
+  db2Debug4("< %s::appendOrderBySuffix",__FILE__);
 }
 
 /* Print the representation of a parameter to be sent to the remote side.
@@ -1055,7 +1063,10 @@ static void printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod, d
   StringInfo  buf       = context->buf;
   char*       ptypename = deparse_type_name(paramtype, paramtypmod);
 
+  db2Debug4("> printRemoteParam",__FILE__);
   appendStringInfo(buf, "$%d::%s", paramindex, ptypename);
+  db2Debug5("  remoteParam: %s", buf->data);
+  db2Debug4("< printRemoteParam",__FILE__);
 }
 
 /* Print the representation of a placeholder for a parameter that will be sent to the remote side at execution time.
@@ -1074,7 +1085,10 @@ static void printRemotePlaceholder(Oid paramtype, int32 paramtypmod, deparse_exp
   StringInfo  buf       = context->buf;
   char*       ptypename = deparse_type_name(paramtype, paramtypmod);
 
+  db2Debug4("> printRemotePlaceholder",__FILE__);
   appendStringInfo(buf, "((SELECT null::%s)::%s)", ptypename, ptypename);
+  db2Debug5("  remotePlaceholder: %s", buf->data);
+  db2Debug4("< printRemotePlaceholder",__FILE__);
 }
 
 /** Deparse conditions from the provided list and append them to buf.
@@ -1083,12 +1097,13 @@ static void printRemotePlaceholder(Oid paramtype, int32 paramtypmod, deparse_exp
  *
  * Depending on the caller, the list elements might be either RestrictInfos or bare clauses.
  */
-static void appendConditions(List *exprs, deparse_expr_cxt *context) {
+static void appendConditions(List* exprs, deparse_expr_cxt* context) {
   int         nestlevel   = 0;
   ListCell*   lc          = NULL;
   bool        is_first    = true;
   StringInfo	buf         = context->buf;
 
+  db2Debug4("> appendConditions",__FILE__);
   /* Make sure any constants in the exprs are printed portably */
   nestlevel = set_transmission_modes();
 
@@ -1110,6 +1125,8 @@ static void appendConditions(List *exprs, deparse_expr_cxt *context) {
     is_first = false;
   }
   reset_transmission_modes(nestlevel);
+  db2Debug5("  conditions: %s", buf->data);
+  db2Debug4("< appendConditions",__FILE__);
 }
 
 /* Append WHERE clause, containing conditions from exprs and additional_conds, to context->buf.
@@ -1119,6 +1136,7 @@ static void appendWhereClause(List* exprs, List* additional_conds, deparse_expr_
   bool        need_and  = false;
   ListCell*   lc        = NULL;
 
+  db2Debug4("> appendWhereClause",__FILE__);
   if (exprs != NIL || additional_conds != NIL)
     appendStringInfoString(buf, " WHERE ");
 
@@ -1132,9 +1150,11 @@ static void appendWhereClause(List* exprs, List* additional_conds, deparse_expr_
   foreach(lc, additional_conds) {
     if (need_and)
       appendStringInfoString(buf, " AND ");
-    appendStringInfoString(buf, (char *) lfirst(lc));
+    appendStringInfoString(buf, (char*) lfirst(lc));
     need_and = true;
   }
+  db2Debug5("  where clause: %s", buf->data);
+  db2Debug4("< appendWhereClause",__FILE__);
 }
 
 /** Appends a sort or group clause.
@@ -1142,20 +1162,18 @@ static void appendWhereClause(List* exprs, List* additional_conds, deparse_expr_
  * Like get_rule_sortgroupclause(), returns the expression tree, so caller
  * need not find it again.
  */
-static Node* deparseSortGroupClause(Index ref, List *tlist, bool force_colno, deparse_expr_cxt *context) {
+static Node* deparseSortGroupClause(Index ref, List* tlist, bool force_colno, deparse_expr_cxt* context) {
   StringInfo    buf   = context->buf;
-  TargetEntry*  tle   = NULL;
-  Expr*         expr  = NULL;
+  TargetEntry*  tle   = get_sortgroupref_tle(ref, tlist);
+  Expr*         expr  = tle->expr;
 
-  tle = get_sortgroupref_tle(ref, tlist);
-  expr = tle->expr;
-
+  db2Debug4("> %s::deparseSortGroupClause",__FILE__);
   if (force_colno) {
     /* Use column-number form when requested by caller. */
     Assert(!tle->resjunk);
     appendStringInfo(buf, "%d", tle->resno);
   } else if (expr && IsA(expr, Const)) {
-    // Force a typecast here so that we don't emit something like "GROUP BY 2", which will be misconstrued as a column position rather than a constant.
+    /* Force a typecast here so that we don't emit something like "GROUP BY 2", which will be misconstrued as a column position rather than a constant. */
     deparseConst((Const*) expr, context, 1);
   } else if (!expr || IsA(expr, Var)) {
     deparseExprInt(expr, context);
@@ -1165,63 +1183,66 @@ static Node* deparseSortGroupClause(Index ref, List *tlist, bool force_colno, de
     deparseExprInt(expr, context);
     appendStringInfoChar(buf, ')');
   }
-  return (Node*) expr;
+  db2Debug5("  clause: %s", buf->data);
+  db2Debug4("< %s::deparseSortGroupClause : %x",__FILE__, expr);
+  return (Node*)expr;
 }
 
 /* Returns true if given Var is deparsed as a subquery output column, in which case, *relno and *colno are set to the IDs for the relation and
  * column alias to the Var provided by the subquery.
  */
 static bool is_subquery_var(Var* node, RelOptInfo* foreignrel, int* relno, int* colno) {
-  DB2FdwState* fpinfo   = (DB2FdwState*) foreignrel->fdw_private;
-  RelOptInfo*  outerrel = fpinfo->outerrel;
-  RelOptInfo*  innerrel = fpinfo->innerrel;
+  bool  fResult = false;
 
+  db2Debug5("> %s::is_subquery_var",__FILE__);
   /* Should only be called in these cases. */
   Assert(IS_SIMPLE_REL(foreignrel) || IS_JOIN_REL(foreignrel));
-
   /* If the given relation isn't a join relation, it doesn't have any lower subqueries, so the Var isn't a subquery output column. */
-  if (!IS_JOIN_REL(foreignrel))
-    return false;
+  if (IS_JOIN_REL(foreignrel)) {
+    DB2FdwState*  fpinfo  = (DB2FdwState*) foreignrel->fdw_private;
 
-  /* If the Var doesn't belong to any lower subqueries, it isn't a subquery output column. */
-  if (!bms_is_member(node->varno, fpinfo->lower_subquery_rels))
-    return false;
-
-  if (bms_is_member(node->varno, outerrel->relids)) {
-    /* If outer relation is deparsed as a subquery, the Var is an output column of the subquery; get the IDs for the relation/column alias. */
-    if (fpinfo->make_outerrel_subquery) {
-      get_relation_column_alias_ids(node, outerrel, relno, colno);
-      return true;
+    /* If the Var doesn't belong to any lower subqueries, it isn't a subquery output column. */
+    if (bms_is_member(node->varno, fpinfo->lower_subquery_rels)) {
+      if (bms_is_member(node->varno, fpinfo->outerrel->relids)) {
+        /* If outer relation is deparsed as a subquery, the Var is an output column of the subquery; get the IDs for the relation/column alias. */
+        if (fpinfo->make_outerrel_subquery) {
+          get_relation_column_alias_ids(node, fpinfo->outerrel, relno, colno);
+          fResult = true;
+        } else {
+          /* Otherwise, recurse into the outer relation. */
+          fResult = is_subquery_var(node, fpinfo->outerrel, relno, colno);
+        }
+      } else {
+        Assert(bms_is_member(node->varno, fpinfo->innerrel->relids));
+        /* If inner relation is deparsed as a subquery, the Var is an output column of the subquery; get the IDs for the relation/column alias. */
+        if (fpinfo->make_innerrel_subquery) {
+          get_relation_column_alias_ids(node, fpinfo->innerrel, relno, colno);
+          fResult = true;
+        } else {
+          /* Otherwise, recurse into the inner relation. */
+          fResult = is_subquery_var(node, fpinfo->innerrel, relno, colno);
+        }
+      }
     }
-
-    /* Otherwise, recurse into the outer relation. */
-    return is_subquery_var(node, outerrel, relno, colno);
-  } else {
-    Assert(bms_is_member(node->varno, innerrel->relids));
-
-    /* If inner relation is deparsed as a subquery, the Var is an output column of the subquery; get the IDs for the relation/column alias. */
-    if (fpinfo->make_innerrel_subquery) {
-      get_relation_column_alias_ids(node, innerrel, relno, colno);
-      return true;
-    }
-
-    /* Otherwise, recurse into the inner relation. */
-    return is_subquery_var(node, innerrel, relno, colno);
   }
+  db2Debug5("< %s::is_subquery_var : %s",__FILE__, (fResult) ? "true": "false");
+  return fResult;
 }
 
 /* Get the IDs for the relation and column alias to given Var belonging to given relation, which are returned into *relno and *colno.
  */
 static void get_relation_column_alias_ids(Var* node, RelOptInfo* foreignrel, int* relno, int* colno) {
-  DB2FdwState*  fpinfo = (DB2FdwState*) foreignrel->fdw_private;
-  int           i;
-  ListCell*     lc;
+  DB2FdwState*  fpinfo  = (DB2FdwState*) foreignrel->fdw_private;
+  int           i       = 1;
+  ListCell*     lc      = NULL;
+  bool          fFound  = false;
 
+  db2Debug4("> %s::get_relation_column_alias_ids",__FILE__);
   /* Get the relation alias ID */
   *relno = fpinfo->relation_index;
+  db2Debug5("  relno: %d", *relno);
 
   /* Get the column alias ID */
-  i = 1;
   foreach(lc, foreignrel->reltarget->exprs) {
     Var*  tlvar = (Var*) lfirst(lc);
 
@@ -1230,13 +1251,18 @@ static void get_relation_column_alias_ids(Var* node, RelOptInfo* foreignrel, int
      */
     if (IsA(tlvar, Var) && tlvar->varno == node->varno && tlvar->varattno == node->varattno) {
       *colno = i;
-      return;
+      db2Debug5("  colno: %d", *colno);
+      fFound = true;
+      break;
     }
     i++;
   }
 
-  /* Shouldn't get here */
-  elog(ERROR, "unexpected expression in subquery output");
+  if (!fFound) {
+    /* Shouldn't get here */
+    elog(ERROR, "unexpected expression in subquery output");
+  }
+  db2Debug4("< %s::get_relation_column_alias_ids",__FILE__);
 }
 
 /* Build the targetlist for given relation to be deparsed as SELECT clause.
@@ -1248,18 +1274,22 @@ static void get_relation_column_alias_ids(Var* node, RelOptInfo* foreignrel, int
 List* build_tlist_to_deparse(RelOptInfo* foreignrel) {
   List*         tlist   = NIL;
   DB2FdwState*  fpinfo  = (DB2FdwState*) foreignrel->fdw_private;
-  ListCell*     lc;
 
+  db2Debug1("> %s::build_tlist_to_deparse",__FILE__);
   /* For an upper relation, we have already built the target list while checking shippability, so just return that. */
-  if (IS_UPPER_REL(foreignrel))
-    return fpinfo->grouped_tlist;
+  if (IS_UPPER_REL(foreignrel)) {
+    tlist = fpinfo->grouped_tlist;
+  } else {
+    ListCell* lc  = NULL;
 
-  /* We require columns specified in foreignrel->reltarget->exprs and those required for evaluating the local conditions. */
-  tlist = add_to_flat_tlist(tlist, pull_var_clause((Node*) foreignrel->reltarget->exprs, PVC_RECURSE_PLACEHOLDERS));
-  foreach(lc, fpinfo->local_conds) {
-    RestrictInfo* rinfo = lfirst_node(RestrictInfo, lc);
-    tlist = add_to_flat_tlist(tlist, pull_var_clause((Node *) rinfo->clause, PVC_RECURSE_PLACEHOLDERS));
+    /* We require columns specified in foreignrel->reltarget->exprs and those required for evaluating the local conditions. */
+    tlist = add_to_flat_tlist(tlist, pull_var_clause((Node*) foreignrel->reltarget->exprs, PVC_RECURSE_PLACEHOLDERS));
+    foreach(lc, fpinfo->local_conds) {
+      RestrictInfo* rinfo = lfirst_node(RestrictInfo, lc);
+      tlist = add_to_flat_tlist(tlist, pull_var_clause((Node*) rinfo->clause, PVC_RECURSE_PLACEHOLDERS));
+    }
   }
+  db2Debug1("< %s::build_tlist_to_deparse : %x",__FILE__, tlist);
   return tlist;
 }
 
@@ -1291,6 +1321,7 @@ void deparseSelectStmtForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* rel,
   DB2FdwState*      fpinfo  = (DB2FdwState*)rel->fdw_private;
   List*             quals   = NIL;
 
+  db2Debug1("> %s::deparseSelectStmtForRel",__FILE__);
   //We handle relations for foreign tables, joins between those and upper relations.
   Assert(IS_JOIN_REL(rel) || IS_SIMPLE_REL(rel) || IS_UPPER_REL(rel));
 
@@ -1338,6 +1369,8 @@ void deparseSelectStmtForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* rel,
 
   // Add any necessary FOR UPDATE/SHARE.
   deparseLockingClause(&context);
+  db2Debug2("  select stmt: %s", buf->data);
+  db2Debug1("< %s::deparseSelectStmtForRel",__FILE__);
 }
 
 /*
@@ -1359,6 +1392,7 @@ static void deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_att
   PlannerInfo*        root        = context->root;
   DB2FdwState*        fpinfo      = (DB2FdwState*) foreignrel->fdw_private;
 
+  db2Debug4("> %s::deparseSelectSql",__FILE__);
   // Construct SELECT list
   appendStringInfoString(buf, "SELECT ");
 
@@ -1380,6 +1414,8 @@ static void deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_att
     deparseTargetList(buf, rte, foreignrel->relid, rel, false, fpinfo->attrs_used, false, retrieved_attrs);
     table_close(rel, NoLock);
   }
+  db2Debug4("  select: %s", buf->data);
+  db2Debug4("< %s::deparseSelectSql",__FILE__);
 }
 
 /*
@@ -1394,6 +1430,7 @@ static void deparseFromExpr(List *quals, deparse_expr_cxt *context) {
   RelOptInfo* scanrel           = context->scanrel;
   List*       additional_conds  = NIL;
 
+  db2Debug4("> %s::deparseFromExpr",__FILE__);
   /* For upper relations, scanrel must be either a joinrel or a baserel */
   Assert(!IS_UPPER_REL(context->foreignrel) || IS_JOIN_REL(scanrel) || IS_SIMPLE_REL(scanrel));
 
@@ -1403,6 +1440,8 @@ static void deparseFromExpr(List *quals, deparse_expr_cxt *context) {
   appendWhereClause(quals, additional_conds, context);
   if (additional_conds != NIL)
     list_free_deep(additional_conds);
+  db2Debug5("  from: %s",buf->data);
+  db2Debug4("< %s::deparseFromExpr",__FILE__);
 }
 
 /*
@@ -1424,6 +1463,7 @@ static void deparseFromExpr(List *quals, deparse_expr_cxt *context) {
 static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* foreignrel, bool use_alias, Index ignore_rel, List** ignore_conds, List** additional_conds, List** params_list) {
   DB2FdwState* fpinfo = (DB2FdwState*) foreignrel->fdw_private;
 
+  db2Debug4("> %s::deparseFromExprForRel",__FILE__);
   if (IS_JOIN_REL(foreignrel)) {
     StringInfoData  join_sql_o;
     StringInfoData  join_sql_i;
@@ -1469,6 +1509,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
           Assert(*additional_conds == NIL);
           *additional_conds = additional_conds_o;
         }
+        db2Debug4("< %s::deparseFromExprForRel",__FILE__);
         return;
       }
     }
@@ -1504,9 +1545,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
         appendStringInfoChar(&str, ')');
         *additional_conds = lappend(*additional_conds, str.data);
       }
-      /* If outer relation is the target relation, skip deparsing it.
-       * See the above note about safety.
-       */
+      /* If outer relation is the target relation, skip deparsing it. See the above note about safety. */
       if (outerrel_is_target) {
         Assert(fpinfo->jointype == JOIN_INNER);
         Assert(fpinfo->joinclauses == NIL);
@@ -1516,6 +1555,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
           Assert(*additional_conds == NIL);
           *additional_conds = additional_conds_i;
         }
+        db2Debug4("< %s::deparseFromExprForRel",__FILE__);
         return;
       }
     }
@@ -1568,6 +1608,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
       appendStringInfo(buf, " %s%d", REL_ALIAS_PREFIX, foreignrel->relid);
     table_close(rel, NoLock);
   }
+  db2Debug4("< %s::deparseFromExprForRel",__FILE__);
 }
 
 /* Append FROM clause entry for the given relation into buf.
@@ -1576,11 +1617,10 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
 static void deparseRangeTblRef(StringInfo buf, PlannerInfo *root, RelOptInfo *foreignrel, bool make_subquery, Index ignore_rel, List **ignore_conds, List **additional_conds, List **params_list) {
   DB2FdwState* fpinfo = (DB2FdwState*) foreignrel->fdw_private;
 
+  db2Debug4("> %s::deparseRangeTblRef",__FILE__);
   /* Should only be called in these cases. */
   Assert(IS_SIMPLE_REL(foreignrel) || IS_JOIN_REL(foreignrel));
-
   Assert(fpinfo->local_conds == NIL);
-
   /* If make_subquery is true, deparse the relation as a subquery. */
   if (make_subquery) {
     List* retrieved_attrs;
@@ -1604,13 +1644,13 @@ static void deparseRangeTblRef(StringInfo buf, PlannerInfo *root, RelOptInfo *fo
      */
     ncols = list_length(foreignrel->reltarget->exprs);
     if (ncols > 0) {
-      int			i;
+      int i;
 
       appendStringInfoChar(buf, '(');
       for (i = 1; i <= ncols; i++) {
-        if (i > 1)
+        if (i > 1) {
           appendStringInfoString(buf, ", ");
-
+        }
         appendStringInfo(buf, "%s%d", SUBQUERY_COL_ALIAS_PREFIX, i);
       }
       appendStringInfoChar(buf, ')');
@@ -1618,6 +1658,8 @@ static void deparseRangeTblRef(StringInfo buf, PlannerInfo *root, RelOptInfo *fo
   } else {
     deparseFromExprForRel(buf, root, foreignrel, true, ignore_rel, ignore_conds, additional_conds, params_list);
   }
+  db2Debug4("  rangeTblRef: %s", buf->data);
+  db2Debug4("< %s::deparseRangeTblRef",__FILE__);
 }
 
 /** deparseWhereConditions
@@ -1655,14 +1697,15 @@ char* deparseWhereConditions (PlannerInfo* root, RelOptInfo * rel) {
 
 /* Construct a simple "TRUNCATE rel" statement */
 void deparseTruncateSql(StringInfo buf, List* rels, DropBehavior behavior, bool restart_seqs) {
-  ListCell* cell;
+  ListCell* cell  = NULL;
 
+  db2Debug1("> %s::deparseTruncateSql",__FILE__);
   appendStringInfoString(buf, "TRUNCATE ");
   foreach(cell, rels) {
     Relation	rel = lfirst(cell);
 
     if (cell != list_head(rels))
-    appendStringInfoString(buf, ", ");
+      appendStringInfoString(buf, ", ");
     deparseRelation(buf, rel);
   }
   appendStringInfo(buf, " %s IDENTITY", restart_seqs ? "RESTART" : "CONTINUE");
@@ -1670,6 +1713,8 @@ void deparseTruncateSql(StringInfo buf, List* rels, DropBehavior behavior, bool 
     appendStringInfoString(buf, " RESTRICT");
   else if (behavior == DROP_CASCADE)
     appendStringInfoString(buf, " CASCADE");
+  db2Debug2("  truncateSql : %s",buf->data);
+  db2Debug1("> %s::deparseTruncateSql",__FILE__);
 }
 
 /* Construct name to use for given column, and emit it into buf.
@@ -1684,8 +1729,8 @@ static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEn
       ADD_REL_QUALIFIER(buf, varno);
     appendStringInfoString(buf, "ctid");
   } else if (varattno < 0) {
-    /* All other system attributes are fetched as 0, except for table OID, which is fetched as the local table OID.  However, we must be
-     * careful; the table could be beneath an outer join, in which case it must go to NULL whenever the rest of the row does.
+    /* All other system attributes are fetched as 0, except for table OID, which is fetched as the local table OID.
+     * However, we must be careful; the table could be beneath an outer join, in which case it must go to NULL whenever the rest of the row does.
      */
     Oid fetchval = 0;
 
@@ -1717,7 +1762,7 @@ static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEn
 
     /* In case the whole-row reference is under an outer join then it has to go NULL whenever the rest of the row goes NULL. Deparsing a join
      * query would always involve multiple relations, thus qualify_col would be true.
-    	 */
+     */
     if (qualify_col) {
       appendStringInfoString(buf, "CASE WHEN (");
       ADD_REL_QUALIFIER(buf, varno);
@@ -1768,11 +1813,12 @@ static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEn
  * Similarly, schema_name FDW option overrides schema name.
  */
 static void deparseRelation(StringInfo buf, Relation rel) {
-  ForeignTable* table;
+  ForeignTable* table   = NULL;
   const char*   nspname = NULL;
   const char*   relname = NULL;
-  ListCell*     lc;
+  ListCell*     lc      = NULL;
 
+  db2Debug4("> %s::deparseRelation",__FILE__);
   /* obtain additional catalog information. */
   table = GetForeignTable(RelationGetRelid(rel));
 
@@ -1795,12 +1841,15 @@ static void deparseRelation(StringInfo buf, Relation rel) {
     relname = RelationGetRelationName(rel);
 
   appendStringInfo(buf, "%s.%s", quote_identifier(nspname), quote_identifier(relname));
+  db2Debug5(" relation: %s",buf->data);
+  db2Debug4("< %s::deparseRelation",__FILE__);
 }
 
 /* Append a SQL string literal representing "val" to buf. */
 void deparseStringLiteral(StringInfo buf, const char* val) {
-  const char* valptr;
+  const char* valptr = NULL;
 
+  db2Debug4("> %s::deparseStringLiteral",__FILE__);
   /* Rather than making assumptions about the remote server's value of standard_conforming_strings, always use E'foo' syntax if there are any
    * backslashes.
    * This will fail on remote servers before 8.1, but those are long out of support.
@@ -1818,6 +1867,8 @@ void deparseStringLiteral(StringInfo buf, const char* val) {
     appendStringInfoChar(buf, ch);
   }
   appendStringInfoChar(buf, '\'');
+  db2Debug5("  literal: %s",buf->data);
+  db2Debug4("< %s::deparseStringLiteral",__FILE__);
 }
 
 /** deparseExpr
