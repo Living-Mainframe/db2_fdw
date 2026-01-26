@@ -1,12 +1,11 @@
-/*-------------------------------------------------------------------------
+/*-------------------------------------------------------------------------------
  *
  * db2_fdw.h
- *   This header file contains all definitions that are shared by db2_fdw.c
- *   and db2_utils.c.
- *   It is necessary to split db2xa_fdw into two source files because
- *   PostgreSQL and DB2 headers cannot be #included at the same time.
+ * This header file contains all definitions that are shared by all source files.
+ * It is necessary to split db2xa_fdw into two source files because
+ * PostgreSQL and DB2 headers cannot be #included at the same time.
  *
- *-------------------------------------------------------------------------
+ *-------------------------------------------------------------------------------
  */
 #ifndef _db2_fdw_h_
 #define _db2_fdw_h_
@@ -31,13 +30,6 @@
 #define array_create_iterator(arr, slice_ndim) array_create_iterator(arr, slice_ndim, NULL)
 #define JOIN_API
 
-/* the useful macro IS_SIMPLE_REL is defined in v10, backport */
-#ifndef IS_SIMPLE_REL
-#define IS_SIMPLE_REL(rel) \
-  ((rel)->reloptkind == RELOPT_BASEREL || \
-  (rel)->reloptkind == RELOPT_OTHER_MEMBER_REL)
-#endif
-
 /* GetConfigOptionByName has a new signature from 9.6 on */
 #define GetConfigOptionByName(name, varname) GetConfigOptionByName(name, varname, false)
 
@@ -54,21 +46,31 @@
 #endif /* POSTGRES_H */
 
 /* db2_fdw version */
-#define DB2_FDW_VERSION "18.1.1"
+#define DB2_FDW_VERSION             "18.1.1"
 /* number of bytes to read per LOB chunk */
-#define LOB_CHUNK_SIZE    8192
-#define ERRBUFSIZE        2000
-#define SUBMESSAGE_LEN    200
-#define EXPLAIN_LINE_SIZE 1000
-#define DEFAULT_MAX_LONG  32767
-#define DEFAULT_PREFETCH  0
-#define DEFAULT_FETCHSZ   1
-#define DEFAULT_BATCHSZ   100
-#define TABLE_NAME_LEN    129
-#define COLUMN_NAME_LEN   129
-#define SQLSTATE_LEN      6
+#define LOB_CHUNK_SIZE              8192
+#define ERRBUFSIZE                  2000
+#define SUBMESSAGE_LEN              200
+#define EXPLAIN_LINE_SIZE           1000
+#define DEFAULT_MAX_LONG            32767
+#define DEFAULT_PREFETCH            100
+#define DEFAULT_FETCHSZ             1
+#define FIXED_FETCH_SIZE            1
+#define DEFAULT_BATCHSZ             100
+#define TABLE_NAME_LEN              129
+#define COLUMN_NAME_LEN             129
+#define SQLSTATE_LEN                6
 #define DB2_MAX_ATTR_PREFETCH_NROWS 1024
 #define DB2_MAX_ATTR_ROW_ARRAY_SIZE 32768
+
+/* Default CPU cost to start up a foreign query. */
+#define DEFAULT_FDW_STARTUP_COST    100.0
+
+/* Default CPU cost to process 1 row (above and beyond cpu_tuple_cost). */
+#define DEFAULT_FDW_TUPLE_COST      0.2
+
+/* If no remote estimates, assume a sort costs 20% extra */
+#define DEFAULT_FDW_SORT_MULTIPLIER 1.2
 
 #ifdef SQL_H_SQLCLI1
 #include "HdlEntry.h"
