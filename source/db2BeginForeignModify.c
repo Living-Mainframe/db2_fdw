@@ -93,6 +93,10 @@ DB2FdwState* deserializePlanData (List* list) {
   state->prefetch = (unsigned long) DatumGetInt32 (((Const *) lfirst (cell))->constvalue);
   cell = list_next (list,cell);
 
+  /* DB2 prefetch count */
+  state->fetch_size = (unsigned long) DatumGetInt32 (((Const *) lfirst (cell))->constvalue);
+  cell = list_next (list,cell);
+
   /* table data */
   state->db2Table = (DB2Table*) db2alloc ("state->db2Table", sizeof (struct db2Table));
   state->db2Table->name = deserializeString (lfirst (cell));
