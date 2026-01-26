@@ -4,6 +4,8 @@
 #include "db2_fdw.h"
 #include "ParamDesc.h"
 
+#define SQL_VALUE_PTR_ULEN(v) ((SQLPOINTER)(uintptr_t)(SQLULEN)(v))
+
 /** global variables */
 
 /** external variables */
@@ -38,9 +40,15 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
   int        for_update = 0;
   SQLRETURN  rc         = 0;
 
+  #ifdef FIXED_FETCH_SIZE
+  // Until the proper handling of multiple rows results on a single query are added the fetch size must be 1
+  fetchsize = 1;
+  #endif
+
   db2Debug1("> db2PrepareQuery");
-  db2Debug2("  query   : '%s'",query);
-  db2Debug2("  prefetch: %d  ",prefetch);
+  db2Debug2("  query    : '%s'",query);
+  db2Debug2("  prefetch : %d",prefetch);
+  db2Debug2("  fetchsize: %d",fetchsize);
   /* figure out if the query is FOR UPDATE */
   is_select  = (strncmp (query, "SELECT", 6) == 0);
   for_update = (strstr (query, "FOR UPDATE") != NULL);
@@ -83,14 +91,14 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
       db2Debug3("  set cursor static");
     }
     // Fetch rows per network roundtrip
-    rc = SQLSetStmtAttr(session->stmtp->hsql, SQL_ATTR_ROW_ARRAY_SIZE, (SQLPOINTER)cur_fetchsize, 0);
+    rc = SQLSetStmtAttr(session->stmtp->hsql, SQL_ATTR_ROW_ARRAY_SIZE, SQL_VALUE_PTR_ULEN(cur_fetchsize), 0);
     rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLSetStmtAttr failed to set fetchsize in statement handle", db2Message);
     }
     db2Debug2("  set cursor fetchsize: %d",cur_fetchsize);
     // Prefetch rows per block for scrollable (non-dynamic) cursors
-    rc = SQLSetStmtAttr(session->stmtp->hsql, SQL_ATTR_PREFETCH_NROWS, (SQLPOINTER)prefetch_rows, 0);
+    rc = SQLSetStmtAttr(session->stmtp->hsql, SQL_ATTR_PREFETCH_NROWS, SQL_VALUE_PTR_ULEN(prefetch_rows), 0);
     rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLSetStmtAttr failed to set number of prefetched rows in statement handle", db2Message);
