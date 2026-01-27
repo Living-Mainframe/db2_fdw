@@ -40,6 +40,7 @@ typedef struct db2FdwState {
 // attributes taken over from PgFdwRelationInfo
   bool                pushdown_safe;          // True: relation can be pushed down. Always true for simple foreign scan.
 // All entries in these lists should have RestrictInfo wrappers; that improves efficiency of selectivity and cost estimation.
+  List*               retrieved_attr;         // Retrieved Attributes List.
   List*               remote_conds;           // Restriction clauses, safe to pushdown subsets.
   List*               local_conds;            // Restriction clauses, unsafe to pushdown subsets.
   List*               final_remote_exprs;     // Actual remote restriction clauses for scan (sans RestrictInfos)
