@@ -3,6 +3,7 @@ EXTVERSION   = $(shell grep default_version $(EXTENSION).control | sed -e "s/def
 MODULE_big   = db2_fdw
 OBJS         = source/db2_fdw.o\
                source/db2_deparse.o\
+               source/db2_de_serialize.o\
                source/db2GetForeignPlan.o\
                source/db2GetForeignPaths.o\
                source/db2GetForeignUpperPaths.o\
