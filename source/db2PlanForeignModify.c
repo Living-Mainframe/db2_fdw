@@ -2,7 +2,6 @@
 #include <nodes/makefuncs.h>
 #include <parser/parse_relation.h>
 #include <parser/parsetree.h>
-#include <utils/builtins.h>
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
@@ -19,17 +18,15 @@ extern void         db2Debug4                 (const char* message, ...);
 extern void         db2Debug5                 (const char* message, ...);
 extern short        c2dbType                  (short fcType);
 extern void         appendAsType              (StringInfoData* dest, Oid type);
+extern List*        serializePlanData         (DB2FdwState* fdwState);
 
 /** local prototypes */
 List*        db2PlanForeignModify(PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
 #ifdef WRITE_API
-DB2FdwState* copyPlanData        (DB2FdwState* orig);
+static DB2FdwState* copyPlanData        (DB2FdwState* orig);
 void         addParam            (ParamDesc** paramList, Oid pgtype, short colType, int colnum, int txts);
 #endif
 void         checkDataType       (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
-List*        serializePlanData   (DB2FdwState* fdwState);
-Const*       serializeString     (const char* s);
-Const*       serializeLong       (long i);
 
 /** db2PlanForeignModify
  *   Construct an DB2FdwState or copy it from the foreign scan plan.
@@ -322,7 +319,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
 /** copyPlanData
  *   Create a deep copy of the argument, copy only those fields needed for planning.
  */
-DB2FdwState* copyPlanData (DB2FdwState* orig) {
+static DB2FdwState* copyPlanData (DB2FdwState* orig) {
   int          i    = 0;
   DB2FdwState* copy = NULL;
 
@@ -454,110 +451,3 @@ void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename,
   db2Debug4("< checkDataType");
 }
 
-/** serializePlanData
- *   Create a List representation of plan data that copyObject can copy.
- *   This List can be parsed by deserializePlanData.
- */
-List* serializePlanData (DB2FdwState* fdwState) {
-  List*      result   = NIL;
-  int        idxCol   = 0;
-  int        lenParam = 0;
-  ParamDesc* param    = NULL;
-
-  db2Debug1("> serializePlanData");
-  /* dbserver */
-  result = lappend (result, serializeString (fdwState->dbserver));
-  /* user name */
-  result = lappend (result, serializeString (fdwState->user));
-  /* password */
-  result = lappend (result, serializeString (fdwState->password));
-  /* nls_lang */
-  result = lappend (result, serializeString (fdwState->nls_lang));
-  /* query */
-  result = lappend (result, serializeString (fdwState->query));
-  /* DB2 prefetch count */
-  result = lappend (result, serializeLong (fdwState->prefetch));
-  /* DB2 fetchsize count */
-  result = lappend (result, serializeLong (fdwState->fetch_size));
-  /* DB2 table name */
-  result = lappend (result, serializeString (fdwState->db2Table->name));
-  /* PostgreSQL table name */
-  result = lappend (result, serializeString (fdwState->db2Table->pgname));
-  /* batch size in DB2 table */
-  result = lappend (result, serializeInt (fdwState->db2Table->batchsz));
-  /* number of columns in DB2 table */
-  result = lappend (result, serializeInt (fdwState->db2Table->ncols));
-  /* number of columns in PostgreSQL table */
-  result = lappend (result, serializeInt (fdwState->db2Table->npgcols));
-  /* column data */
-  for (idxCol = 0; idxCol < fdwState->db2Table->ncols; ++idxCol) {
-    result = lappend (result, serializeString (fdwState->db2Table->cols[idxCol]->colName));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colType));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colSize));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colScale));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colNulls));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colChars));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colBytes));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colPrimKeyPart));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colCodepage));
-    result = lappend (result, serializeString (fdwState->db2Table->cols[idxCol]->pgname));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->pgattnum));
-    result = lappend (result, serializeOid    (fdwState->db2Table->cols[idxCol]->pgtype));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->pgtypmod));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->used));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->pkey));
-    result = lappend (result, serializeLong   (fdwState->db2Table->cols[idxCol]->val_size));
-    result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->noencerr));
-    /* don't serialize val, val_len, val_null and varno */
-  }
-
-  /* find length of parameter list */
-  for (param = fdwState->paramList; param; param = param->next) {
-    ++lenParam;
-  }
-  /* serialize length */
-  result = lappend (result, serializeInt (lenParam));
-  /* parameter list entries */
-  for (param = fdwState->paramList; param; param = param->next) {
-    result = lappend (result, serializeOid (param->type));
-    result = lappend (result, serializeInt ((int) param->bindType));
-    result = lappend (result, serializeInt ((int) param->colnum));
-    result = lappend (result, serializeInt ((int) param->txts));
-    /* don't serialize value and node */
-  }
-  /* don't serialize params, startup_cost, total_cost, rowcount, columnindex, temp_cxt, order_clause and where_clause */
-  db2Debug1("< serializePlanData - returns: %x",result);
-  return result;
-}
-
-/** serializeString
- *   Create a Const that contains the string.
- */
-Const* serializeString (const char* s) {
-  Const* result = NULL;
-  db2Debug1("> serializeString");
-  result = (s == NULL) ? makeNullConst (TEXTOID, -1, InvalidOid) 
-                       : makeConst (TEXTOID, -1, InvalidOid, -1, PointerGetDatum (cstring_to_text (s)), false, false);
-  db2Debug1("< serializeString - returns: %x",result);
-  return result;
-}
-
-/** serializeLong
- *   Create a Const that contains the long integer.
- */
-Const* serializeLong (long i) {
-  Const* result = NULL;
-  db2Debug1("> serializeLong");
-  if (sizeof (long) <= 4)
-    result = makeConst (INT4OID, -1, InvalidOid, 4, Int32GetDatum ((int32) i), false, true);
-  else
-    result = makeConst (INT4OID, -1, InvalidOid, 8, Int64GetDatum ((int64) i), false,
-#ifdef USE_FLOAT8_BYVAL
-      true
-#else
-      false
-#endif /* USE_FLOAT8_BYVAL */
-      );
-  db2Debug1("< serializeLong - returns: %x",result);
-  return result;
-}
