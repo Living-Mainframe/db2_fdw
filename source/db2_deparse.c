@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include <postgres.h>
 
 #include <access/htup_details.h>
@@ -36,6 +38,7 @@
 #include <utils/date.h>
 #include <utils/datetime.h>
 #include <utils/builtins.h>
+#include <utils/formatting.h>
 #include <utils/guc.h>
 #include <utils/syscache.h>
 #include <utils/lsyscache.h>
@@ -137,13 +140,13 @@ static void         deparseRangeTblRef        (StringInfo buf, PlannerInfo* root
 static void         deparseSelectSql          (List* tlist, bool is_subquery, List** retrieved_attrs, deparse_expr_cxt* context);
 static void         deparseFromExpr           (List* quals, deparse_expr_cxt* context);
 static void         deparseFromExprForRel     (StringInfo buf, PlannerInfo* root, RelOptInfo* foreignrel, bool use_alias, Index ignore_rel, List** ignore_conds, List** additional_conds, List** params_list);
-//void                deparseFromExprForRel   (PlannerInfo* root, RelOptInfo* foreignrel, StringInfo buf, List** params_list);
 static void         deparseColumnRef          (StringInfo buf, int varno, int varattno, RangeTblEntry* rte, bool qualify_col);
 static void         deparseRelation           (StringInfo buf, Relation rel);
 static void         deparseExprInt            (Expr*              expr, deparse_expr_cxt* ctx);
 static void         deparseConstExpr          (Const*             expr, deparse_expr_cxt* ctx);
 static void         deparseParamExpr          (Param*             expr, deparse_expr_cxt* ctx);
 static void         deparseVarExpr            (Var*               expr, deparse_expr_cxt* ctx);
+static void         deparseVar                (Var*               expr, deparse_expr_cxt* ctx);
 static void         deparseOpExpr             (OpExpr*            expr, deparse_expr_cxt* ctx);
 static void         deparseScalarArrayOpExpr  (ScalarArrayOpExpr* expr, deparse_expr_cxt* ctx);
 static void         deparseDistinctExpr       (DistinctExpr*      expr, deparse_expr_cxt* ctx);
@@ -156,7 +159,6 @@ static void         deparseFuncExpr           (FuncExpr*          expr, deparse_
 static void         deparseAggref             (Aggref*            expr, deparse_expr_cxt* ctx);
 static void         deparseCoerceViaIOExpr    (CoerceViaIO*       expr, deparse_expr_cxt* ctx);
 static void         deparseSQLValueFuncExpr   (SQLValueFunction*  expr, deparse_expr_cxt* ctx);
-static void         deparseVar                (Var* node, deparse_expr_cxt* context);
 static void         deparseConst              (Const* node, deparse_expr_cxt* context, int showtype);
 static void         deparseOperatorName       (StringInfo buf, Form_pg_operator opform);
 static void         deparseLockingClause      (deparse_expr_cxt* context);
@@ -1061,12 +1063,12 @@ static void appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first, d
  */
 static void printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod, deparse_expr_cxt* context) {
   StringInfo  buf       = context->buf;
-  char*       ptypename = deparse_type_name(paramtype, paramtypmod);
+//char*       ptypename = deparse_type_name(paramtype, paramtypmod);
 
-  db2Debug4("> printRemoteParam",__FILE__);
-  appendStringInfo(buf, "$%d::%s", paramindex, ptypename);
-  db2Debug5("  remoteParam: %s", buf->data);
-  db2Debug4("< printRemoteParam",__FILE__);
+  db2Debug4("> %s::printRemoteParam",__FILE__);
+//  appendStringInfo(buf, "$%d::%s", paramindex, ptypename);
+  appendStringInfo(buf, ":p%d", paramindex);
+  db2Debug4("< %s::printRemoteParam : %s",__FILE__, buf->data);
 }
 
 /* Print the representation of a placeholder for a parameter that will be sent to the remote side at execution time.
@@ -1386,7 +1388,7 @@ void deparseSelectStmtForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* rel,
  * indicate whether to deparse the specified relation as a subquery.
  * Read prologue of deparseSelectStmtForRel() for details.
  */
-static void deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_attrs, deparse_expr_cxt *context) {
+static void deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_attrs, deparse_expr_cxt* context) {
   StringInfo          buf         = context->buf;
   RelOptInfo*         foreignrel  = context->foreignrel;
   PlannerInfo*        root        = context->root;
@@ -1723,6 +1725,7 @@ void deparseTruncateSql(StringInfo buf, List* rels, DropBehavior behavior, bool 
  * If qualify_col is true, qualify column name with the alias of relation.
  */
 static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEntry *rte, bool qualify_col) {
+  db2Debug1("> %s::deparseColumnRef",__FILE__);
   /* We support fetching the remote side's CTID and OID. */
   if (varattno == SelfItemPointerAttributeNumber) {
     if (qualify_col)
@@ -1804,8 +1807,9 @@ static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEn
     if (qualify_col)
       ADD_REL_QUALIFIER(buf, varno);
 
-    appendStringInfoString(buf, quote_identifier(colname));
+    appendStringInfoString(buf, quote_identifier(str_toupper (colname, strlen (colname), DEFAULT_COLLATION_OID)));
   }
+  db2Debug1("< %s::deparseColumnRef : %s",__FILE__, buf->data);
 }
 
 /* Append remote name of specified foreign table to buf.
@@ -1828,9 +1832,9 @@ static void deparseRelation(StringInfo buf, Relation rel) {
   foreach(lc, table->options) {
     DefElem*  def = (DefElem*) lfirst(lc);
 
-    if (strcmp(def->defname, "schema_name") == 0)
+    if (strcmp(def->defname, "schema") == 0)
       nspname = defGetString(def);
-    else if (strcmp(def->defname, "table_name") == 0)
+    else if (strcmp(def->defname, "table") == 0)
     relname = defGetString(def);
   }
 
@@ -1915,7 +1919,8 @@ static void deparseExprInt           (Expr*              expr, deparse_expr_cxt*
       }
       break;
       case T_Var: {
-        deparseVarExpr ((Var*)expr, ctx);
+//        deparseVarExpr ((Var*)expr, ctx);
+        deparseVar ((Var*)expr, ctx);
       }
       break;
       case T_OpExpr: {
@@ -2130,6 +2135,56 @@ static void deparseVarExpr           (Var*               expr, deparse_expr_cxt*
     #endif /* OLD_FDW_API */
   }
   db2Debug1("< %s::deparseVarExpr", __FILE__);
+}
+
+/* Deparse given Var node into context->buf.
+ *
+ * If the Var belongs to the foreign relation, just print its remote name. 
+ * Otherwise, it's effectively a Param (and will in fact be a Param at run time).  
+ * Handle it the same way we handle plain Params --- see deparseParam for comments.
+ */
+static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
+  Relids  relids = ctx->scanrel->relids;
+  int     relno  = 0;
+  int     colno  = 0;
+  /* Qualify columns when multiple relations are involved. */
+  bool    qualify_col = (bms_membership(relids) == BMS_MULTIPLE);
+
+  db2Debug1("> %s::deparseVar", __FILE__);
+  /* If the Var belongs to the foreign relation that is deparsed as a subquery, use the relation and column alias to the Var provided by the
+   * subquery, instead of the remote name.
+   */
+  if (is_subquery_var(expr, ctx->scanrel, &relno, &colno)) {
+    appendStringInfo(ctx->buf, "%s%d.%s%d", SUBQUERY_REL_ALIAS_PREFIX, relno, SUBQUERY_COL_ALIAS_PREFIX, colno);
+    return;
+  }
+  db2Debug2("  bms_is_member(%d,%d): %s",expr->varno, relids,bms_is_member(expr->varno, relids) ? "true":"false");
+  db2Debug2("  expr->varlevelsup: %d",expr->varlevelsup);
+  if (bms_is_member(expr->varno, relids) && expr->varlevelsup == 0) {
+    deparseColumnRef(ctx->buf, expr->varno, expr->varattno, planner_rt_fetch(expr->varno, ctx->root), qualify_col);
+  } else {
+    /* Treat like a Param */
+    if (ctx->params_list) {
+      int       pindex  = 0;
+      ListCell* lc      = NULL;
+
+      /* find its index in params_list */
+      foreach(lc, *ctx->params_list) {
+        pindex++;
+        if (equal(expr, (Node*) lfirst(lc)))
+          break;
+      }
+      if (lc == NULL) {
+        /* not in list, so add it */
+        pindex++;
+        *ctx->params_list = lappend(*ctx->params_list, expr);
+      }
+      printRemoteParam(pindex, expr->vartype, expr->vartypmod, ctx);
+    } else {
+      printRemotePlaceholder(expr->vartype, expr->vartypmod, ctx);
+    }
+  }
+  db2Debug1("< %s::deparseVar : %s", __FILE__,ctx->buf->data);
 }
 
 static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt* ctx) {
@@ -2834,12 +2889,7 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
       }
       ReleaseSysCache(tuple);
     }
-    db2Debug2( "  aggref->aggfnoid=%u name=%s%s%s"
-             , expr->aggfnoid
-             , nspname ? nspname : ""
-             , nspname ? "." : ""
-             , aggname ? aggname : "<unknown>"
-             );
+    db2Debug2( "  aggref->aggfnoid=%u name=%s%s%s", expr->aggfnoid, nspname ? nspname : "", nspname ? "." : "", aggname ? aggname : "<unknown>");
     /* We only support deparsing simple, standard aggregates for now.
      * (This can be expanded to ordered-set / FILTER / WITHIN GROUP later.)
      */
@@ -2871,13 +2921,21 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
           /* COUNT(*) */
           appendStringInfoString(&result, "*");
         } else {
-          ListCell* lc;
-          char*     arg  = NULL;
-          bool      first_arg = true;
+          ListCell*         lc;
+          bool              first_arg = true;
 
           foreach (lc, expr->args) {
-            Node* argnode = (Node*) lfirst(lc);
-            Expr* argexpr = NULL;
+            Node*             argnode = (Node*) lfirst(lc);
+            Expr*             argexpr = NULL;
+            StringInfoData    cbuf;
+            deparse_expr_cxt  context;
+
+            initStringInfo(&cbuf);
+            context.root        = ctx->root;
+            context.buf         = &cbuf;
+            context.foreignrel  = ctx->foreignrel;
+            context.scanrel     = ctx->scanrel;
+            context.params_list = ctx->params_list;
 
             if (argnode == NULL) {
               ok = false;
@@ -2888,12 +2946,13 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
             } else {
               argexpr = (Expr*) argnode;
             }
-            arg = deparseExpr(ctx->root, ctx->foreignrel, argexpr, ctx->params_list);
-            if (arg == NULL) {
+            deparseExprInt(argexpr, &context);
+            if (cbuf.len <= 0) {
               ok = false;
               break;
             }
-            appendStringInfo(&result, "%s%s", arg, first_arg ? "" : ", ");
+            appendStringInfo(&result, "%s%s", cbuf.data, first_arg ? "" : ", ");
+            db2free(cbuf.data);
             first_arg = false;
           }
         }
@@ -3060,52 +3119,6 @@ char* deparseTimestamp (Datum datum, bool hasTimezone) {
       datetime_tm.tm_min, datetime_tm.tm_sec, (int32) datetime_fsec);
   db2Debug1("< %s::deparseTimestamp - returns: '%s'", __FILE__, s.data);
   return s.data;
-}
-
-/** Deparse given Var node into context->buf.
- *
- * If the Var belongs to the foreign relation, just print its remote name.
- * Otherwise, it's effectively a Param (and will in fact be a Param at run time).
- * Handle it the same way we handle plain Params --- see deparseParam for comments.
- */
-static void deparseVar(Var *node, deparse_expr_cxt *context) {
-  Relids  relids = context->scanrel->relids;
-  int     relno;
-  int     colno;
-  /* Qualify columns when multiple relations are involved. */
-  bool    qualify_col = (bms_membership(relids) == BMS_MULTIPLE);
-
-  /* If the Var belongs to the foreign relation that is deparsed as a subquery, use the relation and column alias to the Var provided by the
-   * subquery, instead of the remote name.
-   */
-  if (is_subquery_var(node, context->scanrel, &relno, &colno)) {
-    appendStringInfo(context->buf, "%s%d.%s%d", SUBQUERY_REL_ALIAS_PREFIX, relno, SUBQUERY_COL_ALIAS_PREFIX, colno);
-    return;
-  }
-  if (bms_is_member(node->varno, relids) && node->varlevelsup == 0) {
-    deparseColumnRef(context->buf, node->varno, node->varattno, planner_rt_fetch(node->varno, context->root), qualify_col);
-  } else {
-    /* Treat like a Param */
-    if (context->params_list) {
-      int       pindex = 0;
-      ListCell* lc;
-
-      /* find its index in params_list */
-      foreach(lc, *context->params_list) {
-        pindex++;
-        if (equal(node, (Node *) lfirst(lc)))
-          break;
-      }
-      if (lc == NULL) {
-        /* not in list, so add it */
-        pindex++;
-        *context->params_list = lappend(*context->params_list, node);
-      }
-      printRemoteParam(pindex, node->vartype, node->vartypmod, context);
-    } else {
-      printRemotePlaceholder(node->vartype, node->vartypmod, context);
-    }
-  }
 }
 
 /*
@@ -3411,6 +3424,7 @@ static void deparseTargetList(StringInfo buf, RangeTblEntry *rte, Index rtindex,
   bool      first;
   int       i;
 
+  db2Debug1("> %s::deparseTargetList",__FILE__);
   *retrieved_attrs = NIL;
 
   /* If there's a whole-row reference, we'll need all the columns. */
@@ -3449,6 +3463,7 @@ static void deparseTargetList(StringInfo buf, RangeTblEntry *rte, Index rtindex,
   /* Don't generate bad syntax if no undropped columns */
   if (first && !is_returning)
     appendStringInfoString(buf, "NULL");
+db2Debug1("> %s::deparseTargetList : %s",__FILE__, buf->data);
 }
 
 /** Deparse given targetlist and append it to context->buf.
@@ -3464,6 +3479,7 @@ static void deparseExplicitTargetList(List* tlist, bool is_returning, List** ret
   StringInfo  buf = context->buf;
   int         i   = 0;
 
+  db2Debug1("> %s::deparseExplicitTargetList",__FILE__);
   *retrieved_attrs = NIL;
 
   foreach(lc, tlist) {
@@ -3482,6 +3498,7 @@ static void deparseExplicitTargetList(List* tlist, bool is_returning, List** ret
 
   if (i == 0 && !is_returning)
     appendStringInfoString(buf, "NULL");
+  db2Debug1("< %s::deparseExplicitTargetList : %s",__FILE__, buf->data);
 }
 
 /** Emit expressions specified in the given relation's reltarget.
@@ -3492,6 +3509,7 @@ static void deparseSubqueryTargetList(deparse_expr_cxt* context) {
   bool        first = true;
   ListCell*   lc;
 
+  db2Debug1("> %s::deparseSubqueryTargetList",__FILE__);
   /* Should only be called in these cases. */
   Assert(IS_SIMPLE_REL(context->foreignrel) || IS_JOIN_REL(context->foreignrel));
   foreach(lc, context->foreignrel->reltarget->exprs) {
@@ -3504,6 +3522,7 @@ static void deparseSubqueryTargetList(deparse_expr_cxt* context) {
   /* Don't generate bad syntax if no expressions */
   if (first)
     appendStringInfoString(context->buf, "NULL");
+  db2Debug1("< %s::deparseSubqueryTargetList : %s",__FILE__, context->buf->data);
 }
 
 /** Given an EquivalenceClass and a foreign relation, find an EC member that can be used to sort the relation remotely according to a pathkey
