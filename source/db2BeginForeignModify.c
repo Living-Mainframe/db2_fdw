@@ -87,6 +87,10 @@ DB2FdwState* deserializePlanData (List* list) {
   state->password = deserializeString (lfirst (cell));
   cell = list_next (list,cell);
 
+  /* jwt_token */
+  state->jwt_token = deserializeString (lfirst (cell));
+  cell = list_next (list,cell);
+
   /* nls_lang */
   state->nls_lang = deserializeString (lfirst (cell));
   cell = list_next (list,cell);
