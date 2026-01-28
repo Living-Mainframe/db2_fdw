@@ -19,7 +19,7 @@ extern char*     db2strdup            (const char* p);
 
 /** local prototypes */
 DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
-DB2ConnEntry*    findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user);
+DB2ConnEntry*    findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user, const char* jwttok);
 DB2ConnEntry*    insertconnEntry      (DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc);
 
 /** db2AllocConnHdl
@@ -43,7 +43,7 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
     // envp->connlist = connp = insertconnEntry (envp->connlist, srvname, user, password, hdbc);
   } else {
     /* search user session for this server in cache */
-    connp = findconnEntry(envp->connlist, srvname, user);
+    connp = findconnEntry(envp->connlist, srvname, user, jwt_token);
     if (connp == NULL) {
       /* Declare all variables at beginning for C90 compatibility */
       char connStr[4096];
@@ -127,14 +127,27 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
 /** findconnEntry
  * 
  */
-DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char* user) {
+DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char* user, const char* jwttok) {
   DB2ConnEntry* step = NULL;
   db2Debug2("  > findconnEntry");
   for (step = start; step != NULL; step = step->right){
     /* NULL-safe comparison for JWT auth where user may be NULL */
-    int srv_match = (step->srvname && srvname) ? strcmp(step->srvname, srvname) == 0 : step->srvname == srvname;
-    int uid_match = (step->uid && user) ? strcmp(step->uid, user) == 0 : step->uid == user;
-    if (srv_match && uid_match) {
+    int jwt_null_or_empty     = (!step->jwt_token || step->jwt_token[0] == '\0');
+    int jwttok_null_or_empty  = (!jwttok || jwttok[0] == '\0');
+    int jwt_match             = (jwt_null_or_empty && jwttok_null_or_empty)
+                             || (!jwt_null_or_empty && !jwttok_null_or_empty && strcmp(step->jwt_token, jwttok) == 0);
+
+    int srv_null_or_empty     = (!step->srvname || step->srvname[0] == '\0');
+    int srvname_null_or_empty = (!srvname || srvname[0] == '\0');
+    int srv_match             = (srv_null_or_empty && srvname_null_or_empty) 
+                             || (!srv_null_or_empty && !srvname_null_or_empty && strcmp(step->srvname, srvname) == 0);
+
+    int uid_null_or_empty     = (!step->uid || step->uid[0] == '\0');
+    int user_null_or_empty    = (!user || user[0] == '\0');
+    int uid_match             = (uid_null_or_empty && user_null_or_empty)
+                             || (!uid_null_or_empty && !user_null_or_empty && strcmp(step->uid, user) == 0);
+
+    if (srv_match && uid_match && jwt_match) {
       break;
     }
   }

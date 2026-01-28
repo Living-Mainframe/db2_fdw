@@ -14,7 +14,7 @@ extern void          db2Debug2            (const char* message, ...);
 extern DB2ConnEntry* db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
 extern DB2EnvEntry*  db2AllocEnvHdl       (const char* nls_lang);
 extern DB2EnvEntry*  findenvEntry         (DB2EnvEntry* start, const char* nlslang);
-extern DB2ConnEntry* findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user);
+extern DB2ConnEntry* findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user, const char* jwttok);
 extern void          db2SetSavepoint      (DB2Session* session, int nest_level);
 
 /** local prototypes */
@@ -44,7 +44,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
   if (envp == NULL) {
     envp = db2AllocEnvHdl(nls_lang);
   }
-  connp = findconnEntry(envp->connlist, srvname, user);
+  connp = findconnEntry(envp->connlist, srvname, user, jwt_token);
   if (connp == NULL){
     connp = db2AllocConnHdl(envp, srvname, user, password, jwt_token, NULL);
   }
