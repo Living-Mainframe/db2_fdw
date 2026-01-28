@@ -60,6 +60,8 @@ DB2FdwState* deserializePlanData (List* list) {
   state->user = deserializeString(list_nth(list, idx++));
   /* password */
   state->password = deserializeString(list_nth(list, idx++));
+  /* jwt-token */
+  state->jwt_token = deserializeString(list_nth(list, idx++));
   /* nls_lang */
   state->nls_lang = deserializeString(list_nth(list, idx++));
   /* query */
@@ -196,6 +198,8 @@ List* serializePlanData (DB2FdwState* fdwState) {
   result = lappend (result, serializeString (fdwState->user));
   /* password */
   result = lappend (result, serializeString (fdwState->password));
+  /* jwt_token */
+  result = lappend (result, serializeString (fdwState->jwt_token));
   /* nls_lang */
   result = lappend (result, serializeString (fdwState->nls_lang));
   /* query */
