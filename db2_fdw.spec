@@ -5,7 +5,7 @@ Version: %{fdw_version}
 Release: 1%{?dist}
 License: PostgreSQL License
 Group: Applications/Databases
-Url: https://github.com/Living-Mainframe/db2_fdw
+Url: https://github.com/pg-fdw/db2_fdw
 %undefine _disable_source_fetch
 BuildArch: x86_64
 
