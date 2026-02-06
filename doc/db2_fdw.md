@@ -21,16 +21,16 @@ Usage
 Support
 -------
 
-    [GitHub Link to db2_fdw](https://github.com/Living-Mainframe/db2_fdw)
+    [GitHub Link to db2_fdw](https://github.com/pg-fdw/db2_fdw)
 
-    [email](thomas.muenz@living-mainframe.de)
+    [email](thomas.muenz@pg-fdw.de)
 
 Author
 ------
 
-[Thomas Muenz](thomas.muenz@living-mainframe.de)
+[Thomas Muenz](thomas.muenz@pg-fdw.de)
 
 Copyright and License
 ---------------------
 
-Copyright (c) 2025 Thomas Muenz, Living-Mainframe GmbH
+Copyright (c) 2025 Thomas Muenz, pg-fdw.de
