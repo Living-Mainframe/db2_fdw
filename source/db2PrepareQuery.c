@@ -21,6 +21,7 @@ extern void         db2Error_d           (db2error sqlstate, const char* message
 extern HdlEntry*    db2AllocStmtHdl      (SQLSMALLINT type, DB2ConnEntry* connp, db2error error, const char* errmsg);
 extern SQLSMALLINT  c2param              (SQLSMALLINT fparamType);
 extern char*        param2name           (SQLSMALLINT fparamType);
+extern void*        db2alloc             (const char* type, size_t size);
 
 /** internal prototypes */
 void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize);
@@ -154,16 +155,37 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
       }
     }
   }
+  db2Debug2("  is_select: %s",is_select ? "true" : "false");
+  db2Debug2("  col_pos: %d",col_pos);
   if (is_select && col_pos == 0) {
-    /*
-     * No columns selected (i.e., SELECT '1' FROM or COUNT(*)).
-     * Use persistent buffers from statement handle to avoid stack deallocation issues.
-     * This fixes the segfault when using aggregate functions without WHERE clause.
-     */
-    rc = SQLBindCol(session->stmtp->hsql, 1, SQL_C_CHAR, session->stmtp->dummy_buffer, sizeof(session->stmtp->dummy_buffer), &session->stmtp->dummy_null);
-    rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
-    if (rc != SQL_SUCCESS) {
-      db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
+    if (db2Table->rncols > 0) {
+      int idx = 0;
+      // count the number of comma between SELECT and FROM to understand how many result columns we need.
+      for (idx=0; idx < db2Table->rncols - col_pos; idx++) {
+        SQLCHAR* dummy_buffer = (SQLCHAR*)db2alloc("dummy_buffer",256);
+        SQLLEN*  dummy_null   = (SQLLEN*)db2alloc("dummy_null",sizeof(SQLLEN));
+        rc = SQLBindCol(session->stmtp->hsql
+                       , idx+1
+                       , SQL_C_CHAR
+                       , dummy_buffer
+                       , sizeof(dummy_buffer)
+                       , dummy_null
+                      );
+        rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
+        if (rc != SQL_SUCCESS) {
+          db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
+        }
+      }
+    } else {
+      /* No columns selected (i.e., SELECT '1' FROM or COUNT(*)).
+       * Use persistent buffers from statement handle to avoid stack deallocation issues.
+       * This fixes the segfault when using aggregate functions without WHERE clause.
+       */
+      rc = SQLBindCol(session->stmtp->hsql, 1, SQL_C_CHAR, session->stmtp->dummy_buffer, sizeof(session->stmtp->dummy_buffer), &session->stmtp->dummy_null);
+      rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
+      if (rc != SQL_SUCCESS) {
+        db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
+      }
     }
   }
 

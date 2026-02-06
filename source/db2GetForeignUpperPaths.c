@@ -48,7 +48,7 @@ static void         add_foreign_ordered_paths (PlannerInfo* root, RelOptInfo* in
 static void         add_foreign_final_paths   (PlannerInfo* root, RelOptInfo* input_rel, RelOptInfo* final_rel, FinalPathExtraData *extra);
 static void         adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys, double retrieved_rows, double width, double limit_tuples, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_run_cost);
 static bool         foreign_grouping_ok       (PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual);
-static void         estimate_path_cost_size   (PlannerInfo* root, RelOptInfo* foreignrel, List* param_join_conds, List* pathkeys, DB2FdwPathExtraData* fpextra, double* p_rows, int* p_width, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_total_cost);
+       void         estimate_path_cost_size   (PlannerInfo* root, RelOptInfo* foreignrel, List* param_join_conds, List* pathkeys, DB2FdwPathExtraData* fpextra, double* p_rows, int* p_width, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_total_cost);
 static void         merge_fdw_options         (DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, const DB2FdwState* fpinfo_i);
 
 void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra) {
@@ -620,13 +620,11 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
       }
     }
 
-		/*
-		 * If we get here it means no ForeignPaths; since we would already
-		 * have considered pushing down all operations for the query to the
-		 * remote server, give up on it.
-		 */
-		return;
-	}
+    /* If we get here it means no ForeignPaths; since we would already have considered pushing down all operations for the query to the
+     * remote server, give up on it.
+     */
+    return;
+  }
 
   Assert(extra->limit_needed);
 
@@ -641,38 +639,27 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   /* The input_rel should be a base, join, or grouping relation */
   Assert(input_rel->reloptkind == RELOPT_BASEREL || input_rel->reloptkind == RELOPT_JOINREL || (input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_GROUP_AGG));
 
-  /** We try to create a path below by extending a simple foreign path for
-   * the underlying base, join, or grouping relation to perform the final
-   * sort (if has_final_sort) and the LIMIT restriction remotely, which is
-   * stored into the fdw_private list of the resulting path.  (We
-   * re-estimate the costs of sorting the underlying relation, if
-   * has_final_sort.)
+  /* We try to create a path below by extending a simple foreign path for the underlying base, join, or grouping relation to perform the final
+   * sort (if has_final_sort) and the LIMIT restriction remotely, which is stored into the fdw_private list of the resulting path.
+   * (We re-estimate the costs of sorting the underlying relation, if has_final_sort.)
    */
 
-  /** Assess if it is safe to push down the LIMIT and OFFSET to the remote server
-   */
+  /* Assess if it is safe to push down the LIMIT and OFFSET to the remote server */
 
-  /** If the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down.
-   */
+  /* If the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down. */
   if (ifpinfo->local_conds)
     return;
 
-  /** If the query has FETCH FIRST .. WITH TIES, 1) it must have ORDER BY as
-   * well, which is used to determine which additional rows tie for the last
-   * place in the result set, and 2) ORDER BY must already have been
-   * determined to be safe to push down before we get here.  So in that case
-   * the FETCH clause is safe to push down with ORDER BY if the remote
-   * server is v13 or later, but if not, the remote query will fail entirely
-   * for lack of support for it.  Since we do not currently have a way to do
-   * a remote-version check (without accessing the remote server), disable
-   * pushing the FETCH clause for now.
+  /* If the query has FETCH FIRST .. WITH TIES, 1) it must have ORDER BY as well, which is used to determine which additional rows tie for the last
+   * place in the result set, and 2) ORDER BY must already have been determined to be safe to push down before we get here.
+   * So in that case the FETCH clause is safe to push down with ORDER BY if the remote server is v13 or later, but if not, the remote query will fail
+   * entirely for lack of support for it.
+   * Since we do not currently have a way to do a remote-version check (without accessing the remote server), disable pushing the FETCH clause for now.
    */
   if (parse->limitOption == LIMIT_OPTION_WITH_TIES)
     return;
 
-  /** Also, the LIMIT/OFFSET cannot be pushed down, if their expressions are
-   * not safe to remote.
-   */
+  /* Also, the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote. */
   if (!is_foreign_expr(root, input_rel, (Expr *) parse->limitOffset) || !is_foreign_expr(root, input_rel, (Expr *) parse->limitCount))
     return;
 
@@ -688,13 +675,10 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   fpextra->count_est      = extra->count_est;
   fpextra->offset_est     = extra->offset_est;
 
-  /** Estimate the costs of performing the final sort and the LIMIT
-   * restriction remotely.  If has_final_sort is false, we wouldn't need to
-   * execute EXPLAIN anymore if use_remote_estimate, since the costs can be
-   * roughly estimated using the costs we already have for the underlying
-   * relation, in the same way as when use_remote_estimate is false.  Since
-   * it's pretty expensive to execute EXPLAIN, force use_remote_estimate to
-   * false in that case.
+  /* Estimate the costs of performing the final sort and the LIMIT restriction remotely.
+   * If has_final_sort is false, we wouldn't need to execute EXPLAIN anymore if use_remote_estimate, since the costs can be
+   * roughly estimated using the costs we already have for the underlying relation, in the same way as when use_remote_estimate is false.
+   * Since it's pretty expensive to execute EXPLAIN, force use_remote_estimate to false in that case.
    */
   if (!fpextra->has_final_sort) {
     save_use_remote_estimate = ifpinfo->use_remote_estimate;
@@ -704,14 +688,10 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   if (!fpextra->has_final_sort)
     ifpinfo->use_remote_estimate = save_use_remote_estimate;
 
-  /** Build the fdw_private list that will be used by postgresGetForeignPlan.
-   * Items in the list must match order in enum FdwPathPrivateIndex.
-   */
+  /* Build the fdw_private list that will be used by postgresGetForeignPlan. Items in the list must match order in enum FdwPathPrivateIndex. */
   fdw_private = list_make2(makeBoolean(has_final_sort), makeBoolean(extra->limit_needed));
 
-  /** Create foreign final path; this gets rid of a no-longer-needed outer
-   * plan (if any), which makes the EXPLAIN output look cleaner
-   */
+  /* Create foreign final path; this gets rid of a no-longer-needed outer plan (if any), which makes the EXPLAIN output look cleaner */
   final_path = create_foreign_upper_path( root
                                         , input_rel
                                         , root->upper_targets[UPPERREL_FINAL]
@@ -954,7 +934,7 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
  * The function returns the cost and size estimates in p_rows, p_width,
  * p_disabled_nodes, p_startup_cost and p_total_cost variables.
  */
-static void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* param_join_conds, List* pathkeys, DB2FdwPathExtraData* fpextra, double* p_rows, int* p_width, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_total_cost) {
+void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* param_join_conds, List* pathkeys, DB2FdwPathExtraData* fpextra, double* p_rows, int* p_width, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_total_cost) {
   DB2FdwState*  fpinfo          = (DB2FdwState*) foreignrel->fdw_private;
   double        rows            = 0;
   double        retrieved_rows  = 0;

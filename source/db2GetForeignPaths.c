@@ -23,10 +23,7 @@ static Expr* find_em_expr_for_rel(EquivalenceClass * ec, RelOptInfo * rel);
 void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid) {
   DB2FdwState* fdwState = (DB2FdwState*) baserel->fdw_private;
 
-  /*
-   * Determine whether we can potentially push query pathkeys to the remote
-   * side, avoiding a local sort.
-   */
+  /* Determine whether we can potentially push query pathkeys to the remote side, avoiding a local sort. */
   StringInfoData orderedquery;
   List*          usable_pathkeys = NIL;
   ListCell*      cell;
@@ -43,9 +40,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
     Oid                em_type;
     bool               can_pushdown;
 
-    /** deparseExpr would detect volatile expressions as well, but
-     * ec_has_volatile saves some cycles.
-     */
+    /* deparseExpr would detect volatile expressions as well, but ec_has_volatile saves some cycles. */
     can_pushdown = !pathkey_ec->ec_has_volatile && ((em_expr = find_em_expr_for_rel (pathkey_ec, baserel)) != NULL);
 
     if (can_pushdown) {
@@ -74,11 +69,10 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
       #endif
       appendStringInfoString (&orderedquery, (pathkey->pk_nulls_first) ? " NULLS FIRST" : " NULLS LAST");
     } else {
-      /** The planner and executor don't have any clever strategy for
-       *  taking data sorted by a prefix of the query's pathkeys and
-       *  getting it to be sorted by all of those pathekeys.  We'll just
-       *  end up resorting the entire data set.  So, unless we can push
-       *  down all of the query pathkeys, forget it.
+      /* The planner and executor don't have any clever strategy for taking data sorted by a prefix of the query's pathkeys and
+       * getting it to be sorted by all of those pathekeys.
+       * We'll just end up resorting the entire data set.
+       * So, unless we can push down all of the query pathkeys, forget it.
        */
       list_free (usable_pathkeys);
       usable_pathkeys = NIL;

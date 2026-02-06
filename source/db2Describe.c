@@ -121,7 +121,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   }
 
   reply->ncols = ncols;
-  reply->cols = (DB2Column **) db2alloc ("reply->cols", sizeof (DB2Column *) * reply->ncols);
+  reply->cols = (DB2Column**) db2alloc ("reply->cols", sizeof (DB2Column*) *reply->ncols);
   db2Debug2("  reply->ncols  : %d", reply->ncols);
 
   /* loop through the column list */

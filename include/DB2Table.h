@@ -15,5 +15,6 @@ typedef struct db2Table {
   int                 ncols;         // number of columns in DB2 table
   int                 npgcols;       // number of columns (including dropped) in the PostgreSQL foreign table
   DB2Column**         cols;          // pointer to an array of DB2Column descriptors, as many as ncols tells
+  int                 rncols;        // number of result columns to be fetched from DB2
 } DB2Table;
 #endif

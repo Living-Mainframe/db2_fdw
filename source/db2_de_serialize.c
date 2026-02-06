@@ -83,6 +83,8 @@ DB2FdwState* deserializePlanData (List* list) {
   db2Debug2("  state->db2Table->batchsz: %d",state->db2Table->batchsz);
   state->db2Table->ncols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
   db2Debug2("  state->db2Table->ncols: %d",state->db2Table->ncols);
+  state->db2Table->rncols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+  db2Debug2("  state->db2Table->rncols: %d",state->db2Table->rncols);
   state->db2Table->npgcols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
   db2Debug2("  state->db2Table->npgcols: %d",state->db2Table->npgcols);
   state->db2Table->cols = (DB2Column**) db2alloc ("state->db2Table->cols", sizeof (DB2Column*) * state->db2Table->ncols);
@@ -218,6 +220,8 @@ List* serializePlanData (DB2FdwState* fdwState) {
   result = lappend (result, serializeInt (fdwState->db2Table->batchsz));
   /* number of columns in DB2 table */
   result = lappend (result, serializeInt (fdwState->db2Table->ncols));
+  /* number of result columns in DB2 table */
+  result = lappend (result, serializeInt (fdwState->db2Table->rncols));
   /* number of columns in PostgreSQL table */
   result = lappend (result, serializeInt (fdwState->db2Table->npgcols));
   /* column data */
