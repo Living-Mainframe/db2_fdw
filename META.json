@@ -4,7 +4,7 @@
     "description": "With the Data Wrapper you can acces DB2 Tabels. Not supported for all Data Types (BLOB over 2 GByte)",
     "version": "18.1.1",
     "maintainer": [
-      "Thomas Muenz <thomas.muenz@living-mainframe.de>"
+      "Thomas Muenz <thomas.muenz@pg-fdw.de>"
    ],
     "license": "postgresql",
     "provides": {
@@ -17,8 +17,8 @@
     },
     "resources": {
       "repository": {
-        "url":  "https://github.com/Living-Mainframe/db2_fdw.git",
-        "web":  "https://github.com/Living-Mainframe/db2_fdw",
+        "url":  "https://github.com/pg-fdw/db2_fdw.git",
+        "web":  "https://github.com/pg-fdw/db2_fdw",
         "type": "git"
       }
    },
