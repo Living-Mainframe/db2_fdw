@@ -3,6 +3,7 @@
 #include <postgres_ext.h>
 #include "db2_fdw.h"
 #include "ParamDesc.h"
+#include "DB2ResultColumn.h"
 
 #define SQL_VALUE_PTR_ULEN(v) ((SQLPOINTER)(uintptr_t)(SQLULEN)(v))
 
@@ -24,7 +25,7 @@ extern char*        param2name           (SQLSMALLINT fparamType);
 extern void*        db2alloc             (const char* type, size_t size);
 
 /** internal prototypes */
-void                db2PrepareQuery      (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize);
+void                db2PrepareQuery      (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize);
 
 /** db2PrepareQuery
  *   Prepares an SQL statement for execution.
@@ -34,12 +35,13 @@ void                db2PrepareQuery      (DB2Session* session, const char *query
  *   - For DML statements, allocates LOB locators for the RETURNING clause in db2Table.
  *   - Set the prefetch options.
  */
-void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize) {
-  int        i          = 0;
-  int        col_pos    = 0;
-  int        is_select  = 0;
-  int        for_update = 0;
-  SQLRETURN  rc         = 0;
+void db2PrepareQuery (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize) {
+  int               i           = 0;
+  int               col_pos     = 0;
+  int               is_select   = 0;
+  int               for_update  = 0;
+  SQLRETURN         rc          = 0;
+  DB2ResultColumn*  res         = NULL;
 
   #ifdef FIXED_FETCH_SIZE
   // Until the proper handling of multiple rows results on a single query are added the fetch size must be 1
@@ -115,68 +117,98 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
     db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLPrepare failed to prepare remote query", db2Message);
   }
 
-  /* loop through table columns */
-  col_pos = 0;
-  for (i = 0; i < db2Table->ncols; ++i) {
-    if (db2Table->cols[i]->used) {
-      SQLSMALLINT fparamType = c2param((SQLSMALLINT)db2Table->cols[i]->colType);
-      /*
-       * Unfortunately DB2 handles DML statements with a RETURNING clause
-       * quite different from SELECT statements.  In the latter, the result
-       * columns are "defined", i.e. bound to some storage space.
-       * This definition is only necessary once, even if the query is executed
-       * multiple times, so we do this here.
-       * RETURNING clause are handled in db2ExecuteQuery, here we only
-       * allocate locators for LOB columns in RETURNING clauses.
-       */
-      /* figure out in which format we want the results */
-      if (db2Table->cols[i]->pgtype == UUIDOID) {
-        fparamType = SQL_C_CHAR;
-      }
-      db2Debug2("  db2Table->cols[%d]->colName       : '%s' ",i,db2Table->cols[i]->colName);
-      db2Debug2("  db2Table->cols[%d]->colSize       : '%ld'",i,db2Table->cols[i]->colSize);
-      db2Debug2("  db2Table->cols[%d]->colScale      : '%d' ",i,db2Table->cols[i]->colScale);
-      db2Debug2("  db2Table->cols[%d]->colNulls      : '%d' ",i,db2Table->cols[i]->colNulls);
-      db2Debug2("  db2Table->cols[%d]->colChars      : '%ld'",i,db2Table->cols[i]->colChars);
-      db2Debug2("  db2Table->cols[%d]->colBytes      : '%ld'",i,db2Table->cols[i]->colBytes);
-      db2Debug2("  db2Table->cols[%d]->colPrimKeyPart: '%d' ",i,db2Table->cols[i]->colPrimKeyPart);
-      db2Debug2("  db2Table->cols[%d]->colCodepage   : '%d' ",i,db2Table->cols[i]->colCodepage);
-      db2Debug2("  db2Table->cols[%d]->val           : '%x'" ,i,db2Table->cols[i]->val);
-      db2Debug2("  db2Table->cols[%d]->val_size      : '%ld'",i,db2Table->cols[i]->val_size);
-      db2Debug2("  db2Table->cols[%d]->val_len       : '%d' ",i,db2Table->cols[i]->val_len);
-      db2Debug2("  db2Table->cols[%d]->val_null      : '%d' ",i,db2Table->cols[i]->val_null);
-      db2Debug2("  fparamType: %d (%s)",fparamType,param2name(fparamType));
-      ++col_pos;
-      db2Debug2("  SQLBindCol(%d,%d,%d(%s),%x,%ld,%x)",session->stmtp->hsql,col_pos, fparamType, param2name(fparamType), db2Table->cols[i]->val, db2Table->cols[i]->val_size, &db2Table->cols[i]->val_null);
-      rc = SQLBindCol (session->stmtp->hsql,col_pos, fparamType, db2Table->cols[i]->val, db2Table->cols[i]->val_size, &db2Table->cols[i]->val_null);
-      rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
-      if (rc != SQL_SUCCESS) {
-        db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
-      }
+  /* loop through expected result columns */
+  for (res = resultList; res; res = res->next){
+    SQLSMALLINT fparamType = c2param((SQLSMALLINT)res->colType);
+    /* Unfortunately DB2 handles DML statements with a RETURNING clause quite different from SELECT statements.
+     * In the latter, the result columns are "defined", i.e. bound to some storage space.
+     * This definition is only necessary once, even if the query is executed multiple times, so we do this here.
+     * RETURNING clause are handled in db2ExecuteQuery, here we only allocate locators for LOB columns in RETURNING clauses.
+     */
+    /* figure out in which format we want the results */
+    if (res->pgtype == UUIDOID) {
+      fparamType = SQL_C_CHAR;
     }
+    db2Debug2("  res->colName       : %s" ,res->colName);
+    db2Debug2("  res->colSize       : %ld",res->colSize);
+    db2Debug2("  res->colScale      : %d" ,res->colScale);
+    db2Debug2("  res->colNulls      : %d" ,res->colNulls);
+    db2Debug2("  res->colChars      : %ld",res->colChars);
+    db2Debug2("  res->colBytes      : %ld",res->colBytes);
+    db2Debug2("  res->colPrimKeyPart: %d" ,res->colPrimKeyPart);
+    db2Debug2("  res->colCodepage   : %d" ,res->colCodepage);
+    db2Debug2("  res->val           : %x" ,res->val);
+    db2Debug2("  res->val_size      : %ld",res->val_size);
+    db2Debug2("  res->val_len       : %d" ,res->val_len);
+    db2Debug2("  res->val_null      : %d" ,res->val_null);
+    db2Debug2("  res->resnum.       : %d" ,res->resnum);
+    db2Debug2("  fparamType: %d (%s)",fparamType,param2name(fparamType));
+    db2Debug2("  SQLBindCol(%d,%d,%d(%s),%x,%ld,%x)",session->stmtp->hsql,res->resnum, fparamType, param2name(fparamType), res->val, res->val_size, &res->val_null);
+    rc = SQLBindCol (session->stmtp->hsql,res->resnum, fparamType, res->val, res->val_size, &res->val_null);
+    rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
+    if (rc != SQL_SUCCESS) {
+      db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
+    }
+    col_pos++;
   }
+
+//  col_pos = 0;
+//  for (i = 0; i < db2Table->ncols; ++i) {
+//    if (db2Table->cols[i]->used) {
+//      SQLSMALLINT fparamType = c2param((SQLSMALLINT)db2Table->cols[i]->colType);
+//      /* Unfortunately DB2 handles DML statements with a RETURNING clause quite different from SELECT statements.
+//       * In the latter, the result columns are "defined", i.e. bound to some storage space.
+//       * This definition is only necessary once, even if the query is executed multiple times, so we do this here.
+//       * RETURNING clause are handled in db2ExecuteQuery, here we only allocate locators for LOB columns in RETURNING clauses.
+//       */
+//      /* figure out in which format we want the results */
+//      if (db2Table->cols[i]->pgtype == UUIDOID) {
+//        fparamType = SQL_C_CHAR;
+//      }
+//      db2Debug2("  db2Table->cols[%d]->colName       : '%s' ",i,db2Table->cols[i]->colName);
+//      db2Debug2("  db2Table->cols[%d]->colSize       : '%ld'",i,db2Table->cols[i]->colSize);
+//      db2Debug2("  db2Table->cols[%d]->colScale      : '%d' ",i,db2Table->cols[i]->colScale);
+//      db2Debug2("  db2Table->cols[%d]->colNulls      : '%d' ",i,db2Table->cols[i]->colNulls);
+//      db2Debug2("  db2Table->cols[%d]->colChars      : '%ld'",i,db2Table->cols[i]->colChars);
+//      db2Debug2("  db2Table->cols[%d]->colBytes      : '%ld'",i,db2Table->cols[i]->colBytes);
+//      db2Debug2("  db2Table->cols[%d]->colPrimKeyPart: '%d' ",i,db2Table->cols[i]->colPrimKeyPart);
+//      db2Debug2("  db2Table->cols[%d]->colCodepage   : '%d' ",i,db2Table->cols[i]->colCodepage);
+//      db2Debug2("  db2Table->cols[%d]->val           : '%x'" ,i,db2Table->cols[i]->val);
+//      db2Debug2("  db2Table->cols[%d]->val_size      : '%ld'",i,db2Table->cols[i]->val_size);
+//      db2Debug2("  db2Table->cols[%d]->val_len       : '%d' ",i,db2Table->cols[i]->val_len);
+//      db2Debug2("  db2Table->cols[%d]->val_null      : '%d' ",i,db2Table->cols[i]->val_null);
+//      db2Debug2("  fparamType: %d (%s)",fparamType,param2name(fparamType));
+//      ++col_pos;
+//      db2Debug2("  SQLBindCol(%d,%d,%d(%s),%x,%ld,%x)",session->stmtp->hsql,col_pos, fparamType, param2name(fparamType), db2Table->cols[i]->val, db2Table->cols[i]->val_size, &db2Table->cols[i]->val_null);
+//      rc = SQLBindCol (session->stmtp->hsql,col_pos, fparamType, db2Table->cols[i]->val, db2Table->cols[i]->val_size, &db2Table->cols[i]->val_null);
+//      rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
+//      if (rc != SQL_SUCCESS) {
+//        db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
+//      }
+//    }
+//  }
   db2Debug2("  is_select: %s",is_select ? "true" : "false");
   db2Debug2("  col_pos: %d",col_pos);
   if (is_select && col_pos == 0) {
-    if (db2Table->rncols > 0) {
-      int idx = 0;
-      // count the number of comma between SELECT and FROM to understand how many result columns we need.
-      for (idx=0; idx < db2Table->rncols - col_pos; idx++) {
-        SQLCHAR* dummy_buffer = (SQLCHAR*)db2alloc("dummy_buffer",256);
-        SQLLEN*  dummy_null   = (SQLLEN*)db2alloc("dummy_null",sizeof(SQLLEN));
-        rc = SQLBindCol(session->stmtp->hsql
-                       , idx+1
-                       , SQL_C_CHAR
-                       , dummy_buffer
-                       , sizeof(dummy_buffer)
-                       , dummy_null
-                      );
-        rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
-        if (rc != SQL_SUCCESS) {
-          db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
-        }
-      }
-    } else {
+//    if (db2Table->rncols > 0) {
+//      int idx = 0;
+//      // count the number of comma between SELECT and FROM to understand how many result columns we need.
+//      for (idx=0; idx < db2Table->rncols - col_pos; idx++) {
+//        SQLCHAR* dummy_buffer = (SQLCHAR*)db2alloc("dummy_buffer",256);
+//        SQLLEN*  dummy_null   = (SQLLEN*)db2alloc("dummy_null",sizeof(SQLLEN));
+//        rc = SQLBindCol(session->stmtp->hsql
+//                       , idx+1
+//                       , SQL_C_CHAR
+//                       , dummy_buffer
+//                       , sizeof(dummy_buffer)
+//                       , dummy_null
+//                      );
+//        rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
+//        if (rc != SQL_SUCCESS) {
+//          db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
+//        }
+//      }
+//    } else {
       /* No columns selected (i.e., SELECT '1' FROM or COUNT(*)).
        * Use persistent buffers from statement handle to avoid stack deallocation issues.
        * This fixes the segfault when using aggregate functions without WHERE clause.
@@ -185,7 +217,7 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2Table* db2Table
       rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
       if (rc != SQL_SUCCESS) {
         db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLBindCol failed to define result value", db2Message);
-      }
+//      }
     }
   }
 

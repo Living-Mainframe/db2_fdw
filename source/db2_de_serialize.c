@@ -18,6 +18,7 @@
 extern void         db2Debug1           (const char* message, ...);
 extern void         db2Debug2           (const char* message, ...);
 extern void         db2Debug4           (const char* message, ...);
+extern void         db2Debug5           (const char* message, ...);
 extern void*        db2alloc            (const char* type, size_t size);
 extern char*        c2name              (short fcType);
 
@@ -42,97 +43,87 @@ DB2FdwState* deserializePlanData (List* list) {
 
   db2Debug1("> deserializePlanData");
   /* session will be set upon connect */
-  state->session      = NULL;
+  state->session           = NULL;
   /* these fields are not needed during execution */
-  state->startup_cost = 0;
-  state->total_cost   = 0;
+  state->startup_cost      = 0;
+  state->total_cost        = 0;
   /* these are not serialized */
-  state->rowcount     = 0;
-  state->columnindex  = 0;
-  state->params       = NULL;
-  state->temp_cxt     = NULL;
-  state->order_clause = NULL;
+  state->rowcount          = 0;
+  state->columnindex       = 0;
+  state->params            = NULL;
+  state->temp_cxt          = NULL;
+  state->order_clause      = NULL;
 
-  state->retrieved_attr = (List *) list_nth(list, idx++);
+  state->retrieved_attr    = (List *) list_nth(list, idx++);
   /* dbserver */
-  state->dbserver = deserializeString(list_nth(list, idx++));
+  state->dbserver          = deserializeString(list_nth(list, idx++));
   /* user */
-  state->user = deserializeString(list_nth(list, idx++));
+  state->user              = deserializeString(list_nth(list, idx++));
   /* password */
-  state->password = deserializeString(list_nth(list, idx++));
+  state->password          = deserializeString(list_nth(list, idx++));
   /* jwt-token */
-  state->jwt_token = deserializeString(list_nth(list, idx++));
+  state->jwt_token         = deserializeString(list_nth(list, idx++));
   /* nls_lang */
-  state->nls_lang = deserializeString(list_nth(list, idx++));
+  state->nls_lang          = deserializeString(list_nth(list, idx++));
   /* query */
-  state->query = deserializeString(list_nth(list, idx++));
+  state->query             = deserializeString(list_nth(list, idx++));
   /* DB2 prefetch count */
-  state->prefetch = (unsigned long) DatumGetInt32 (((Const*)list_nth(list, idx++))->constvalue);
+  state->prefetch          = (unsigned long) DatumGetInt32 (((Const*)list_nth(list, idx++))->constvalue);
   /* DB2 fetch_size */
-  state->fetch_size = (unsigned long) DatumGetInt32 (((Const*)list_nth(list, idx++))->constvalue);
+  state->fetch_size        = (unsigned long) DatumGetInt32 (((Const*)list_nth(list, idx++))->constvalue);
   /* relation_name */
-  state->relation_name  = deserializeString(list_nth(list, idx++));
-  db2Debug2("  state->relation_name: '%s'",state->relation_name);
+  state->relation_name     = deserializeString(list_nth(list, idx++));
   /* table data */
-  state->db2Table = (DB2Table*) db2alloc ("state->db2Table", sizeof (struct db2Table));
-  state->db2Table->name = deserializeString(list_nth(list, idx++));
-  db2Debug2("  state->db2Table->name: '%s'",state->db2Table->name);
-  state->db2Table->pgname = deserializeString(list_nth(list, idx++));
-  db2Debug2("  state->db2Table->pgname: '%s'",state->db2Table->pgname);
+  state->db2Table          = (DB2Table*) db2alloc ("state->db2Table", sizeof (struct db2Table));
+  state->db2Table->name    = deserializeString(list_nth(list, idx++));
+  state->db2Table->pgname  = deserializeString(list_nth(list, idx++));
   state->db2Table->batchsz = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-  db2Debug2("  state->db2Table->batchsz: %d",state->db2Table->batchsz);
-  state->db2Table->ncols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-  db2Debug2("  state->db2Table->ncols: %d",state->db2Table->ncols);
-  state->db2Table->rncols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-  db2Debug2("  state->db2Table->rncols: %d",state->db2Table->rncols);
+  state->db2Table->ncols   = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+  state->db2Table->rncols  = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
   state->db2Table->npgcols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-  db2Debug2("  state->db2Table->npgcols: %d",state->db2Table->npgcols);
-  state->db2Table->cols = (DB2Column**) db2alloc ("state->db2Table->cols", sizeof (DB2Column*) * state->db2Table->ncols);
+  state->db2Table->cols    = (DB2Column**) db2alloc ("state->db2Table->cols", sizeof (DB2Column*) * state->db2Table->ncols);
 
   /* loop columns */
   for (i = 0; i < state->db2Table->ncols; ++i) {
     state->db2Table->cols[i]           = (DB2Column *) db2alloc ("state->db2Table->cols[i]", sizeof (DB2Column));
     state->db2Table->cols[i]->colName  = deserializeString(list_nth(list, idx++));
-    db2Debug2("  state->db2Table->cols[%d]->colName: '%s'",i,state->db2Table->cols[i]->colName);
+    db2Debug4("  deserialize col[%d].colName: %s"  ,i, state->db2Table->cols[i]->colName);
     state->db2Table->cols[i]->colType  = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->colType: %d (%s)",i,state->db2Table->cols[i]->colType,c2name(state->db2Table->cols[i]->colType));
+    db2Debug4("  deserialize col[%d].colType: %d"  ,i, state->db2Table->cols[i]->colType);
     state->db2Table->cols[i]->colSize  = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->colSize: %lld",i,state->db2Table->cols[i]->colSize);
+    db2Debug4("  deserialize col[%d].colSize: %d"  ,i, state->db2Table->cols[i]->colSize);
     state->db2Table->cols[i]->colScale = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->colScale: %d",i,state->db2Table->cols[i]->colScale);
+    db2Debug4("  deserialize col[%d].colScale: %d"  ,i, state->db2Table->cols[i]->colScale);
     state->db2Table->cols[i]->colNulls = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->colNulls: %d",i,state->db2Table->cols[i]->colNulls);
+    db2Debug4("  deserialize col[%d].colNulls: %d"  ,i, state->db2Table->cols[i]->colNulls);
     state->db2Table->cols[i]->colChars = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%lld]->colChars: %lld",i,state->db2Table->cols[i]->colChars);
+    db2Debug4("  deserialize col[%d].colChars: %d"  ,i, state->db2Table->cols[i]->colChars);
     state->db2Table->cols[i]->colBytes = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%lld]->colBytes: %lld",i,state->db2Table->cols[i]->colBytes);
+    db2Debug4("  deserialize col[%d].colBytes: %d"  ,i, state->db2Table->cols[i]->colBytes);
     state->db2Table->cols[i]->colPrimKeyPart = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%lld]->colPrimKeyPart: %lld",i,state->db2Table->cols[i]->colPrimKeyPart);
+    db2Debug4("  deserialize col[%d].colPrimKeyPart: %d"  ,i, state->db2Table->cols[i]->colPrimKeyPart);
     state->db2Table->cols[i]->colCodepage = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%lld]->colCodepaget: %lld",i,state->db2Table->cols[i]->colCodepage);
+    db2Debug4("  deserialize col[%d].colCodepage: %d"  ,i, state->db2Table->cols[i]->colCodepage);
     state->db2Table->cols[i]->pgname   = deserializeString(list_nth(list, idx++));
-    db2Debug2("  state->db2Table->cols[%d]->pgname: '%s'",i,state->db2Table->cols[i]->pgname);
+    db2Debug4("  deserialize col[%d].pgname: %s"  ,i, state->db2Table->cols[i]->pgname);
     state->db2Table->cols[i]->pgattnum = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->pgattnum: %d",i,state->db2Table->cols[i]->pgattnum);
+    db2Debug4("  deserialize col[%d].pgattnum: %d"  ,i, state->db2Table->cols[i]->pgattnum);
     state->db2Table->cols[i]->pgtype   = DatumGetObjectId(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->pgtype: %d",i,state->db2Table->cols[i]->pgtype);
+    db2Debug4("  deserialize col[%d].pgtype: %d"  ,i, state->db2Table->cols[i]->pgtype);
     state->db2Table->cols[i]->pgtypmod = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->pgtypmod: %d",i,state->db2Table->cols[i]->pgtypmod);
+    db2Debug4("  deserialize col[%d].pgtypmod: %d"  ,i, state->db2Table->cols[i]->pgtypmod);
     state->db2Table->cols[i]->used     = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->used: %d",i,state->db2Table->cols[i]->used);
+    db2Debug4("  deserialize col[%d].used: %d"  ,i, state->db2Table->cols[i]->used);
     state->db2Table->cols[i]->pkey     = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-    db2Debug2("  state->db2Table->cols[%d]->pkey: %d",i,state->db2Table->cols[i]->pkey);
+    db2Debug4("  deserialize col[%d].pkey: %d"  ,i, state->db2Table->cols[i]->pkey);
     state->db2Table->cols[i]->val_size = deserializeLong(list_nth(list, idx++));
-    db2Debug2("  state->db2Table->cols[%d]->val_size: %ld",i,state->db2Table->cols[i]->val_size);
+    db2Debug4("  deserialize col[%d].val_size: %ld"  ,i, state->db2Table->cols[i]->val_size);
     state->db2Table->cols[i]->noencerr = deserializeLong(list_nth(list, idx++));
-    db2Debug2("  state->db2Table->cols[%d]->noencerr: %d",i,state->db2Table->cols[i]->noencerr);
+    db2Debug4("  deserialize col[%d].noencerr: %ld"  ,i, state->db2Table->cols[i]->noencerr);
     /* allocate memory for the result value only when the column is used in query */
     state->db2Table->cols[i]->val      = (state->db2Table->cols[i]->used == 1) ? (char*) db2alloc ("state->db2Table->cols[i]->val", state->db2Table->cols[i]->val_size + 1) : NULL;
-    db2Debug2("  state->db2Table->cols[%d]->val: %x",i,state->db2Table->cols[i]->val);
     state->db2Table->cols[i]->val_len  = 0;
-    db2Debug2("  state->db2Table->cols[%d]->val_len: %d",i,state->db2Table->cols[i]->val_len);
     state->db2Table->cols[i]->val_null = 1;
-    db2Debug2("  state->db2Table->cols[%d]->val_null: %d",i,state->db2Table->cols[i]->val_null);
   }
 
   /* length of parameter list */
@@ -143,17 +134,72 @@ DB2FdwState* deserializePlanData (List* list) {
   for (i = 0; i < len; ++i) {
     param            = (ParamDesc*) db2alloc ("state->parmList->next", sizeof (ParamDesc));
     param->type      = DatumGetObjectId(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize param[%d].type: %d"  ,i, param->type);
     param->bindType  = (db2BindType) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize param[%d].bindType: %d"  ,i, param->bindType);
     if (param->bindType == BIND_OUTPUT)
       param->value   = (void *) 42;	/* something != NULL */
     else
       param->value   = NULL;
+    db2Debug4("  deserialize param[%d].value: %x"  ,i, param->value);
     param->node      = NULL;
+    db2Debug4("  deserialize param[%d].node: %x"  ,i, param->node);
     param->colnum    = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize param[%d].colnum: %d"  ,i, param->colnum);
     param->txts      = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize param[%d].txts: %d"  ,i, param->txts);
     param->next      = state->paramList;
     state->paramList = param;
   }
+
+    /* length of parameter list */
+  len  = (int) DatumGetInt32 (((Const*)list_nth(list, idx++))->constvalue);
+  /* parameter table entries */
+  state->resultList = NULL;
+  for (i = 0; i < len; ++i) {
+    DB2ResultColumn* res =  (DB2ResultColumn *) db2alloc ("state->resultList->next", sizeof (DB2ResultColumn));
+    res->colName        = deserializeString(list_nth(list, idx++));
+    db2Debug4("  deserialize res[%d].colName: %s"  ,i, res->colName);
+    res->colType        = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colType: %d"  ,i, res->colType);
+    res->colSize        = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colSize: %d"  ,i, res->colSize);
+    res->colScale       = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colScale: %d"  ,i, res->colScale);
+    res->colNulls       = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colNulls: %d"  ,i, res->colNulls);
+    res->colChars       = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colChars: %d"  ,i, res->colChars);
+    res->colBytes       = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colBytes: %d"  ,i, res->colBytes);
+    res->colPrimKeyPart = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colPrimKeyPart: %d"  ,i, res->colPrimKeyPart);
+    res->colCodepage    = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].colCodepage: %d"  ,i, res->colCodepage);
+    res->pgname         = deserializeString(list_nth(list, idx++));
+    db2Debug4("  deserialize res[%d].pgname: %s"  ,i, res->pgname);
+    res->pgattnum       = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].pgattnum: %d"  ,i, res->pgattnum);
+    res->pgtype         = DatumGetObjectId(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].pgtype: %d"  ,i, res->pgtype);
+    res->pgtypmod       = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].pgtypmod: %d"  ,i, res->pgtypmod);
+    res->pkey           = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].pkey: %d"  ,i, res->pkey);
+    res->val_size       = deserializeLong(list_nth(list, idx++));
+    db2Debug4("  deserialize res[%d].val_size: %ld"  ,i, res->val_size);
+    res->noencerr       = deserializeLong(list_nth(list, idx++));
+    db2Debug4("  deserialize res[%d].noencerr: %ld"  ,i, res->noencerr);
+    res->resnum         = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize res[%d].resnum: %d"  ,i, res->resnum);
+    res->val            = (char*) db2alloc ("res->val", res->val_size + 1);
+    res->val_len        = 0;
+    res->val_null       = 1;
+    res->next           = state->resultList;
+    state->resultList   = res;
+  }
+
+
   db2Debug1("< deserializePlanData - returns: %x", state);
   return state;
 }
@@ -187,10 +233,11 @@ static long deserializeLong (Const* constant) {
  *   This List can be parsed by deserializePlanData.
  */
 List* serializePlanData (DB2FdwState* fdwState) {
-  List*      result   = NIL;
-  int        idxCol   = 0;
-  int        lenParam = 0;
-  ParamDesc* param    = NULL;
+  List*             result    = NIL;
+  int               idxCol    = 0;
+  int               lenParam  = 0;
+  ParamDesc*        param     = NULL;
+  DB2ResultColumn*  rcol      = NULL;
 
   db2Debug1("> serializePlanData");
   result = list_make1(fdwState->retrieved_attr);
@@ -227,22 +274,39 @@ List* serializePlanData (DB2FdwState* fdwState) {
   /* column data */
   for (idxCol = 0; idxCol < fdwState->db2Table->ncols; ++idxCol) {
     result = lappend (result, serializeString (fdwState->db2Table->cols[idxCol]->colName));
+    db2Debug4("  serialize col[%d].colName: %s"  ,idxCol, fdwState->db2Table->cols[idxCol]->colName);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colType));
+    db2Debug4("  serialize col[%d].colType: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colType);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colSize));
+    db2Debug4("  serialize col[%d].colSize: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colSize);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colScale));
+    db2Debug4("  serialize col[%d].colScale: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colScale);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colNulls));
+    db2Debug4("  serialize col[%d].colNulls: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colNulls);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colChars));
+    db2Debug4("  serialize col[%d].colChars: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colChars);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colBytes));
+    db2Debug4("  serialize col[%d].colBytes: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colBytes);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colPrimKeyPart));
+    db2Debug4("  serialize col[%d].colPrimKeyPart: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colPrimKeyPart);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->colCodepage));
+    db2Debug4("  serialize col[%d].colCodepage: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->colCodepage);
     result = lappend (result, serializeString (fdwState->db2Table->cols[idxCol]->pgname));
+    db2Debug4("  serialize col[%d].pgname: %s"  ,idxCol, fdwState->db2Table->cols[idxCol]->pgname);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->pgattnum));
+    db2Debug4("  serialize col[%d].pgattnum: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->pgattnum);
     result = lappend (result, serializeOid    (fdwState->db2Table->cols[idxCol]->pgtype));
+    db2Debug4("  serialize col[%d].pgtype: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->pgtype);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->pgtypmod));
+    db2Debug4("  serialize col[%d].pgtypmod: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->pgtypmod);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->used));
+    db2Debug4("  serialize col[%d].used: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->used);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->pkey));
+    db2Debug4("  serialize col[%d].pkey: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->pkey);
     result = lappend (result, serializeLong   (fdwState->db2Table->cols[idxCol]->val_size));
+    db2Debug4("  serialize col[%d].val_size: %ld"  ,idxCol, fdwState->db2Table->cols[idxCol]->val_size);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->noencerr));
+    db2Debug4("  serialize col[%d].val_size: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->noencerr);
     /* don't serialize val, val_len, val_null and varno */
   }
 
@@ -252,14 +316,66 @@ List* serializePlanData (DB2FdwState* fdwState) {
   }
   /* serialize length */
   result = lappend (result, serializeInt (lenParam));
+  db2Debug4("  serialize paramList.length: %d", lenParam);
   /* parameter list entries */
   for (param = fdwState->paramList; param; param = param->next) {
     result = lappend (result, serializeOid (param->type));
+    db2Debug4("  serialize param.type: %d"  , param->type);
     result = lappend (result, serializeInt ((int) param->bindType));
+    db2Debug4("  serialize param.bindType: %d"  , param->bindType);
     result = lappend (result, serializeInt ((int) param->colnum));
+    db2Debug4("  serialize param.colnum: %d"  , param->colnum);
     result = lappend (result, serializeInt ((int) param->txts));
-    /* don't serialize value and node */
+    db2Debug4("  serialize param.txta: %d"  , param->txts);
   }
+
+  /* find length of result list */
+  lenParam = 0;
+  for (rcol = fdwState->resultList; rcol; rcol = rcol->next) {
+    ++lenParam;
+  }
+  /* serialize length */
+  result = lappend (result, serializeInt (lenParam));
+  db2Debug4("  serialize resultList.length: %d", lenParam);
+  /* parameter list entries */
+  for (rcol = fdwState->resultList; rcol; rcol = rcol->next) {
+    result = lappend (result, serializeString (rcol->colName));
+    db2Debug4("  serialize res.colName: %s"  , rcol->colName);
+    result = lappend (result, serializeInt    (rcol->colType));
+    db2Debug4("  serialize res.colType: %d"  , rcol->colType);
+    result = lappend (result, serializeInt    (rcol->colSize));
+    db2Debug4("  serialize res.colSize: %d"  , rcol->colSize);
+    result = lappend (result, serializeInt    (rcol->colScale));
+    db2Debug4("  serialize res.colScale: %d" , rcol->colScale);
+    result = lappend (result, serializeInt    (rcol->colNulls));
+    db2Debug4("  serialize res.colNulls: %d", rcol->colNulls);
+    result = lappend (result, serializeInt    (rcol->colChars));
+    db2Debug4("  serialize res.colChars: %d" , rcol->colChars);
+    result = lappend (result, serializeInt    (rcol->colBytes));
+    db2Debug4("  serialize res.colBytes: %d" , rcol->colBytes);
+    result = lappend (result, serializeInt    (rcol->colPrimKeyPart));
+    db2Debug4("  serialize res.colPrimKeyPart: %d", rcol->colPrimKeyPart);
+    result = lappend (result, serializeInt    (rcol->colCodepage));
+    db2Debug4("  serialize res.codepage: %d" , rcol->colCodepage);
+    result = lappend (result, serializeString (rcol->pgname));
+    db2Debug4("  serialize res.pgname: %s"   , rcol->pgname);
+    result = lappend (result, serializeInt    (rcol->pgattnum));
+    db2Debug4("  serialize res.pgattnum: %d" , rcol->pgattnum);
+    result = lappend (result, serializeOid    (rcol->pgtype));
+    db2Debug4("  serialize res.pgtype: %d"   , rcol->pgtype);
+    result = lappend (result, serializeInt    (rcol->pgtypmod));
+    db2Debug4("  serialize res.pgtypmod: %d" , rcol->pgtypmod);
+    result = lappend (result, serializeInt    (rcol->pkey));
+    db2Debug4("  serialize res.pkey: %d"      , rcol->pkey);
+    result = lappend (result, serializeLong   (rcol->val_size));
+    db2Debug4("  serialize res.val_size: %ld", rcol->val_size);
+    result = lappend (result, serializeInt    (rcol->noencerr));
+    db2Debug4("  serialize res.noencerr: %d" , rcol->noencerr);
+    result = lappend (result, serializeInt    (lenParam));        // the last result is the first in the list
+    db2Debug4("  serialize res.resnum: %d"   , lenParam);
+    lenParam--;
+  }
+
   /* don't serialize params, startup_cost, total_cost, rowcount, columnindex, temp_cxt, order_clause and where_clause */
   db2Debug1("< serializePlanData - returns: %x",result);
   return result;
@@ -270,10 +386,10 @@ List* serializePlanData (DB2FdwState* fdwState) {
  */
 static Const* serializeString (const char* s) {
   Const* result = NULL;
-  db2Debug1("> serializeString");
+  db2Debug5("> serializeString");
   result = (s == NULL) ? makeNullConst (TEXTOID, -1, InvalidOid) 
                        : makeConst (TEXTOID, -1, InvalidOid, -1, PointerGetDatum (cstring_to_text (s)), false, false);
-  db2Debug1("< serializeString - returns: %x",result);
+  db2Debug5("< serializeString - returns: %x",result);
   return result;
 }
 
@@ -282,7 +398,7 @@ static Const* serializeString (const char* s) {
  */
 static Const* serializeLong (long i) {
   Const* result = NULL;
-  db2Debug1("> serializeLong");
+  db2Debug5("> serializeLong");
   if (sizeof (long) <= 4)
     result = makeConst (INT4OID, -1, InvalidOid, 4, Int32GetDatum ((int32) i), false, true);
   else
@@ -293,6 +409,6 @@ static Const* serializeLong (long i) {
       false
 #endif /* USE_FLOAT8_BYVAL */
       );
-  db2Debug1("< serializeLong - returns: %x",result);
+  db2Debug5("< serializeLong - returns: %x",result);
   return result;
 }

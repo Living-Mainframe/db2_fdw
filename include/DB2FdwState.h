@@ -3,6 +3,7 @@
 
 #include <foreign/foreign.h>
 #include "ParamDesc.h"
+#include "DB2ResultColumn.h"
 
 /** DB2FdwState
  *  FDW-specific information for RelOptInfo.fdw_private and ForeignScanState.fdw_state.
@@ -30,6 +31,7 @@ typedef struct db2FdwState {
   char*               query;                  // query we issue against DB2
   List*               params;                 // list of parameters needed for the query
   ParamDesc*          paramList;              // description of parameters needed for the query
+  DB2ResultColumn*    resultList;             // list of result columns for the query
   DB2Table*           db2Table;               // description of the remote DB2 table
   unsigned long       rowcount;               // rows already read from DB2
   int                 columnindex;            // currently processed column for error context

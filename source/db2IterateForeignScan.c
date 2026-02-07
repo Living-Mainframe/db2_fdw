@@ -11,14 +11,14 @@
 
 /** external prototypes */
 extern int          db2IsStatementOpen        (DB2Session* session);
-extern void         db2PrepareQuery           (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize);
+extern void         db2PrepareQuery           (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         db2CloseStatement         (DB2Session* session);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern void         db2Debug3                 (const char* message, ...);
-extern void         convertTuple              (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trunc_lob) ;
+extern void         convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
 extern char*        deparseDate               (Datum datum);
 extern char*        deparseTimestamp          (Datum datum, bool hasTimezone);
 
@@ -50,7 +50,7 @@ TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
     char* paramInfo = setSelectParameters (fdw_state->paramList, econtext);
     /* execute the DB2 statement and fetch the first row */
     db2Debug3("  execute query in foreign table scan '%s'", paramInfo);
-    db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, fdw_state->prefetch, fdw_state->fetch_size);
+    db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->resultList, fdw_state->prefetch, fdw_state->fetch_size);
     have_result = db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList);
     have_result = db2FetchNext (fdw_state->session);
   }
@@ -60,7 +60,8 @@ TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
     /* increase row count */
     ++fdw_state->rowcount;
     /* convert result to arrays of values and null indicators */
-    convertTuple (fdw_state, slot->tts_values, slot->tts_isnull, false);
+    db2Debug2("  slot->tts_tupleDescriptor->natts: %d",slot->tts_tupleDescriptor->natts);
+    convertTuple (fdw_state, slot->tts_tupleDescriptor->natts, slot->tts_values, slot->tts_isnull, false);
     /* store the virtual tuple */
     ExecStoreVirtualTuple (slot);
   } else {
@@ -107,10 +108,12 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
       datum = TimestampGetDatum (tstamp);
       is_null = false;
     } else {
-      /** Evaluate the expression.
-       * This code path cannot be reached in 9.1
-       */
-      datum = ExecEvalExpr ((ExprState *) (param->node), econtext, &is_null);
+      if (param->node) {
+        /* Evaluate the expression. This code path cannot be reached in 9.1 */
+        datum = ExecEvalExpr ((ExprState *) (param->node), econtext, &is_null);
+      } else {
+        is_null = true;
+      }
     }
 
     if (is_null) {

@@ -380,7 +380,11 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
 void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int txts) {
   ParamDesc *param;
 
-  db2Debug1(">  addParam");
+  db2Debug1("> addParam");
+  db2Debug2("  pgtype: %d",pgtype);
+  db2Debug2("  colType: %d",colType);
+  db2Debug2("  colnum: %d",colnum);
+  db2Debug2("  txts: %d",txts);
   param       = db2alloc("paramList->next",sizeof (ParamDesc));
   param->type = pgtype;
   switch (c2dbType(colType)) {
@@ -402,14 +406,18 @@ void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int
     default:
       param->bindType = BIND_STRING;
   }
+  db2Debug2("  param->bindType: '%d'",param->bindType);
   param->value  = NULL;
+  db2Debug2("  param->value: %x",param->value);
   param->node   = NULL;
+  db2Debug2("  param->node: %x",param->node);
   param->colnum = colnum;
+  db2Debug2("  param->colnum: %d",param->colnum);
   param->txts   = txts;
-  db2Debug2("  param->colnum: '%d'",param->colnum);
+  db2Debug2("  param->txts: %d",param->txts);
   param->next   = *paramList;
   *paramList    = param;
-  db2Debug1(">  addParam");
+  db2Debug1("< addParam");
 }
 #endif /* WRITE_API */
 

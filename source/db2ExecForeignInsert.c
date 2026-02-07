@@ -16,7 +16,7 @@ extern void            db2Debug1                 (const char* message, ...);
 #ifdef WRITE_API
 extern void            setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
 #endif
-extern void            convertTuple              (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trunc_lob) ;
+extern void            convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
 
 /** local prototypes */
 TupleTableSlot* db2ExecForeignInsert(EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
@@ -54,7 +54,7 @@ TupleTableSlot* db2ExecForeignInsert (EState* estate, ResultRelInfo* rinfo, Tupl
   ExecClearTuple (slot);
 
   /* convert result for RETURNING to arrays of values and null indicators */
-  convertTuple (fdw_state, slot->tts_values, slot->tts_isnull, false);
+  convertTuple (fdw_state, slot->tts_tupleDescriptor->natts, slot->tts_values, slot->tts_isnull, false);
 
   /* store the virtual tuple */
   ExecStoreVirtualTuple (slot);
