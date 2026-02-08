@@ -43,7 +43,7 @@ typedef struct {
 
 
 /** external prototypes */
-extern void         db2GetLob                 (DB2Session* session, DB2Column* column, int cidx, char** value, long* value_len, unsigned long trunc);
+extern void         db2GetLob                 (DB2Session* session, DB2ResultColumn* column, char** value, long* value_len, unsigned long trunc);
 extern void         db2Shutdown               (void);
 extern short        c2dbType                  (short fcType);
 extern void         db2Debug1                 (const char* message, ...);
@@ -61,7 +61,6 @@ void                reset_transmission_modes  (int nestlevel);
 int                 set_transmission_modes    (void);
 bool                is_builtin                (Oid objectId);
 bool                is_shippable              (Oid objectId, Oid classId, DB2FdwState* fpinfo);
-static void         errorContextCallback      (void* arg);
 static void         InvalidateShippableCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
 static void         InitializeShippableCache  (void);
 static bool         lookup_shippable          (Oid objectId, Oid classId, DB2FdwState* fpinfo);
@@ -195,56 +194,40 @@ void exitHook (int code, Datum arg) {
  *   If trunc_lob it true, truncate LOBs to WIDTH_THRESHOLD+1 bytes.
  */
 void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) {
-  char*                tmp_value      = NULL;
   char*                value          = NULL;
   long                 value_len      = 0;
   int                  j              = 0; 
   int                  index          = -1;
-//  ErrorContextCallback errcb;
   Oid                  pgtype;
   DB2Table*            db2Table       = fdw_state->db2Table;
   DB2ResultColumn*     res            = NULL;
   bool                 isSimpleSelect = false;
 
   db2Debug1("> %s::convertTuple",__FILE__);
-  /* initialize error context callback, install it only during conversions */
-//  errcb.callback = errorContextCallback;
-//  errcb.arg = (void *) fdw_state;
+  db2Debug2("  natts: %d", natts);
+  db2Debug2("  truncate lob: %s", trunc_lob ? "true": "false");
 
   /* assign result values */
   isSimpleSelect = (natts == db2Table->npgcols);
   db2Debug2("  isSimpleSelect: %s", isSimpleSelect ? "true": "false");
-  for (j = 0; j < db2Table->npgcols; ++j) {
-    short db2Type;
-    db2Debug2("  start processing column %d of %d",j + 1, db2Table->npgcols);
-    db2Debug2("  index: %d",index);
-    /* for dropped columns, insert a NULL */
-    if ((index + 1 < db2Table->ncols) && (db2Table->cols[index+1]->pgattnum > j + 1)) {
-      nulls[j]  = true;
-      values[j] = PointerGetDatum (NULL);
-      continue;
-    } else {
-      ++index;
-    }
-    db2Debug2("  index: %d",index);
-    /* get the result for the column of the current index */
-    for (res = fdw_state->resultList; res; res = res->next) {
-      if (isSimpleSelect) {
-        if (res->pgattnum == j+1)
-          break;
-      } else {
-        if (res->resnum == j+1)
-          break;
-      }
-    }
-    /* Columns exceeding the length of the DB2 table will be NULL, as well as columns that are not used in the query.
-     * Geometry columns are NULL if the value is NULL, for all other types use the NULL indicator.
-     */
-    if (index >= db2Table->ncols || res == NULL || res->val_null == -1) {
-      nulls[j]  = true;
-      values[j] = PointerGetDatum (NULL);
-      continue;
-    }
+
+  // initialize all columns to NULL
+  for (j = 0; j < natts; j++) {
+    nulls[j]  = true;
+    values[j] = PointerGetDatum (NULL);
+  }
+
+  for (res = fdw_state->resultList; res; res = res->next) {
+    short db2Type = 0;
+    j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
+    db2Debug2("  start processing column %d of %d: values index = %d", res->resnum, natts, j);
+    db2Debug2("  res->pgname   : %s"  ,res->pgname  );
+    db2Debug2("  res->pgattnum : %d"  ,res->pgattnum);
+    db2Debug2("  res->pgtype   : %d"  ,res->pgtype  );
+    db2Debug2("  res->pgtypemod: %d"  ,res->pgtypmod);
+    db2Debug2("  res->val      : %s"  ,res->val     );
+    db2Debug2("  res->val_len  : %d"  ,res->val_len );
+    db2Debug2("  res->val_null : %d"  ,res->val_null);
 
     /* from here on, we can assume columns to be NOT NULL */
     nulls[j] = false;
@@ -257,7 +240,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         db2Debug3("  DB2_BLOB or DB2CLOB");
         /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
         /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
-        db2GetLob (fdw_state->session, fdw_state->db2Table->cols[index], index+1, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
+        db2GetLob (fdw_state->session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
       }
       break;
       case DB2_LONGVARBINARY: {
@@ -277,12 +260,14 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
       case DB2_REAL:
       case DB2_DECFLOAT:
       case DB2_DOUBLE: {
+        char* tmp_value = NULL;
+
         db2Debug3("  DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
         value     = res->val;
         value_len = res->val_len;
         value_len = (value_len == 0) ? strlen(value) : value_len;
         tmp_value = value;
-        if((tmp_value = strchr(value,','))!=NULL) {
+        if((tmp_value = strchr(value,',')) != NULL) {
           *tmp_value = '.';
         }
       }
@@ -298,12 +283,6 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
     }
     db2Debug2("  value         : %s"  , value);
     db2Debug2("  value_len     : %ld" , value_len);
-    db2Debug2("  res->val_null : %d"  ,res->val_len );
-    db2Debug2("  res->val_null : %d"  ,res->val_null);
-    db2Debug2("  res->pgname   : %s"  ,res->pgname  );
-    db2Debug2("  res->pgattnum : %d"  ,res->pgattnum);
-    db2Debug2("  res->pgtype   : %d"  ,res->pgtype  );
-    db2Debug2("  res->pgtypemod: %d"  ,res->pgtypmod);
     /* fill the TupleSlot with the data (after conversion if necessary) */
     if (pgtype == BYTEAOID) {
       /* binary columns are not converted */
@@ -326,15 +305,6 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
       ReleaseSysCache (tuple);
       dat = CStringGetDatum (value);
       db2Debug3("  CStringGetDatum(%s): %d",value, dat);
-      /* install error context callback */
-//      db2Debug3("  error_context_stack");
-//      db2Debug2("  errcb.previous: %x",errcb.previous);
-//      errcb.previous         = error_context_stack;
-//      db2Debug2("  errcb.previous: %x",errcb.previous);
-//      db2Debug2("  &errcb: %x", &errcb);
-//      error_context_stack    = &errcb;
-      db2Debug2("  index: %d", index);
-      fdw_state->columnindex = index;
 
       /* for string types, check that the data are in the database encoding */
       if (pgtype == BPCHAROID || pgtype == VARCHAROID || pgtype == TEXTOID) {
@@ -360,8 +330,6 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
           values[j] = OidFunctionCall1 (typinput, dat);
           db2Debug3("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
       }
-      /* uninstall error context callback */
-//      error_context_stack = errcb.previous;
     }
 
     /* release the data buffer for LOBs */
@@ -374,22 +342,8 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
       }
     }
   }
-  db2Debug1("< %s::convertTuple",__FILE__);
-}
 
-/** errorContextCallback
- *   Provides the context for an error message during a type input conversion.
- *   The argument must be a pointer to a DB2FdwState.
- */
-static void errorContextCallback (void* arg) {
-  DB2FdwState *fdw_state = (DB2FdwState*) arg;
-  db2Debug1("> %s::errorContextCallback",__FILE__);
-  errcontext ( "converting column \"%s\" for foreign table scan of \"%s\", row %lu"
-             , quote_identifier (fdw_state->db2Table->cols[fdw_state->columnindex]->pgname)
-             , quote_identifier (fdw_state->db2Table->pgname)
-             , fdw_state->rowcount
-            );
-  db2Debug1("< %s::errorContextCallback",__FILE__);
+  db2Debug1("< %s::convertTuple",__FILE__);
 }
 
 /** Undo the effects of set_transmission_modes().
