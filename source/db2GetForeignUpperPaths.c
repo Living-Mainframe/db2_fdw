@@ -176,7 +176,6 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
     copy->startup_cost = fdw_in->startup_cost;
     copy->total_cost   = fdw_in->total_cost;
     copy->rowcount     = 0;
-    copy->columnindex  = 0;
     copy->temp_cxt     = NULL;
 
     copy->order_clause = fdw_in->order_clause ? db2strdup(fdw_in->order_clause) : NULL;

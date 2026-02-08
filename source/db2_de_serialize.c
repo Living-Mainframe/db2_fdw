@@ -49,7 +49,6 @@ DB2FdwState* deserializePlanData (List* list) {
   state->total_cost        = 0;
   /* these are not serialized */
   state->rowcount          = 0;
-  state->columnindex       = 0;
   state->params            = NULL;
   state->temp_cxt          = NULL;
   state->order_clause      = NULL;
@@ -376,7 +375,7 @@ List* serializePlanData (DB2FdwState* fdwState) {
     lenParam--;
   }
 
-  /* don't serialize params, startup_cost, total_cost, rowcount, columnindex, temp_cxt, order_clause and where_clause */
+  /* don't serialize params, startup_cost, total_cost, rowcount, temp_cxt, order_clause and where_clause */
   db2Debug1("< serializePlanData - returns: %x",result);
   return result;
 }

@@ -366,7 +366,6 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
   copy->startup_cost = 0.0;
   copy->total_cost   = 0.0;
   copy->rowcount     = 0;
-  copy->columnindex  = 0;
   copy->temp_cxt     = NULL;
   copy->order_clause = NULL;
   db2Debug1("< copyPlanData");

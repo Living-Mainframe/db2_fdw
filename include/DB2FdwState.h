@@ -34,7 +34,6 @@ typedef struct db2FdwState {
   DB2ResultColumn*    resultList;             // list of result columns for the query
   DB2Table*           db2Table;               // description of the remote DB2 table
   unsigned long       rowcount;               // rows already read from DB2
-  int                 columnindex;            // currently processed column for error context
   MemoryContext       temp_cxt;               // short-lived memory for data modification
   unsigned long       prefetch;               // number of rows to prefetch (SQL_ATTR_PREFETCH_NROWS 0-1024)
   char*               order_clause;           // for sort-pushdown
