@@ -218,8 +218,6 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
   }
 
   for (res = fdw_state->resultList; res; res = res->next) {
-    short db2Type = 0;
-    j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
     db2Debug2("  start processing column %d of %d: values index = %d", res->resnum, natts, j);
     db2Debug2("  res->pgname   : %s"  ,res->pgname  );
     db2Debug2("  res->pgattnum : %d"  ,res->pgattnum);
@@ -229,12 +227,15 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
     db2Debug2("  res->val_len  : %d"  ,res->val_len );
     db2Debug2("  res->val_null : %d"  ,res->val_null);
 
-    /* from here on, we can assume columns to be NOT NULL */
-    nulls[j] = false;
-    pgtype   = res->pgtype;
-
-    /* get the data and its length */
-    switch(c2dbType(res->colType)) {
+    if (res->val_null >= 0) {
+      short db2Type = 0;
+      j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
+      /* from here on, we can assume columns to be NOT NULL */
+      nulls[j] = false;
+      pgtype   = res->pgtype;
+  
+      /* get the data and its length */
+      switch(c2dbType(res->colType)) {
       case DB2_BLOB:
       case DB2_CLOB: {
         db2Debug3("  DB2_BLOB or DB2CLOB");
@@ -281,17 +282,17 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
       }
       break;
     }
-    db2Debug2("  value         : %s"  , value);
-    db2Debug2("  value_len     : %ld" , value_len);
-    /* fill the TupleSlot with the data (after conversion if necessary) */
-    if (pgtype == BYTEAOID) {
+      db2Debug2("  value         : %s"  , value);
+      db2Debug2("  value_len     : %ld" , value_len);
+      /* fill the TupleSlot with the data (after conversion if necessary) */
+      if (pgtype == BYTEAOID) {
       /* binary columns are not converted */
       bytea* result = (bytea*) db2alloc ("bytea", value_len + VARHDRSZ);
       memcpy (VARDATA (result), value, value_len);
       SET_VARSIZE (result, value_len + VARHDRSZ);
 
       values[j] = PointerGetDatum (result);
-    } else {
+      } else {
       regproc   typinput;
       HeapTuple tuple;
       Datum     dat;
@@ -331,15 +332,18 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
           db2Debug3("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
       }
     }
-
-    /* release the data buffer for LOBs */
-    db2Type = c2dbType(res->colType);
-    if (db2Type == DB2_BLOB || db2Type == DB2_CLOB) {
-      if (value != NULL) {
-        db2free (value);
-      } else {
-        db2Debug2("  not freeing value, since it is null");
+  
+      /* release the data buffer for LOBs */
+      db2Type = c2dbType(res->colType);
+      if (db2Type == DB2_BLOB || db2Type == DB2_CLOB) {
+        if (value != NULL) {
+          db2free (value);
+        } else {
+          db2Debug2("  not freeing value, since it is null");
+        }
       }
+    } else {
+      db2Debug2("  column %d is NULL", res->resnum);
     }
   }
 
