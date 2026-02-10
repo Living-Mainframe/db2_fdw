@@ -198,7 +198,6 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
   long                 value_len      = 0;
   int                  j              = 0; 
   int                  index          = -1;
-  Oid                  pgtype;
   DB2Table*            db2Table       = fdw_state->db2Table;
   DB2ResultColumn*     res            = NULL;
   bool                 isSimpleSelect = false;
@@ -218,6 +217,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
   }
 
   for (res = fdw_state->resultList; res; res = res->next) {
+    j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
     db2Debug2("  start processing column %d of %d: values index = %d", res->resnum, natts, j);
     db2Debug2("  res->pgname   : %s"  ,res->pgname  );
     db2Debug2("  res->pgattnum : %d"  ,res->pgattnum);
@@ -229,110 +229,107 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
 
     if (res->val_null >= 0) {
       short db2Type = 0;
-      j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
       /* from here on, we can assume columns to be NOT NULL */
       nulls[j] = false;
-      pgtype   = res->pgtype;
   
       /* get the data and its length */
       switch(c2dbType(res->colType)) {
-      case DB2_BLOB:
-      case DB2_CLOB: {
-        db2Debug3("  DB2_BLOB or DB2CLOB");
-        /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
-        /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
-        db2GetLob (fdw_state->session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
-      }
-      break;
-      case DB2_LONGVARBINARY: {
-        db2Debug3("  DB2_LONGBINARY datatypes");
-        /* for LONG and LONG RAW, the first 4 bytes contain the length */
-        value_len = *((int32*) res->val);
-        /* the rest is the actual data */
-        value = res->val;
-        /* terminating zero byte (needed for LONGs) */
-        value[value_len] = '\0';
-      }
-      break;
-      case DB2_FLOAT:
-      case DB2_DECIMAL:
-      case DB2_SMALLINT:
-      case DB2_INTEGER:
-      case DB2_REAL:
-      case DB2_DECFLOAT:
-      case DB2_DOUBLE: {
-        char* tmp_value = NULL;
-
-        db2Debug3("  DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
-        value     = res->val;
-        value_len = res->val_len;
-        value_len = (value_len == 0) ? strlen(value) : value_len;
-        tmp_value = value;
-        if((tmp_value = strchr(value,',')) != NULL) {
-          *tmp_value = '.';
+        case DB2_BLOB:
+        case DB2_CLOB: {
+          db2Debug3("  DB2_BLOB or DB2CLOB");
+          /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
+          /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
+          db2GetLob (fdw_state->session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
         }
+        break;
+        case DB2_LONGVARBINARY: {
+          db2Debug3("  DB2_LONGBINARY datatypes");
+          /* for LONG and LONG RAW, the first 4 bytes contain the length */
+          value_len = *((int32*) res->val);
+          /* the rest is the actual data */
+          value = res->val;
+          /* terminating zero byte (needed for LONGs) */
+          value[value_len] = '\0';
+        }
+        break;
+        case DB2_FLOAT:
+        case DB2_DECIMAL:
+        case DB2_SMALLINT:
+        case DB2_INTEGER:
+        case DB2_REAL:
+        case DB2_DECFLOAT:
+        case DB2_DOUBLE: {
+          char* tmp_value = NULL;
+  
+          db2Debug3("  DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
+          value     = res->val;
+          value_len = res->val_len;
+          value_len = (value_len == 0) ? strlen(value) : value_len;
+          tmp_value = value;
+          if((tmp_value = strchr(value,',')) != NULL) {
+            *tmp_value = '.';
+          }
+        }
+        break;
+        default: {
+          db2Debug3("  shoud be string based values");
+          /* for other data types, db2Table contains the results */
+          value     = res->val;
+          value_len = res->val_len;
+          value_len = (value_len == 0) ? strlen(value) : value_len;
+        }
+        break;
       }
-      break;
-      default: {
-        db2Debug3("  shoud be string based values");
-        /* for other data types, db2Table contains the results */
-        value     = res->val;
-        value_len = res->val_len;
-        value_len = (value_len == 0) ? strlen(value) : value_len;
-      }
-      break;
-    }
       db2Debug2("  value         : %s"  , value);
       db2Debug2("  value_len     : %ld" , value_len);
       /* fill the TupleSlot with the data (after conversion if necessary) */
-      if (pgtype == BYTEAOID) {
-      /* binary columns are not converted */
-      bytea* result = (bytea*) db2alloc ("bytea", value_len + VARHDRSZ);
-      memcpy (VARDATA (result), value, value_len);
-      SET_VARSIZE (result, value_len + VARHDRSZ);
-
-      values[j] = PointerGetDatum (result);
-      } else {
-      regproc   typinput;
-      HeapTuple tuple;
-      Datum     dat;
-      db2Debug2("  pgtype: %d",pgtype);
-      /* find the appropriate conversion function */
-      tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (pgtype));
-      if (!HeapTupleIsValid (tuple)) {
-        elog (ERROR, "cache lookup failed for type %u", pgtype);
-      }
-      typinput = ((Form_pg_type) GETSTRUCT (tuple))->typinput;
-      ReleaseSysCache (tuple);
-      dat = CStringGetDatum (value);
-      db2Debug3("  CStringGetDatum(%s): %d",value, dat);
-
-      /* for string types, check that the data are in the database encoding */
-      if (pgtype == BPCHAROID || pgtype == VARCHAROID || pgtype == TEXTOID) {
-        db2Debug3("  pg_verify_mbstr");
-        (void) pg_verify_mbstr (GetDatabaseEncoding (), value, value_len, res->noencerr == NO_ENC_ERR_TRUE);
-      }
-      /* call the type input function */
-      switch (pgtype) {
-        case BPCHAROID:
-        case VARCHAROID:
-        case TIMESTAMPOID:
-        case TIMESTAMPTZOID:
-        case TIMEOID:
-        case TIMETZOID:
-        case INTERVALOID:
-        case NUMERICOID:
-          /* these functions require the type modifier */
-          values[j] = OidFunctionCall3 (typinput, dat, ObjectIdGetDatum (InvalidOid), Int32GetDatum (res->pgtypmod));
-          db2Debug3("  OidFunctionCall3 : values[%d]: %d", j, values[j]);
-          break;
-        default:
-          /* the others don't */
-          values[j] = OidFunctionCall1 (typinput, dat);
-          db2Debug3("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
-      }
-    }
+      if (res->pgtype == BYTEAOID) {
+        /* binary columns are not converted */
+        bytea* result = (bytea*) db2alloc ("bytea", value_len + VARHDRSZ);
+        memcpy (VARDATA (result), value, value_len);
+        SET_VARSIZE (result, value_len + VARHDRSZ);
   
+        values[j] = PointerGetDatum (result);
+      } else {
+        regproc   typinput;
+        HeapTuple tuple;
+        Datum     dat;
+        db2Debug2("  pgtype: %d",res->pgtype);
+        /* find the appropriate conversion function */
+        tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (res->pgtype));
+        if (!HeapTupleIsValid (tuple)) {
+          elog (ERROR, "cache lookup failed for type %u", res->pgtype);
+        }
+        typinput = ((Form_pg_type) GETSTRUCT (tuple))->typinput;
+        ReleaseSysCache (tuple);
+        dat = CStringGetDatum (value);
+        db2Debug3("  CStringGetDatum(%s): %d",value, dat);
+  
+        /* for string types, check that the data are in the database encoding */
+        if (res->pgtype == BPCHAROID || res->pgtype == VARCHAROID || res->pgtype == TEXTOID) {
+          db2Debug3("  pg_verify_mbstr");
+          (void) pg_verify_mbstr (GetDatabaseEncoding(), value, value_len, res->noencerr == NO_ENC_ERR_TRUE);
+        }
+        /* call the type input function */
+        switch (res->pgtype) {
+          case BPCHAROID:
+          case VARCHAROID:
+          case TIMESTAMPOID:
+          case TIMESTAMPTZOID:
+          case TIMEOID:
+          case TIMETZOID:
+          case INTERVALOID:
+          case NUMERICOID:
+            /* these functions require the type modifier */
+            values[j] = OidFunctionCall3 (typinput, dat, ObjectIdGetDatum (InvalidOid), Int32GetDatum (res->pgtypmod));
+            db2Debug3("  OidFunctionCall3 : values[%d]: %d", j, values[j]);
+            break;
+          default:
+            /* the others don't */
+            values[j] = OidFunctionCall1 (typinput, dat);
+            db2Debug3("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
+        }
+      }
       /* release the data buffer for LOBs */
       db2Type = c2dbType(res->colType);
       if (db2Type == DB2_BLOB || db2Type == DB2_CLOB) {
