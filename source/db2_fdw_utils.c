@@ -224,7 +224,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
     db2Debug2("  res->pgname   : %s"  ,res->pgname  );
     db2Debug2("  res->pgattnum : %d"  ,res->pgattnum);
     db2Debug2("  res->pgtype   : %d"  ,res->pgtype  );
-    db2Debug2("  res->pgtypemod: %d"  ,res->pgtypmod);
+    db2Debug2("  res->pgtypmod : %d"  ,res->pgtypmod);
     db2Debug2("  res->val      : %s"  ,res->val     );
     db2Debug2("  res->val_len  : %d"  ,res->val_len );
     db2Debug2("  res->val_null : %d"  ,res->val_null);
