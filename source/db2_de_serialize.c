@@ -370,8 +370,8 @@ List* serializePlanData (DB2FdwState* fdwState) {
     db2Debug4("  serialize res.val_size: %ld", rcol->val_size);
     result = lappend (result, serializeInt    (rcol->noencerr));
     db2Debug4("  serialize res.noencerr: %d" , rcol->noencerr);
-    result = lappend (result, serializeInt    (lenParam));        // the last result is the first in the list
-    db2Debug4("  serialize res.resnum: %d"   , lenParam);
+    result = lappend (result, serializeInt    (rcol->resnum));        // the last result is the first in the list
+    db2Debug4("  serialize res.resnum: %d"   , rcol->resnum);
     lenParam--;
   }
 
