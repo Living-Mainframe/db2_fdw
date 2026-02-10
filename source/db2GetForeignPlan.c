@@ -67,6 +67,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
 
   if (IS_SIMPLE_REL(foreignrel)) {
     ListCell* cell = NULL;
+    int resnum = 0;
 
     /* For base relations, set scan_relid as the relid of the relation. */
     scan_relid = foreignrel->relid;
@@ -79,17 +80,16 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
       DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
       resCol->next       = fpinfo->resultList;
       fpinfo->resultList = resCol;
+      resCol->resnum     = ++resnum;
       getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
+      db2Debug3("  column %s added to result list", resCol->colName);
     }
 
     /* examine each condition for Var nodes */
     db2Debug3("  size of conditions: %d", list_length(foreignrel->baserestrictinfo));
     foreach (cell, foreignrel->baserestrictinfo) {
       db2Debug3("  examine condition");
-      DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
-      resCol->next       = fpinfo->resultList;
-      fpinfo->resultList = resCol;
-      getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
+      getUsedColumns ((Expr*) lfirst (cell), foreignrel, NULL);
     }
 
     /* In a base-relation scan, we must apply the given scan_clauses.
@@ -146,6 +146,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
     fdw_scan_tlist = build_tlist_to_deparse(foreignrel);
     if (list_length(fdw_scan_tlist) > 0) {
       ListCell*   cell    = NULL;
+      int         resnum  = 0;
 
       /* examine each condition for Tlist nodes */
       db2Debug3("  size of tlist: %d", list_length(fdw_scan_tlist));
@@ -154,6 +155,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
         DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
         resCol->next       = fpinfo->resultList;
         fpinfo->resultList = resCol;
+        resCol->resnum     = ++resnum;
         getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
       }
     }
@@ -488,7 +490,7 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
 
 static void addResult(DB2ResultColumn* resCol, DB2Column* column) {
   db2Debug1("> %s::addResult",__FILE__);
-  if (resCol->colName == NULL) {
+  if (resCol && resCol->colName == NULL) {
     resCol->colName        = db2strdup(column->colName);
     resCol->colType        = column->colType;
     resCol->colSize        = column->colSize;
@@ -509,8 +511,6 @@ static void addResult(DB2ResultColumn* resCol, DB2Column* column) {
     resCol->val_null       = column->val_null;
     resCol->varno          = column->varno;
     resCol->noencerr       = column->noencerr;
-  } else {
-    db2Debug2("  column %s already in result list", column->colName);
   }
   db2Debug1("< %s::addResult",__FILE__);
 }
