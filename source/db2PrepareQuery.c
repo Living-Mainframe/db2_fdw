@@ -131,6 +131,7 @@ void db2PrepareQuery (DB2Session* session, const char *query, DB2ResultColumn* r
     }
     db2Debug2("  res->colName       : %s" ,res->colName);
     db2Debug2("  res->colSize       : %ld",res->colSize);
+    db2Debug2("  res->colType       : %d" ,res->colType);
     db2Debug2("  res->colScale      : %d" ,res->colScale);
     db2Debug2("  res->colNulls      : %d" ,res->colNulls);
     db2Debug2("  res->colChars      : %ld",res->colChars);
