@@ -2149,6 +2149,7 @@ static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
   int     colno  = 0;
   /* Qualify columns when multiple relations are involved. */
   bool    qualify_col = (bms_membership(relids) == BMS_MULTIPLE);
+  bool    is_query_var = false;
 
   db2Debug1("> %s::deparseVar", __FILE__);
   /* If the Var belongs to the foreign relation that is deparsed as a subquery, use the relation and column alias to the Var provided by the
@@ -2158,9 +2159,10 @@ static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
     appendStringInfo(ctx->buf, "%s%d.%s%d", SUBQUERY_REL_ALIAS_PREFIX, relno, SUBQUERY_COL_ALIAS_PREFIX, colno);
     return;
   }
-  db2Debug2("  bms_is_member(%d,%d): %s",expr->varno, relids,bms_is_member(expr->varno, relids) ? "true":"false");
+  is_query_var = bms_is_member(expr->varno, ctx->root->all_query_rels);
+  db2Debug2("  bms_is_member(%d,%d): %s",expr->varno, ctx->root->all_query_rels, is_query_var ? "true":"false");
   db2Debug2("  expr->varlevelsup: %d",expr->varlevelsup);
-  if (bms_is_member(expr->varno, relids) && expr->varlevelsup == 0) {
+  if (is_query_var && expr->varlevelsup == 0) {
     deparseColumnRef(ctx->buf, expr->varno, expr->varattno, planner_rt_fetch(expr->varno, ctx->root), qualify_col);
   } else {
     /* Treat like a Param */
