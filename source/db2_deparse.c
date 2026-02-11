@@ -3465,7 +3465,7 @@ static void deparseTargetList(StringInfo buf, RangeTblEntry *rte, Index rtindex,
   /* Don't generate bad syntax if no undropped columns */
   if (first && !is_returning)
     appendStringInfoString(buf, "NULL");
-db2Debug1("> %s::deparseTargetList : %s",__FILE__, buf->data);
+  db2Debug1("> %s::deparseTargetList : %s",__FILE__, buf->data);
 }
 
 /** Deparse given targetlist and append it to context->buf.

@@ -370,6 +370,9 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
   int          disabled_nodes;
   Cost         startup_cost;
   Cost         total_cost;
+
+  db2Debug1("> %s::add_foreign_grouping_paths", __FILE__);
+
   /* Nothing to be done, if there is no grouping or aggregation required. */
   if (!parse->groupClause && !parse->groupingSets && !parse->hasAggs &&	!root->hasHavingQual)
     return;
@@ -426,6 +429,7 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                        , NIL);                  /* no fdw_private */
   /* Add generated path into grouped_rel by add_path(). */
   add_path(grouped_rel, (Path*) grouppath);
+  db2Debug1("< %s::add_foreign_grouping_paths", __FILE__);
 }
 
 /** add_foreign_ordered_paths
@@ -445,6 +449,8 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
   List*                fdw_private;
   ForeignPath*         ordered_path;
   ListCell*            lc;
+
+  db2Debug1("> %s::add_foreign_ordered_paths", __FILE__);
 
   // Shouldn't get here unless the query has ORDER BY
   Assert(parse->sortClause);
@@ -525,6 +531,7 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
                                           , fdw_private);
   /* and add it to the ordered_rel */
   add_path(ordered_rel, (Path *) ordered_path);
+  db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
 }
 
 /** add_foreign_final_paths
@@ -546,6 +553,8 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   Cost                 total_cost               ;
   List*                fdw_private              = NIL;
   ForeignPath*         final_path               = NULL;
+
+  db2Debug1("> %s::add_foreign_ordered_paths", __FILE__);
 
   /** Currently, we only support this for SELECT commands */
   if (parse->commandType != CMD_SELECT)
@@ -615,6 +624,7 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
         /* Safe to push down */
         fpinfo->pushdown_safe = true;
 
+        db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
         return;
       }
     }
@@ -622,6 +632,7 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
     /* If we get here it means no ForeignPaths; since we would already have considered pushing down all operations for the query to the
      * remote server, give up on it.
      */
+    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
     return;
   }
 
@@ -646,8 +657,10 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   /* Assess if it is safe to push down the LIMIT and OFFSET to the remote server */
 
   /* If the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down. */
-  if (ifpinfo->local_conds)
+  if (ifpinfo->local_conds) {
+    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
     return;
+  }
 
   /* If the query has FETCH FIRST .. WITH TIES, 1) it must have ORDER BY as well, which is used to determine which additional rows tie for the last
    * place in the result set, and 2) ORDER BY must already have been determined to be safe to push down before we get here.
@@ -655,12 +668,15 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
    * entirely for lack of support for it.
    * Since we do not currently have a way to do a remote-version check (without accessing the remote server), disable pushing the FETCH clause for now.
    */
-  if (parse->limitOption == LIMIT_OPTION_WITH_TIES)
+  if (parse->limitOption == LIMIT_OPTION_WITH_TIES) {
+    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
     return;
-
+  }
   /* Also, the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote. */
-  if (!is_foreign_expr(root, input_rel, (Expr *) parse->limitOffset) || !is_foreign_expr(root, input_rel, (Expr *) parse->limitCount))
+  if (!is_foreign_expr(root, input_rel, (Expr *) parse->limitOffset) || !is_foreign_expr(root, input_rel, (Expr *) parse->limitCount)) {
+    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
     return;
+  }
 
   /* Safe to push down */
   fpinfo->pushdown_safe = true;
@@ -705,10 +721,12 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
   /* and add it to the final_rel */
   add_path(final_rel, (Path*) final_path);
+  db2Debug1(" %s::add_foreign_ordered_paths", __FILE__);
 }
 
 /* Adjust the cost estimates of a foreign grouping path to include the cost of generating properly-sorted output. */
 static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys, double retrieved_rows, double width, double limit_tuples, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_run_cost) {
+  db2Debug1("> %s::adjust_foreign_grouping_path_cost", __FILE__);
   /* If the GROUP BY clause isn't sort-able, the plan chosen by the remote side is unlikely to generate properly-sorted output, so it would need
    * an explicit sort; adjust the given costs with cost_sort().
    * Likewise, if the GROUP BY clause is sort-able but isn't a superset of the given pathkeys, adjust the costs with that function.
@@ -728,6 +746,7 @@ static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys,
     *p_startup_cost *= sort_multiplier;
     *p_run_cost     *= sort_multiplier;
   }
+  db2Debug1("< %s::adjust_foreign_grouping_path_cost", __FILE__);
 }
 
 /*
@@ -744,6 +763,7 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
   int          i               = 0;
   List*        tlist           = NIL;
 
+  db2Debug1("> %s::foreign_grouping_ok", __FILE__);
   /* We currently don't support pushing Grouping Sets. */
   if (query->groupingSets)
     return false;
@@ -755,8 +775,11 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
    * are required to be applied before performing aggregation.  Hence the
    * aggregate cannot be pushed down.
    */
-  if (ofpinfo->local_conds)
+  if (ofpinfo->local_conds) {
+    db2Debug2("  foreign_grouping_ok: local_conds found");
+    db2Debug1("< %s::foreign_grouping_ok", __FILE__);
     return false;
+  }
 
   /** Examine grouping expressions, as well as other expressions we'd need to
    * compute, and check whether they are safe to push down to the foreign
@@ -789,14 +812,20 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
       /** If any GROUP BY expression is not shippable, then we cannot
        * push down aggregation to the foreign server.
        */
-      if (!is_foreign_expr(root, grouped_rel, expr))
+      if (!is_foreign_expr(root, grouped_rel, expr)) {
+        db2Debug2("  foreign_grouping_ok: non-foreign expr found");
+        db2Debug1("< %s::foreign_grouping_ok", __FILE__);
         return false;
+      }
 
       /** If it would be a foreign param, we can't put it into the tlist,
        * so we have to fail.
        */
-      if (is_foreign_param(root, grouped_rel, expr))
+      if (is_foreign_param(root, grouped_rel, expr)) {
+        db2Debug2("  foreign_grouping_ok: foreign param found");
+        db2Debug1("< %s::foreign_grouping_ok", __FILE__);
         return false;
+      }
 
       /** Pushable, so add to tlist.  We need to create a TLE for this
        * expression and apply the sortgroupref to it.  We cannot use
@@ -824,8 +853,11 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
          * don't have to check is_foreign_param, since that certainly
          * won't return true for any such expression.)
          */
-        if (!is_foreign_expr(root, grouped_rel, (Expr *) aggvars))
+        if (!is_foreign_expr(root, grouped_rel, (Expr *) aggvars)) {
+          db2Debug2("  foreign_grouping_ok: non-foreign aggvar found");
+          db2Debug1("< %s::foreign_grouping_ok", __FILE__);
           return false;
+        }
 
         /** Add aggregates, if any, into the targetlist.  Plain Vars
          * outside an aggregate can be ignored, because they should be
@@ -917,6 +949,7 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
    * postgresExplainForeignScan.
    */
   fpinfo->relation_name = psprintf("Aggregate on (%s)", ofpinfo->relation_name);
+  db2Debug1("< %s::foreign_grouping_ok", __FILE__);
   return true;
 }
 
@@ -942,6 +975,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   Cost          startup_cost;
   Cost          total_cost;
 
+  db2Debug1("> %s::estimate_path_cost_size", __FILE__);
   /* Make sure the core code has set up the relation's reltarget */
   Assert(foreignrel->reltarget);
 
@@ -1304,6 +1338,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   *p_disabled_nodes = disabled_nodes;
   *p_startup_cost   = startup_cost;
   *p_total_cost     = total_cost;
+  db2Debug1("< %s::estimate_path_cost_size", __FILE__);
 }
 
 /** Merge FDW options from input relations into a new set of options for a join or an upper rel.
@@ -1314,6 +1349,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
  * expected to NULL.
  */
 static void merge_fdw_options(DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, const DB2FdwState* fpinfo_i) {
+  db2Debug1("> %s::merge_fdw_options", __FILE__);
   /* We must always have fpinfo_o. */
   Assert(fpinfo_o);
 
@@ -1349,4 +1385,5 @@ static void merge_fdw_options(DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, 
      */
     fpinfo->async_capable = fpinfo_o->async_capable || fpinfo_i->async_capable;
   }
+  db2Debug1("< %s::merge_fdw_options", __FILE__);
 }
