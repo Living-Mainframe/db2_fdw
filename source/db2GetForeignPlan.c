@@ -38,6 +38,7 @@ extern List*  serializePlanData       (DB2FdwState* fdw_state);
        ForeignScan* db2GetForeignPlan       (PlannerInfo* root, RelOptInfo* foreignrel, Oid foreigntableid, ForeignPath* best_path, List* tlist, List* scan_clauses , Plan* outer_plan);
 static void         getUsedColumns          (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn* resCol);
 static void         addResult               (DB2ResultColumn*  resCol, DB2Column* db2Column);
+static int          compareResultColumns    (const void* a, const void* b);
 
 /* postgresGetForeignPlan
  * Create ForeignScan plan node which implements selected best path
@@ -75,16 +76,25 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
     /* find all the columns to include in the select list */
     /* examine each SELECT list entry for Var nodes */
     db2Debug3("  size of columnlist: %d", list_length(foreignrel->reltarget->exprs));
+    DB2ResultColumn** cols = (DB2ResultColumn**)db2alloc("resultColumns", list_length(foreignrel->reltarget->exprs) * sizeof(DB2ResultColumn*));
     foreach (cell, foreignrel->reltarget->exprs) {
-      db2Debug3("  examine column");
-      DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
-      resCol->next       = fpinfo->resultList;
-      fpinfo->resultList = resCol;
-      resCol->resnum     = ++resnum;
-      getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
-      db2Debug3("  column %s added to result list", resCol->colName);
+      db2Debug3("  examine column %d", resnum);
+      cols[resnum] = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+      getUsedColumns ((Expr*) lfirst (cell), foreignrel, cols[resnum]);
+      db2Debug3("  cols[%d]->colName %s added to result list", resnum, cols[resnum]->colName);
+      resnum++;
     }
-
+    // sort the array in ascending order of the pgattnum, so that we can compare it with the order of columns in the foreign table
+    db2Debug3("  sorting result columns by pgattnum");
+    qsort(cols, list_length(foreignrel->reltarget->exprs), sizeof(DB2ResultColumn*), compareResultColumns);
+    // generate the sorted array into the resultList
+    for (int idx = 0; idx < list_length(foreignrel->reltarget->exprs); idx++) {
+      db2Debug3("  result column %d: %s", idx, cols[idx]->colName);
+      cols[idx]->next    = fpinfo->resultList;
+      cols[idx]->resnum  = idx+1;
+      db2Debug3("  column %s added to result list with resnum %d", cols[idx]->colName, cols[idx]->resnum);
+      fpinfo->resultList = cols[idx];
+    }
     /* examine each condition for Var nodes */
     db2Debug3("  size of conditions: %d", list_length(foreignrel->baserestrictinfo));
     foreach (cell, foreignrel->baserestrictinfo) {
@@ -146,17 +156,18 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
     fdw_scan_tlist = build_tlist_to_deparse(foreignrel);
     if (list_length(fdw_scan_tlist) > 0) {
       ListCell*   cell    = NULL;
-      int         resnum  = 0;
+      int         resnum  = 1;
 
-      /* examine each condition for Tlist nodes */
+      /* examine each condition for Tlist nodes; they come in the correct sequence as in the query and do not need to be sorted */
       db2Debug3("  size of tlist: %d", list_length(fdw_scan_tlist));
       foreach (cell, fdw_scan_tlist) {
         db2Debug3("  examine tlist");
         DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
         resCol->next       = fpinfo->resultList;
         fpinfo->resultList = resCol;
-        resCol->resnum     = ++resnum;
+        resCol->resnum     = resnum;
         getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
+        resnum++;
       }
     }
 
@@ -513,4 +524,15 @@ static void addResult(DB2ResultColumn* resCol, DB2Column* column) {
     resCol->noencerr       = column->noencerr;
   }
   db2Debug1("< %s::addResult",__FILE__);
+}
+
+static int compareResultColumns(const void* a, const void* b) {
+  int result = 0;
+  db2Debug1("> %s::compareResultColumns",__FILE__);
+  DB2ResultColumn* colA = *(DB2ResultColumn**) a;
+  DB2ResultColumn* colB = *(DB2ResultColumn**) b;
+  result = (colA->pgattnum - colB->pgattnum);
+  db2Debug2("  comparing %s -> pgattnum %d and %s -> pgattnum %d, result = %d", colA->colName, colA->pgattnum, colB->colName, colB->pgattnum, result);
+  db2Debug1("< %s::compareResultColumns: %d",__FILE__, result);
+  return result;
 }
