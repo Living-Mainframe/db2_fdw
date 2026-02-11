@@ -20,7 +20,7 @@ void         db2BeginForeignModify(ModifyTableState* mtstate, ResultRelInfo* rin
  *   the parameters are fetched, and the column numbers of the
  *   resjunk attributes are stored in the "pkey" field.
  */
-void db2BeginForeignModify (ModifyTableState * mtstate, ResultRelInfo * rinfo, List * fdw_private, int subplan_index, int eflags) {
+void db2BeginForeignModify (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, int eflags) {
   DB2FdwState* fdw_state = deserializePlanData (fdw_private);
   Plan        *subplan   = NULL;
 

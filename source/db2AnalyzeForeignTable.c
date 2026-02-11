@@ -11,7 +11,7 @@
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern int          db2IsStatementOpen        (DB2Session* session);
-extern void         db2PrepareQuery           (DB2Session* session, const char *query, DB2Table* db2Table, unsigned long prefetch, int fetchsize);
+extern void         db2PrepareQuery           (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize);
 extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
@@ -43,7 +43,7 @@ bool db2AnalyzeForeignTable (Relation relation, AcquireSampleRowsFunc* func, Blo
  *   All LOB values are truncated to WIDTH_THRESHOLD+1 because anything
  *   exceeding this is not used by compute_scalar_stats().
  */
-int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int targrows, double *totalrows, double *totaldeadrows) {
+int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int targrows, double* totalrows, double* totaldeadrows) {
   int collected_rows = 0, i;
   DB2FdwState* fdw_state;
   bool first_column = true;
@@ -126,7 +126,8 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
 
   db2Debug3("  loop through query results");
   /* loop through query results */
-  while (db2IsStatementOpen (fdw_state->session) ? db2FetchNext (fdw_state->session) : (db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->db2Table, fdw_state->prefetch, fdw_state->fetch_size), db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList))) {
+  fdw_state->rowcount = -1;
+  while (db2IsStatementOpen (fdw_state->session) ? db2FetchNext (fdw_state->session) : (db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->resultList, fdw_state->prefetch, fdw_state->fetch_size), db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList))) {
     /* allow user to interrupt ANALYZE */
     #if PG_VERSION_NUM >= 180000
     vacuum_delay_point (true);
@@ -171,7 +172,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple * rows, int 
   *totaldeadrows = 0;
 
   /* report report */
-  ereport (elevel, (errmsg ("\"%s\": table contains %lu rows; %d rows in sample", RelationGetRelationName (relation), fdw_state->rowcount, collected_rows)));
+  ereport (elevel, (errmsg ("\"%s\": table contains %lu rows; %d rows in sample", RelationGetRelationName (relation), fdw_state->rowcount, collected_rows-1)));
 
   db2Debug1("< acquireSampleRowsFunc");
   return collected_rows;
