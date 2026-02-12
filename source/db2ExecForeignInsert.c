@@ -13,9 +13,7 @@ extern bool dml_in_transaction;
 /** external prototypes */
 extern int             db2ExecuteInsert          (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern void            db2Debug1                 (const char* message, ...);
-#ifdef WRITE_API
 extern void            setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
-#endif
 extern void            convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
 
 /** local prototypes */

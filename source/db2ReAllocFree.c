@@ -1,5 +1,4 @@
 #include <postgres.h>
-//#include "db2_pg.h"
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>

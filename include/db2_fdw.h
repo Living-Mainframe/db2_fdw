@@ -23,7 +23,6 @@
 #endif /* WIDTH_THRESHOLD */
 
 #undef  OLD_FDW_API
-#define WRITE_API
 #define IMPORT_API
 
 /* array_create_iterator has a new signature from 9.5 on */

@@ -37,7 +37,6 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   node->fdw_state = (void *) fdw_state;
 
   paramCount  = addExprParams(node);
-  addTleExprParams(node,paramCount);
 
   /* add a fake parameter "if that string appears in the query */
   if (strstr (fdw_state->query, "?/*:now*/") != NULL) {
@@ -118,87 +117,5 @@ static int addExprParams(ForeignScanState* node){
     fdw_state->paramList = paramDesc;
   }
   db2Debug1("< addExprParams : %d", index);
-  return index;
-}
-
-static int addTleExprParams(ForeignScanState* node, int paramCount){
-  DB2FdwState* fdw_state   = node->fdw_state;
-  ForeignScan* fsplan      = (ForeignScan*) node->ss.ps.plan;
-  List*        tle_exprs   = fsplan->fdw_scan_tlist;
-  ParamDesc*   paramDesc   = NULL;
-  ListCell*    cell        = NULL;
-  int          index       = 0;
-
-  db2Debug1("> addTleExprParams");
-  db2Debug2("  tle_expr: %x[%d]",tle_exprs, list_length(tle_exprs));
-
-  // create the list of parameters
-  foreach (cell, tle_exprs) {
-    Expr*         expr  = NULL;
-    TargetEntry*  tle   = (TargetEntry*) lfirst(cell);
-
-    if (tle == NULL)
-      continue;
-
-    // count, but skip deleted entries
-    db2Debug2("  result index: %d",++index);
-    db2Debug2("  tle->resno: %d", tle->resno);
-    expr =  (Expr*) tle->expr;
-    if (expr != NULL ) {
-      db2Debug2("  tle->expr->type: %d", expr->type);
-/*
-      switch(tle->expr->type) {
-        case T_Aggref: {
-          Aggref* agg = (Aggref*) expr;
-          db2Debug2("  agg->aggno   : %d", agg->aggno);
-          db2Debug2("  agg->aggstar : %s", agg->aggstar ? "true" : "false");
-          db2Debug2("  agg->aggtype : %d", agg->aggtype);
-          paramDesc            = (ParamDesc*) db2alloc("fdw_state->paramList->next", sizeof (ParamDesc));
-          paramDesc->type      = agg->aggtype;
-          paramDesc->bindType  = (agg->aggtype == NUMERICOID) ? BIND_NUMBER : BIND_STRING;
-          paramDesc->value     = NULL;
-          paramDesc->node      = agg;
-          paramDesc->colnum    = -1;
-          paramDesc->txts      = 0;
-          paramDesc->next      = fdw_state->paramList;
-          db2Debug2("  paramDesc->colnum: %d  ",paramDesc->colnum);
-          fdw_state->paramList = paramDesc;
-        }
-        break;
-        default:
-          continue;  // skip non-constant expressions
-        break;
-      }
-*/
-    }
-/*
-    // create a new entry in the parameter list
-    paramDesc       = (ParamDesc*) db2alloc("fdw_state->paramList->next", sizeof (ParamDesc));
-    paramDesc->type = exprType ((Node*)(expr->expr));
-
-    if (paramDesc->type == TEXTOID
-    ||  paramDesc->type == VARCHAROID
-    ||  paramDesc->type == BPCHAROID
-    ||  paramDesc->type == CHAROID
-    ||  paramDesc->type == DATEOID
-    ||  paramDesc->type == TIMESTAMPOID
-    ||  paramDesc->type == TIMESTAMPTZOID
-    ||  paramDesc->type == TIMEOID
-    ||  paramDesc->type == TIMETZOID)
-      paramDesc->bindType = BIND_STRING;
-    else
-      paramDesc->bindType = BIND_NUMBER;
-
-    paramDesc->value     = NULL;
-    paramDesc->node      = expr;
-    paramDesc->colnum    = -1;
-    paramDesc->txts      = 0;
-    paramDesc->next      = fdw_state->paramList;
-    db2Debug2("  paramDesc->colnum: %d  ",paramDesc->colnum);
-    fdw_state->paramList = paramDesc;
-*/
-  }
-
-  db2Debug1("< addTleExprParams : %d", index);
   return index;
 }

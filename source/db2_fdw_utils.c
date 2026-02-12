@@ -491,4 +491,3 @@ static bool lookup_shippable(Oid objectId, Oid classId, DB2FdwState* fpinfo) {
     return true;
   return false;
 }
-

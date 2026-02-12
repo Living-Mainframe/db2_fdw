@@ -22,10 +22,8 @@ extern List*        serializePlanData         (DB2FdwState* fdwState);
 
 /** local prototypes */
 List*        db2PlanForeignModify(PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
-#ifdef WRITE_API
 static DB2FdwState* copyPlanData        (DB2FdwState* orig);
 void         addParam            (ParamDesc** paramList, Oid pgtype, short colType, int colnum, int txts);
-#endif
 void         checkDataType       (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 
 /** db2PlanForeignModify
@@ -315,7 +313,6 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
   return result;
 }
 
-#ifdef WRITE_API
 /** copyPlanData
  *   Create a deep copy of the argument, copy only those fields needed for planning.
  */
@@ -418,7 +415,6 @@ void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int
   *paramList    = param;
   db2Debug1("< addParam");
 }
-#endif /* WRITE_API */
 
 /** checkDataType
  *   Check that the DB2 data type of a column can be
