@@ -8,10 +8,11 @@
 #include <access/heapam.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
+#include "DB2Column.h"
 
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState             (Oid foreigntableid, double* sample_percent, bool describe);
-extern void         addParam                   (ParamDesc** paramList, Oid pgtype, short colType, int colnum, int txts);
+extern void         addParam                   (ParamDesc** paramList, DB2Column* db2col, int colnum, int txts);
 extern void         checkDataType              (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 extern void         db2Debug1                  (const char* message, ...);
 extern void         db2Debug2                  (const char* message, ...);
@@ -62,11 +63,7 @@ DB2FdwState* db2BuildInsertFdwState(Relation rel) {
                   fdwState->db2Table->cols[i]->pgtype,
                   fdwState->db2Table->pgname,
                   fdwState->db2Table->cols[i]->pgname);
-    addParam(&fdwState->paramList,
-             fdwState->db2Table->cols[i]->pgtype,
-             fdwState->db2Table->cols[i]->colType,
-             i,
-             0);
+    addParam(&fdwState->paramList, fdwState->db2Table->cols[i], i, 0);
     if (!firstcol)
       appendStringInfo(&sql, ", ");
     else

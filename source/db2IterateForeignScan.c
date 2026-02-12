@@ -12,7 +12,7 @@
 /** external prototypes */
 extern int          db2IsStatementOpen        (DB2Session* session);
 extern void         db2PrepareQuery           (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize);
-extern int          db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
+extern int          db2ExecuteQuery           (DB2Session* session, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         db2CloseStatement         (DB2Session* session);
 extern void         db2Debug1                 (const char* message, ...);
@@ -51,7 +51,7 @@ TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
     /* execute the DB2 statement and fetch the first row */
     db2Debug3("  execute query in foreign table scan '%s'", paramInfo);
     db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->resultList, fdw_state->prefetch, fdw_state->fetch_size);
-    have_result = db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList);
+    have_result = db2ExecuteQuery (fdw_state->session, fdw_state->paramList);
     have_result = db2FetchNext (fdw_state->session);
   }
   /* initialize virtual tuple */

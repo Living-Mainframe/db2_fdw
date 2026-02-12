@@ -120,9 +120,9 @@ DB2FdwState* deserializePlanData (List* list) {
     state->db2Table->cols[i]->noencerr = deserializeLong(list_nth(list, idx++));
     db2Debug4("  deserialize col[%d].noencerr: %ld"  ,i, state->db2Table->cols[i]->noencerr);
     /* allocate memory for the result value only when the column is used in query */
-    state->db2Table->cols[i]->val      = (state->db2Table->cols[i]->used == 1) ? (char*) db2alloc ("state->db2Table->cols[i]->val", state->db2Table->cols[i]->val_size + 1) : NULL;
-    state->db2Table->cols[i]->val_len  = 0;
-    state->db2Table->cols[i]->val_null = 1;
+//    state->db2Table->cols[i]->val      = (state->db2Table->cols[i]->used == 1) ? (char*) db2alloc ("state->db2Table->cols[i]->val", state->db2Table->cols[i]->val_size + 1) : NULL;
+//    state->db2Table->cols[i]->val_len  = 0;
+//    state->db2Table->cols[i]->val_null = 1;
   }
 
   /* length of parameter list */
@@ -132,6 +132,12 @@ DB2FdwState* deserializePlanData (List* list) {
   state->paramList = NULL;
   for (i = 0; i < len; ++i) {
     param            = (ParamDesc*) db2alloc ("state->parmList->next", sizeof (ParamDesc));
+    param->colName         = deserializeString(list_nth(list, idx++));
+    db2Debug4("  deserialize param[%d].colName: %s"  ,i, param->colName);
+    param->colType        = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize param[%d].colType: %d"  ,i, param->colType);
+    param->colSize        = (size_t) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
+    db2Debug4("  deserialize param[%d].colSize: %d"  ,i, param->colSize);
     param->type      = DatumGetObjectId(((Const*)list_nth(list, idx++))->constvalue);
     db2Debug4("  deserialize param[%d].type: %d"  ,i, param->type);
     param->bindType  = (db2BindType) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
@@ -141,6 +147,8 @@ DB2FdwState* deserializePlanData (List* list) {
     else
       param->value   = NULL;
     db2Debug4("  deserialize param[%d].value: %x"  ,i, param->value);
+    param->val_size  = deserializeLong(list_nth(list, idx++));
+    db2Debug4("  deserialize param[%d].val_size: %ld"  ,i, param->val_size);
     param->node      = NULL;
     db2Debug4("  deserialize param[%d].node: %x"  ,i, param->node);
     param->colnum    = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
@@ -305,7 +313,7 @@ List* serializePlanData (DB2FdwState* fdwState) {
     result = lappend (result, serializeLong   (fdwState->db2Table->cols[idxCol]->val_size));
     db2Debug4("  serialize col[%d].val_size: %ld"  ,idxCol, fdwState->db2Table->cols[idxCol]->val_size);
     result = lappend (result, serializeInt    (fdwState->db2Table->cols[idxCol]->noencerr));
-    db2Debug4("  serialize col[%d].val_size: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->noencerr);
+    db2Debug4("  serialize col[%d].noencerr: %d"  ,idxCol, fdwState->db2Table->cols[idxCol]->noencerr);
     /* don't serialize val, val_len, val_null and varno */
   }
 
@@ -318,10 +326,18 @@ List* serializePlanData (DB2FdwState* fdwState) {
   db2Debug4("  serialize paramList.length: %d", lenParam);
   /* parameter list entries */
   for (param = fdwState->paramList; param; param = param->next) {
+    result = lappend (result, serializeString (param->colName));
+    db2Debug4("  serialize param.colName: %s"  , param->colName);
+    result = lappend (result, serializeInt    (param->colType));
+    db2Debug4("  serialize param.colType: %d"  , param->colType);
+    result = lappend (result, serializeInt    (param->colSize));
+    db2Debug4("  serialize param.colSize: %d"  , param->colSize);
     result = lappend (result, serializeOid (param->type));
     db2Debug4("  serialize param.type: %d"  , param->type);
     result = lappend (result, serializeInt ((int) param->bindType));
     db2Debug4("  serialize param.bindType: %d"  , param->bindType);
+    result = lappend (result, serializeLong   (param->val_size));
+    db2Debug4("  serialize param.val_size: %ld"  , param->val_size);
     result = lappend (result, serializeInt ((int) param->colnum));
     db2Debug4("  serialize param.colnum: %d"  , param->colnum);
     result = lappend (result, serializeInt ((int) param->txts));

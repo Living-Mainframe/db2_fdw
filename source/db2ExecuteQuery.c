@@ -23,10 +23,10 @@ extern void         db2Error_d           (db2error sqlstate, const char* message
 extern SQLSMALLINT  param2c              (SQLSMALLINT fcType);
 extern void         parse2num_struct     (const char* s, SQL_NUMERIC_STRUCT* ns);
 extern char*        c2name               (short fcType);
-extern void         db2BindParameter     (DB2Session* session, const DB2Table* db2Table, ParamDesc* param, SQLLEN* indicators, int param_count, int col_num);
+extern void         db2BindParameter     (DB2Session* session, ParamDesc* param, SQLLEN* indicators, int param_count, int col_num);
 
 /** internal prototypes */
-int                 db2ExecuteQuery      (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
+int                 db2ExecuteQuery      (DB2Session* session, ParamDesc* paramList);
 
 /** db2ExecuteQuery
  *   Execute a prepared statement and fetches the first result row.
@@ -34,7 +34,7 @@ int                 db2ExecuteQuery      (DB2Session* session, const DB2Table* d
  *   Returns the count of processed rows.
  *   This can be called several times for a prepared SQL statement.
  */
-int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList) {
+int db2ExecuteQuery (DB2Session* session, ParamDesc* paramList) {
   SQLLEN*     indicators   = NULL;
   ParamDesc*  param        = NULL;
   SQLRETURN   rc           = 0;
@@ -56,8 +56,7 @@ int db2ExecuteQuery (DB2Session* session, const DB2Table* db2Table, ParamDesc* p
   param_count = 0;
   for (param = paramList; param; param = param->next) {
     ++param_count;
-    /** colnum in param and param_count are 0 based, and select/update/delete statements need to be 0 based */
-    db2BindParameter(session, db2Table, param, &indicators[param_count], param_count, param_count);
+    db2BindParameter(session, param, &indicators[param_count], param_count, param_count);
   }
   /* execute the query and get the first result row */
   db2Debug2("  session->stmtp->hsql: %d",session->stmtp->hsql);

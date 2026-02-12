@@ -7,6 +7,7 @@
 #include <access/heapam.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
+#include "DB2Column.h"
 
 /** external prototypes */
 extern char*        db2strdup                 (const char* source);
@@ -21,10 +22,10 @@ extern void         appendAsType              (StringInfoData* dest, Oid type);
 extern List*        serializePlanData         (DB2FdwState* fdwState);
 
 /** local prototypes */
-List*        db2PlanForeignModify(PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
+       List*        db2PlanForeignModify(PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
 static DB2FdwState* copyPlanData        (DB2FdwState* orig);
-void         addParam            (ParamDesc** paramList, Oid pgtype, short colType, int colnum, int txts);
-void         checkDataType       (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
+       void         addParam            (ParamDesc** paramList, DB2Column* db2col, int colnum, int txts);
+       void         checkDataType       (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 
 /** db2PlanForeignModify
  *   Construct an DB2FdwState or copy it from the foreign scan plan.
@@ -193,7 +194,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
         /* check that the data types can be converted */
         checkDataType (fdwState->db2Table->cols[i]->colType, fdwState->db2Table->cols[i]->colScale, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->pgname, fdwState->db2Table->cols[i]->pgname);
         /* add a parameter description for the column */
-        addParam (&fdwState->paramList, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->cols[i]->colType, i, 0);
+        addParam (&fdwState->paramList, fdwState->db2Table->cols[i], i, 0);
         /* add parameter name */
         if (firstcol)
           firstcol = false;
@@ -219,7 +220,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
         /* check that the data types can be converted */
         checkDataType (fdwState->db2Table->cols[i]->colType, fdwState->db2Table->cols[i]->colScale, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->pgname, fdwState->db2Table->cols[i]->pgname);
         /* add a parameter description for the column */
-        addParam (&fdwState->paramList, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->cols[i]->colType, i, 0);
+        addParam (&fdwState->paramList, fdwState->db2Table->cols[i], i, 0);
         /* add the parameter name to the query */
         if (firstcol)
           firstcol = false;
@@ -253,7 +254,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
         /* only set the flag here because we only retrieve the old key values in update or delete cases, later in setModifyParms*/
         fdwState->db2Table->cols[i]->colPrimKeyPart = 1;
         /* add a parameter description */
-        addParam (&fdwState->paramList, fdwState->db2Table->cols[i]->pgtype, fdwState->db2Table->cols[i]->colType, i, 0);
+        addParam (&fdwState->paramList, fdwState->db2Table->cols[i], i, 0);
         /* add column and parameter name to query */
         if (firstcol) {
           appendStringInfo (&sql, " WHERE");
@@ -373,17 +374,23 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
  *   Creates a new ParamDesc with the given values and adds it to the list.
  *   A deep copy of the parameter is created.
  */
-void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int txts) {
+void addParam (ParamDesc **paramList, DB2Column* db2col, int colnum, int txts) {
   ParamDesc *param;
 
   db2Debug1("> addParam");
-  db2Debug2("  pgtype: %d",pgtype);
-  db2Debug2("  colType: %d",colType);
+  db2Debug2("  pgtype: %d",db2col->pgtype);
+  db2Debug2("  colType: %d",db2col->colType);
   db2Debug2("  colnum: %d",colnum);
   db2Debug2("  txts: %d",txts);
   param       = db2alloc("paramList->next",sizeof (ParamDesc));
-  param->type = pgtype;
-  switch (c2dbType(colType)) {
+  param->colName  = db2strdup(db2col->colName);
+  db2Debug2("  param->colName: '%s'",param->colName);
+  param->colType  = db2col->colType;
+  db2Debug2("  param->colType: '%d'",param->colType);
+  param->colSize  = db2col->colSize;
+  db2Debug2("  param->colSize: '%d'",param->colSize);
+  param->type     = db2col->pgtype;
+  switch (c2dbType(db2col->colType)) {
     case DB2_INTEGER:
     case DB2_NUMERIC:
     case DB2_BIGINT:
@@ -403,16 +410,18 @@ void addParam (ParamDesc **paramList, Oid pgtype, short colType, int colnum, int
       param->bindType = BIND_STRING;
   }
   db2Debug2("  param->bindType: '%d'",param->bindType);
-  param->value  = NULL;
+  param->value    = NULL;
   db2Debug2("  param->value: %x",param->value);
-  param->node   = NULL;
+  param->val_size = db2col->val_size;
+  db2Debug2("  param->val_size: %d",param->val_size);
+  param->node     = NULL;
   db2Debug2("  param->node: %x",param->node);
-  param->colnum = colnum;
+  param->colnum   = colnum;
   db2Debug2("  param->colnum: %d",param->colnum);
-  param->txts   = txts;
+  param->txts     = txts;
   db2Debug2("  param->txts: %d",param->txts);
-  param->next   = *paramList;
-  *paramList    = param;
+  param->next     = *paramList;
+  *paramList      = param;
   db2Debug1("< addParam");
 }
 

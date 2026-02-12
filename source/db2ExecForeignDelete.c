@@ -11,7 +11,7 @@ extern bool     dml_in_transaction;
 extern regproc* output_funcs;
 
 /** external prototypes */
-extern int             db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
+extern int             db2ExecuteQuery           (DB2Session* session, ParamDesc* paramList);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
 extern void            convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
@@ -45,7 +45,7 @@ TupleTableSlot* db2ExecForeignDelete (EState* estate, ResultRelInfo* rinfo, Tupl
   setModifyParameters (fdw_state->paramList, slot, planSlot, fdw_state->db2Table, fdw_state->session);
 
   /* execute the DELETE statement and store RETURNING values in db2Table's columns */
-  rows = db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList);
+  rows = db2ExecuteQuery (fdw_state->session, fdw_state->paramList);
 
   if (rows != 1)
     ereport ( ERROR

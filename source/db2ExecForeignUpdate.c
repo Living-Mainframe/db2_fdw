@@ -11,7 +11,7 @@
 extern bool dml_in_transaction;
 
 /** external prototypes */
-extern int             db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
+extern int             db2ExecuteQuery           (DB2Session* session, ParamDesc* paramList);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
 extern void            setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
@@ -42,7 +42,7 @@ TupleTableSlot* db2ExecForeignUpdate (EState* estate, ResultRelInfo* rinfo, Tupl
   setModifyParameters (fdw_state->paramList, slot, planSlot, fdw_state->db2Table, fdw_state->session);
 
   /* execute the UPDATE statement and store RETURNING values in db2Table's columns */
-  rows = db2ExecuteQuery (fdw_state->session, fdw_state->db2Table, fdw_state->paramList);
+  rows = db2ExecuteQuery (fdw_state->session, fdw_state->paramList);
 
   if (rows != 1)
     ereport ( ERROR
