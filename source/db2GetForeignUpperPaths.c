@@ -41,8 +41,8 @@ void                db2GetForeignUpperPaths   (PlannerInfo *root, UpperRelationK
 static void         db2CloneFdwStateUpper     (PlannerInfo* root, RelOptInfo* input_rel, RelOptInfo* output_rel);
 static DB2Table*    db2CloneDb2TableForPlan   (const DB2Table* src);
 static DB2Column*   db2CloneDb2ColumnForPlan  (const DB2Column* src);
-static bool         db2_is_shippable          (PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel);
-static bool         db2_is_shippable_expr     (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, const char* label);
+//static bool         db2_is_shippable          (PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel);
+//static bool         db2_is_shippable_expr     (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, const char* label);
 static void         add_foreign_grouping_paths(PlannerInfo* root, RelOptInfo* input_rel, RelOptInfo* grouped_rel, GroupPathExtraData *extra);
 static void         add_foreign_ordered_paths (PlannerInfo* root, RelOptInfo* input_rel, RelOptInfo* ordered_rel);
 static void         add_foreign_final_paths   (PlannerInfo* root, RelOptInfo* input_rel, RelOptInfo* final_rel, FinalPathExtraData *extra);
@@ -244,117 +244,113 @@ static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
 
     dst->colName = src->colName ? db2strdup(src->colName) : NULL;
     dst->pgname  = src->pgname  ? db2strdup(src->pgname)  : NULL;
-
-    /* Never share row buffers between planning states. */
-    dst->val      = NULL;
-    dst->val_len  = 0;
-    dst->val_null = 1;
   }
   db2Debug1("< %s::db2CloneDb2ColumnForPlan : %x", __FILE__, dst);
   return dst;
 }
 
-static bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel) {
-  bool         fResult = false;
-  DB2FdwState* fdw_in  = (DB2FdwState*)input_rel->fdw_private;
+//static bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel) {
+//  bool         fResult = false;
+//  DB2FdwState* fdw_in  = (DB2FdwState*)input_rel->fdw_private;
+//
+//  db2Debug1("> %s::db2_is_shippable", __FILE__);
+//  if (root == NULL || root->parse == NULL || input_rel == NULL || output_rel == NULL || fdw_in == NULL) {
+//    db2Debug2("  missing context; not shippable");
+//    fResult = false;
+//  } else {
+//    Query* query = query = root->parse;
+//    /* Conservatively reject query shapes we don't yet know how to translate.
+//     * (This can be relaxed as we add DB2 SQL support.)
+//     */
+//    if (query->hasSubLinks || query->hasWindowFuncs || query->hasDistinctOn || query->hasTargetSRFs || query->hasForUpdate || query->hasModifyingCTE || query->hasRecursive || query->hasRowSecurity) {
+//      db2Debug2("  query has unsupported features; not shippable");
+//      fResult = false;
+//    } else {
+//      switch (stage) {
+//        case UPPERREL_PARTIAL_GROUP_AGG:
+//        case UPPERREL_GROUP_AGG: {
+//          ListCell* lc = NULL;
+//
+//          fResult = true;
+//          /* 1) GROUP BY expressions must be deparsable. */
+//          foreach (lc, query->groupClause) {
+//            SortGroupClause* grp = (SortGroupClause*) lfirst(lc);
+//            TargetEntry*     tle = get_sortgroupclause_tle(grp, query->targetList);
+//            if (tle == NULL || tle->expr == NULL) {
+//              db2Debug2("  missing GROUP BY target entry; not shippable");
+//              fResult = false;
+//              break;
+//            } 
+//            if (!db2_is_shippable_expr(root, input_rel, (Expr*) tle->expr, "GROUP BY")) {
+//              fResult = false;
+//              break;
+//            }
+//          }
+//
+//          if (fResult) {
+//            /* 2) HAVING clause must be deparsable (if present). */
+//            if (query->havingQual != NULL) {
+//              if (!db2_is_shippable_expr(root, input_rel, (Expr*) query->havingQual, "HAVING")) {
+//                fResult = false;
+//              }
+//            }
+//          }
+//
+//          if (fResult) {
+//            /* 3) Output target expressions must be deparsable too. */
+//            foreach (lc, output_rel->reltarget->exprs) {
+//              Expr* expr = (Expr*) lfirst(lc);
+//              if (!db2_is_shippable_expr(root, input_rel, expr, "SELECT")) {
+//                fResult = false;
+//                break;
+//              }
+//            }
+//          }
+//        }
+//        break;
+//        default: {
+//          db2Debug2("  stage %d not supported; not shippable", stage);
+//          fResult = false;
+//        }
+//        break;
+//      }
+//    }
+//  }
+//  db2Debug1("< %s::db2_is_shippable : %s", __FILE__, fResult ? "true" : "false");
+//  return fResult;
+//}
 
-  db2Debug1("> %s::db2_is_shippable", __FILE__);
-  if (root == NULL || root->parse == NULL || input_rel == NULL || output_rel == NULL || fdw_in == NULL) {
-    db2Debug2("  missing context; not shippable");
-    fResult = false;
-  } else {
-    Query* query = query = root->parse;
-    /* Conservatively reject query shapes we don't yet know how to translate.
-     * (This can be relaxed as we add DB2 SQL support.)
-     */
-    if (query->hasSubLinks || query->hasWindowFuncs || query->hasDistinctOn || query->hasTargetSRFs || query->hasForUpdate || query->hasModifyingCTE || query->hasRecursive || query->hasRowSecurity) {
-      db2Debug2("  query has unsupported features; not shippable");
-      fResult = false;
-    } else {
-      switch (stage) {
-        case UPPERREL_PARTIAL_GROUP_AGG:
-        case UPPERREL_GROUP_AGG: {
-          ListCell* lc = NULL;
 
-          fResult = true;
-          /* 1) GROUP BY expressions must be deparsable. */
-          foreach (lc, query->groupClause) {
-            SortGroupClause* grp = (SortGroupClause*) lfirst(lc);
-            TargetEntry*     tle = get_sortgroupclause_tle(grp, query->targetList);
-            if (tle == NULL || tle->expr == NULL) {
-              db2Debug2("  missing GROUP BY target entry; not shippable");
-              fResult = false;
-              break;
-            } 
-            if (!db2_is_shippable_expr(root, input_rel, (Expr*) tle->expr, "GROUP BY")) {
-              fResult = false;
-              break;
-            }
-          }
-
-          if (fResult) {
-            /* 2) HAVING clause must be deparsable (if present). */
-            if (query->havingQual != NULL) {
-              if (!db2_is_shippable_expr(root, input_rel, (Expr*) query->havingQual, "HAVING")) {
-                fResult = false;
-              }
-            }
-          }
-
-          if (fResult) {
-            /* 3) Output target expressions must be deparsable too. */
-            foreach (lc, output_rel->reltarget->exprs) {
-              Expr* expr = (Expr*) lfirst(lc);
-              if (!db2_is_shippable_expr(root, input_rel, expr, "SELECT")) {
-                fResult = false;
-                break;
-              }
-            }
-          }
-        }
-        break;
-        default: {
-          db2Debug2("  stage %d not supported; not shippable", stage);
-          fResult = false;
-        }
-        break;
-      }
-    }
-  }
-  db2Debug1("< %s::db2_is_shippable : %s", __FILE__, fResult ? "true" : "false");
-  return fResult;
-}
-
-static bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, const char* label) {
-  bool         fResult  = false;
-  DB2FdwState* fdw_in   = (DB2FdwState*)foreignrel->fdw_private;
-
-  db2Debug1("> %s::db2_is_shippable_expr", __FILE__);
-  if (expr == NULL) {
-    fResult = true;
-  } else if (fdw_in == NULL) {
-    fResult = false;
-  } else if (contain_agg_clause((Node*) expr)) {
-    List* params   = NIL;
-    char* deparsed = NULL;
-    deparsed = deparseExpr(root, foreignrel, expr, &params);
-    db2Debug2("  deparsed: %s", deparsed);
-    fResult = (deparsed != NULL);
-    db2free(deparsed);
-  } else if (contain_window_function((Node*) expr)) {
-    db2Debug2("  %s contains window function; not shippable", label ? label : "expr");
-    fResult = false;
-  } else {
-    List* params   = NIL;
-    char* deparsed = NULL;
-    deparsed = deparseExpr(root, foreignrel, expr, &params);
-    db2Debug2("  deparsed: %s", deparsed);
-    fResult = (deparsed != NULL);
-    db2free(deparsed);
-  }
-  db2Debug1("> %s::db2_is_shippable_expr : %s", __FILE__, fResult ? "true" : "false");
-  return fResult;
-}
+//static bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, const char* label) {
+//  bool         fResult  = false;
+//  DB2FdwState* fdw_in   = (DB2FdwState*)foreignrel->fdw_private;
+//
+//  db2Debug1("> %s::db2_is_shippable_expr", __FILE__);
+//  if (expr == NULL) {
+//    fResult = true;
+//  } else if (fdw_in == NULL) {
+//    fResult = false;
+//  } else if (contain_agg_clause((Node*) expr)) {
+//    List* params   = NIL;
+//    char* deparsed = NULL;
+//    deparsed = deparseExpr(root, foreignrel, expr, &params);
+//    db2Debug2("  deparsed: %s", deparsed);
+//    fResult = (deparsed != NULL);
+//    db2free(deparsed);
+//  } else if (contain_window_function((Node*) expr)) {
+//    db2Debug2("  %s contains window function; not shippable", label ? label : "expr");
+//    fResult = false;
+//  } else {
+//    List* params   = NIL;
+//    char* deparsed = NULL;
+//    deparsed = deparseExpr(root, foreignrel, expr, &params);
+//    db2Debug2("  deparsed: %s", deparsed);
+//    fResult = (deparsed != NULL);
+//    db2free(deparsed);
+//  }
+//  db2Debug1("> %s::db2_is_shippable_expr : %s", __FILE__, fResult ? "true" : "false");
+//  return fResult;
+//}
 
 /** add_foreign_grouping_paths
  *  Add foreign path for grouping and/or aggregation.

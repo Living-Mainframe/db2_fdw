@@ -36,7 +36,6 @@ void                db2PrepareQuery      (DB2Session* session, const char *query
  *   - Set the prefetch options.
  */
 void db2PrepareQuery (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize) {
-  int               i           = 0;
   int               col_pos     = 0;
   int               is_select   = 0;
   int               for_update  = 0;

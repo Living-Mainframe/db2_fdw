@@ -85,16 +85,6 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int t
       /* all columns are used */
       fdw_state->db2Table->cols[i]->used = 1;
       db2Debug2("  fdw_state->db2Table->cols[%d]->used: %d",i,fdw_state->db2Table->cols[i]->used);
-
-      /* allocate memory for return value */
-      db2Debug2("  fdw_state->db2Table->cols[%d]->val_size: %x",i,fdw_state->db2Table->cols[i]->val_size);
-      fdw_state->db2Table->cols[i]->val = (char *) db2alloc ("fdw_state->db2Table->cols[i]->val", fdw_state->db2Table->cols[i]->val_size + 1);
-      db2Debug2("  fdw_state->db2Table->cols[%d]->val: %x",i,fdw_state->db2Table->cols[i]->val);
-      fdw_state->db2Table->cols[i]->val_len  = 0;
-      db2Debug2("  fdw_state->db2Table->cols[%d]->val_len: %x",i,fdw_state->db2Table->cols[i]->val);
-      fdw_state->db2Table->cols[i]->val_null = 1;
-      db2Debug2("  fdw_state->db2Table->cols[%d]->val_null: %x",i,fdw_state->db2Table->cols[i]->val_null);
-
       if (first_column)
         first_column = false;
       else

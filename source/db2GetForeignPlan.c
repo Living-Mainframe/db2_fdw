@@ -67,8 +67,9 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
   }
 
   if (IS_SIMPLE_REL(foreignrel)) {
-    ListCell* cell = NULL;
-    int resnum = 0;
+    DB2ResultColumn** cols    = NULL;
+    ListCell*         cell    = NULL;
+    int               resnum  = 0;
 
     /* For base relations, set scan_relid as the relid of the relation. */
     scan_relid = foreignrel->relid;
@@ -76,7 +77,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
     /* find all the columns to include in the select list */
     /* examine each SELECT list entry for Var nodes */
     db2Debug3("  size of columnlist: %d", list_length(foreignrel->reltarget->exprs));
-    DB2ResultColumn** cols = (DB2ResultColumn**)db2alloc("resultColumns", list_length(foreignrel->reltarget->exprs) * sizeof(DB2ResultColumn*));
+    cols = (DB2ResultColumn**)db2alloc("resultColumns", list_length(foreignrel->reltarget->exprs) * sizeof(DB2ResultColumn*));
     foreach (cell, foreignrel->reltarget->exprs) {
       db2Debug3("  examine column %d", resnum);
       cols[resnum] = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
@@ -161,8 +162,8 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
       /* examine each condition for Tlist nodes; they come in the correct sequence as in the query and do not need to be sorted */
       db2Debug3("  size of tlist: %d", list_length(fdw_scan_tlist));
       foreach (cell, fdw_scan_tlist) {
-        db2Debug3("  examine tlist");
         DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+        db2Debug3("  examine tlist");
         resCol->next       = fpinfo->resultList;
         fpinfo->resultList = resCol;
         resCol->resnum     = resnum;
@@ -307,10 +308,10 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
         }
         db2Debug2( "  aggref->aggfnoid=%u name=%s%s%s", aggref->aggfnoid, nspname ? nspname : "", nspname ? "." : "", aggname ? aggname : "<unknown>");
         if (aggname && strcmp(aggname, "count") == 0) {
-          db2Debug2("  found COUNT aggregate");
           DB2FdwState*  fpinfo  = (DB2FdwState*) foreignrel->fdw_private;
           /* if it's a COUNT(*) then we need an additional result */
           DB2Column* col = db2alloc("DB2Column for count(*)",sizeof(DB2Column));
+          db2Debug2("  found COUNT aggregate");
           col->colName        = "count";
           col->colType        = -5; // SQL_BIGINT type in DB2, which can hold the result of COUNT(*)
           col->colSize        = 8;
@@ -326,10 +327,7 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
           col->pgtypmod       = -1;
           col->used           = 1;
           col->pkey           = 0;
-          col->val            = NULL;
           col->val_size       = 24;
-          col->val_len        = 0;
-          col->val_null       = 0;
           col->noencerr       = fpinfo->db2Table->cols[0]->noencerr; // use same noencerr as first column 
           addResult(resCol,col);
         } else {
@@ -516,10 +514,7 @@ static void addResult(DB2ResultColumn* resCol, DB2Column* column) {
     resCol->pgtype         = column->pgtype;
     resCol->pgtypmod       = column->pgtypmod;
     resCol->pkey           = column->pkey;
-    resCol->val            = db2strdup(column->val);
     resCol->val_size       = column->val_size;
-    resCol->val_len        = column->val_len;
-    resCol->val_null       = column->val_null;
     resCol->varno          = column->varno;
     resCol->noencerr       = column->noencerr;
   }
@@ -527,10 +522,10 @@ static void addResult(DB2ResultColumn* resCol, DB2Column* column) {
 }
 
 static int compareResultColumns(const void* a, const void* b) {
-  int result = 0;
-  db2Debug1("> %s::compareResultColumns",__FILE__);
   DB2ResultColumn* colA = *(DB2ResultColumn**) a;
   DB2ResultColumn* colB = *(DB2ResultColumn**) b;
+  int result = 0;
+  db2Debug1("> %s::compareResultColumns",__FILE__);
   result = (colA->pgattnum - colB->pgattnum);
   db2Debug2("  comparing %s -> pgattnum %d and %s -> pgattnum %d, result = %d", colA->colName, colA->pgattnum, colB->colName, colB->pgattnum, result);
   db2Debug1("< %s::compareResultColumns: %d",__FILE__, result);

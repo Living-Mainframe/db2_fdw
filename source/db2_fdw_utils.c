@@ -196,8 +196,7 @@ void exitHook (int code, Datum arg) {
 void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) {
   char*                value          = NULL;
   long                 value_len      = 0;
-  int                  j              = 0; 
-  int                  index          = -1;
+  int                  j              = 0;
   DB2Table*            db2Table       = fdw_state->db2Table;
   DB2ResultColumn*     res            = NULL;
   bool                 isSimpleSelect = false;

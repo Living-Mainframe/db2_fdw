@@ -356,10 +356,7 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
     copy->db2Table->cols[i]->pgtypmod       = orig->db2Table->cols[i]->pgtypmod;
     copy->db2Table->cols[i]->used           = 0;
     copy->db2Table->cols[i]->pkey           = orig->db2Table->cols[i]->pkey;
-    copy->db2Table->cols[i]->val            = NULL;
     copy->db2Table->cols[i]->val_size       = orig->db2Table->cols[i]->val_size;
-    copy->db2Table->cols[i]->val_len        = 0;
-    copy->db2Table->cols[i]->val_null       = 0;
   }
   copy->startup_cost = 0.0;
   copy->total_cost   = 0.0;

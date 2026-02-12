@@ -128,7 +128,7 @@ EquivalenceMember*  find_em_for_rel_target    (PlannerInfo* root, EquivalenceCla
 static void         appendGroupByClause       (List* tlist, deparse_expr_cxt* context);
 static void         appendOrderByClause       (List* pathkeys, bool has_final_sort, deparse_expr_cxt* context);
 static void         appendLimitClause         (deparse_expr_cxt* context);
-static void         appendFunctionName        (Oid funcid, deparse_expr_cxt* context);
+//static void         appendFunctionName        (Oid funcid, deparse_expr_cxt* context);
 static void         appendOrderBySuffix       (Oid sortop, Oid sortcoltype, bool nulls_first, deparse_expr_cxt* context);
 static void         appendConditions          (List* exprs, deparse_expr_cxt* context);
 static void         appendWhereClause         (List* exprs, List* additional_conds, deparse_expr_cxt* context);
@@ -145,7 +145,7 @@ static void         deparseRelation           (StringInfo buf, Relation rel);
 static void         deparseExprInt            (Expr*              expr, deparse_expr_cxt* ctx);
 static void         deparseConstExpr          (Const*             expr, deparse_expr_cxt* ctx);
 static void         deparseParamExpr          (Param*             expr, deparse_expr_cxt* ctx);
-static void         deparseVarExpr            (Var*               expr, deparse_expr_cxt* ctx);
+//static void         deparseVarExpr            (Var*               expr, deparse_expr_cxt* ctx);
 static void         deparseVar                (Var*               expr, deparse_expr_cxt* ctx);
 static void         deparseOpExpr             (OpExpr*            expr, deparse_expr_cxt* ctx);
 static void         deparseScalarArrayOpExpr  (ScalarArrayOpExpr* expr, deparse_expr_cxt* ctx);
@@ -1001,27 +1001,27 @@ static void appendLimitClause(deparse_expr_cxt* context) {
 /** appendFunctionName
  * Deparses function name from given function oid.
  */
-static void appendFunctionName(Oid funcid, deparse_expr_cxt *context) {
-  StringInfo    buf       = context->buf;
-  HeapTuple     proctup;
-  Form_pg_proc  procform;
-
-  db2Debug4("> %s::appendFunctionName",__FILE__);
-  proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
-  if (!HeapTupleIsValid(proctup))
-    elog(ERROR, "cache lookup failed for function %u", funcid);
-  procform = (Form_pg_proc) GETSTRUCT(proctup);
-
-  /* Print schema name only if it's not pg_catalog */
-  if (procform->pronamespace != PG_CATALOG_NAMESPACE)
-    appendStringInfo(buf, "%s.", quote_identifier(get_namespace_name(procform->pronamespace)));
-
-  /* Always print the function name */
-  appendStringInfoString(buf, quote_identifier(NameStr(procform->proname)));
-  ReleaseSysCache(proctup);
-  db2Debug5("  function name: %s", context->buf->data);
-  db2Debug4("< %s::appendFunctionName",__FILE__);
-}
+//static void appendFunctionName(Oid funcid, deparse_expr_cxt *context) {
+//  StringInfo    buf       = context->buf;
+//  HeapTuple     proctup;
+//  Form_pg_proc  procform;
+//
+//  db2Debug4("> %s::appendFunctionName",__FILE__);
+//  proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+//  if (!HeapTupleIsValid(proctup))
+//    elog(ERROR, "cache lookup failed for function %u", funcid);
+//  procform = (Form_pg_proc) GETSTRUCT(proctup);
+//
+//  /* Print schema name only if it's not pg_catalog */
+//  if (procform->pronamespace != PG_CATALOG_NAMESPACE)
+//    appendStringInfo(buf, "%s.", quote_identifier(get_namespace_name(procform->pronamespace)));
+//
+//  /* Always print the function name */
+//  appendStringInfoString(buf, quote_identifier(NameStr(procform->proname)));
+//  ReleaseSysCache(proctup);
+//  db2Debug5("  function name: %s", context->buf->data);
+//  db2Debug4("< %s::appendFunctionName",__FILE__);
+//}
 
 /** Append the ASC, DESC, USING <OPERATOR> and NULLS FIRST / NULLS LAST parts of an ORDER BY clause.
  */
@@ -2040,102 +2040,102 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
   db2Debug1("< %s::deparseParamExpr", __FILE__);
 }
 
-static void deparseVarExpr           (Var*               expr, deparse_expr_cxt* ctx) {
-  const DB2Table*  var_table = NULL;  /* db2Table that belongs to a Var */
-
-  db2Debug1("> %s::deparseVarExpr", __FILE__);
-  /* check if the variable belongs to one of our foreign tables */
-  #ifdef JOIN_API
-  if (IS_SIMPLE_REL (ctx->foreignrel)) {
-  #endif /* JOIN_API */
-    if (expr->varno == ctx->foreignrel->relid && expr->varlevelsup == 0)
-      var_table = ((DB2FdwState*)ctx->foreignrel->fdw_private)->db2Table;
-  #ifdef JOIN_API
-  } else {
-    DB2FdwState* joinstate  = (DB2FdwState*) ctx->foreignrel->fdw_private;
-    DB2FdwState* outerstate = (DB2FdwState*) joinstate->outerrel->fdw_private;
-    DB2FdwState* innerstate = (DB2FdwState*) joinstate->innerrel->fdw_private;
-    /* we can't get here if the foreign table has no columns, so this is safe */
-    if (expr->varno == outerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
-      var_table = outerstate->db2Table;
-    if (expr->varno == innerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
-      var_table = innerstate->db2Table;
-  }
-  #endif /* JOIN_API */
-  if (var_table) {
-    /* the variable belongs to a foreign table, replace it with the name */
-    /* we cannot handle system columns */
-    db2Debug2("  varattno: %d",expr->varattno);
-    if (expr->varattno > 0) {
-      /** Allow boolean columns here.
-       * They will be rendered as ("COL" <> 0).
-       */
-      if (!(canHandleType (expr->vartype) || expr->vartype == BOOLOID)) {
-        db2Debug2("  !(canHandleType (vartype %d) || vartype == BOOLOID",expr->vartype);
-      } else {
-        /* get var_table column index corresponding to this column (-1 if none) */
-        int index = var_table->ncols - 1;
-        while (index >= 0 && var_table->cols[index]->pgattnum != expr->varattno) {
-          --index;
-        }
-        /* if no DB2 column corresponds, translate as NULL */
-        if (index == -1) {
-          appendStringInfo (ctx->buf, "NULL");
-        } else {
-          /** Don't try to convert a column reference if the type is
-           * converted from a non-string type in DB2 to a string type
-           * in PostgreSQL because functions and operators won't work the same.
-           */
-          short db2type = c2dbType(var_table->cols[index]->colType);
-          db2Debug2("  db2type: %d", db2type);
-          if ((expr->vartype == TEXTOID || expr->vartype == BPCHAROID || expr->vartype == VARCHAROID)  && db2type != DB2_VARCHAR && db2type != DB2_CHAR) {
-            db2Debug2("  vartype: %d", expr->vartype);
-          } else {
-            /* work around the lack of booleans in DB2 */
-            if (expr->vartype == BOOLOID) {
-              appendStringInfo (ctx->buf, "(");
-            }
-            /* qualify with an alias based on the range table index */
-            appendStringInfo(ctx->buf, "%s%d.%s", "r", var_table->cols[index]->varno, var_table->cols[index]->colName);
-            /* work around the lack of booleans in DB2 */
-            if (expr->vartype == BOOLOID) {
-              appendStringInfo (ctx->buf, " <> 0)");
-            }
-          }
-        }
-      }
-    }
-  } else {
-    #ifdef OLD_FDW_API
-    // treat it like a parameter
-    // don't try to push down parameters with 9.1
-    db2Debug2("  don't try to push down parameters with 9.1");
-    #else
-    // don't try to handle type interval
-    if (!canHandleType (expr->vartype) || expr->vartype == INTERVALOID) {
-      db2Debug2("  !canHandleType (vartype %d) || vartype == INTERVALOID", expr->vartype);
-    } else {
-      ListCell*      cell   = NULL;
-      int            index  = 0;
-
-      /* find the index in the parameter list */
-      foreach (cell, *(ctx->params_list)) {
-        ++index;
-        if (equal (expr, (Node*) lfirst (cell)))
-          break;
-      }
-      if (cell == NULL) {
-        /* add the parameter to the list */
-        ++index;
-        *(ctx->params_list) = lappend (*(ctx->params_list), expr);
-      }
-      /* parameters will be called :p1, :p2 etc. */
-      appendStringInfo (ctx->buf, ":p%d", index);
-    }
-    #endif /* OLD_FDW_API */
-  }
-  db2Debug1("< %s::deparseVarExpr", __FILE__);
-}
+//static void deparseVarExpr           (Var*               expr, deparse_expr_cxt* ctx) {
+//  const DB2Table*  var_table = NULL;  /* db2Table that belongs to a Var */
+//
+//  db2Debug1("> %s::deparseVarExpr", __FILE__);
+//  /* check if the variable belongs to one of our foreign tables */
+//  #ifdef JOIN_API
+//  if (IS_SIMPLE_REL (ctx->foreignrel)) {
+//  #endif /* JOIN_API */
+//    if (expr->varno == ctx->foreignrel->relid && expr->varlevelsup == 0)
+//      var_table = ((DB2FdwState*)ctx->foreignrel->fdw_private)->db2Table;
+//  #ifdef JOIN_API
+//  } else {
+//    DB2FdwState* joinstate  = (DB2FdwState*) ctx->foreignrel->fdw_private;
+//    DB2FdwState* outerstate = (DB2FdwState*) joinstate->outerrel->fdw_private;
+//    DB2FdwState* innerstate = (DB2FdwState*) joinstate->innerrel->fdw_private;
+//    /* we can't get here if the foreign table has no columns, so this is safe */
+//    if (expr->varno == outerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
+//      var_table = outerstate->db2Table;
+//    if (expr->varno == innerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
+//      var_table = innerstate->db2Table;
+//  }
+//  #endif /* JOIN_API */
+//  if (var_table) {
+//    /* the variable belongs to a foreign table, replace it with the name */
+//    /* we cannot handle system columns */
+//    db2Debug2("  varattno: %d",expr->varattno);
+//    if (expr->varattno > 0) {
+//      /** Allow boolean columns here.
+//       * They will be rendered as ("COL" <> 0).
+//       */
+//      if (!(canHandleType (expr->vartype) || expr->vartype == BOOLOID)) {
+//        db2Debug2("  !(canHandleType (vartype %d) || vartype == BOOLOID",expr->vartype);
+//      } else {
+//        /* get var_table column index corresponding to this column (-1 if none) */
+//        int index = var_table->ncols - 1;
+//        while (index >= 0 && var_table->cols[index]->pgattnum != expr->varattno) {
+//          --index;
+//        }
+//        /* if no DB2 column corresponds, translate as NULL */
+//        if (index == -1) {
+//          appendStringInfo (ctx->buf, "NULL");
+//        } else {
+//          /** Don't try to convert a column reference if the type is
+//           * converted from a non-string type in DB2 to a string type
+//           * in PostgreSQL because functions and operators won't work the same.
+//           */
+//          short db2type = c2dbType(var_table->cols[index]->colType);
+//          db2Debug2("  db2type: %d", db2type);
+//          if ((expr->vartype == TEXTOID || expr->vartype == BPCHAROID || expr->vartype == VARCHAROID)  && db2type != DB2_VARCHAR && db2type != DB2_CHAR) {
+//            db2Debug2("  vartype: %d", expr->vartype);
+//          } else {
+//            /* work around the lack of booleans in DB2 */
+//            if (expr->vartype == BOOLOID) {
+//              appendStringInfo (ctx->buf, "(");
+//            }
+//            /* qualify with an alias based on the range table index */
+//            appendStringInfo(ctx->buf, "%s%d.%s", "r", var_table->cols[index]->varno, var_table->cols[index]->colName);
+//            /* work around the lack of booleans in DB2 */
+//            if (expr->vartype == BOOLOID) {
+//              appendStringInfo (ctx->buf, " <> 0)");
+//            }
+//          }
+//        }
+//      }
+//    }
+//  } else {
+//    #ifdef OLD_FDW_API
+//    // treat it like a parameter
+//    // don't try to push down parameters with 9.1
+//    db2Debug2("  don't try to push down parameters with 9.1");
+//    #else
+//    // don't try to handle type interval
+//    if (!canHandleType (expr->vartype) || expr->vartype == INTERVALOID) {
+//      db2Debug2("  !canHandleType (vartype %d) || vartype == INTERVALOID", expr->vartype);
+//    } else {
+//      ListCell*      cell   = NULL;
+//      int            index  = 0;
+//
+//      /* find the index in the parameter list */
+//      foreach (cell, *(ctx->params_list)) {
+//        ++index;
+//        if (equal (expr, (Node*) lfirst (cell)))
+//          break;
+//      }
+//      if (cell == NULL) {
+//        /* add the parameter to the list */
+//        ++index;
+//        *(ctx->params_list) = lappend (*(ctx->params_list), expr);
+//      }
+//      /* parameters will be called :p1, :p2 etc. */
+//      appendStringInfo (ctx->buf, ":p%d", index);
+//    }
+//    #endif /* OLD_FDW_API */
+//  }
+//  db2Debug1("< %s::deparseVarExpr", __FILE__);
+//}
 
 /* Deparse given Var node into context->buf.
  *

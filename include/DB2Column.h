@@ -22,10 +22,7 @@ typedef struct db2Column {
   int                 pgtypmod;      // PG type modifier
   int                 used;          // is the column used in the query?
   int                 pkey;          // nonzero for primary keys, later set to the resjunk attribute number
-  char*               val;           // buffer for DB2 to return results in (LOB locator for LOBs)
   size_t              val_size;      // allocated size in val
-  size_t              val_len;       // actual length of val
-  int                 val_null;      // indicator for NULL value
   int                 varno;         // range table index of this column's relation
   db2NoEncErrType     noencerr;      // no encoding error produced
 } DB2Column;

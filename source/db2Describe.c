@@ -136,9 +136,6 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
     reply->cols[i - 1]->pgtypmod       = 0;
     reply->cols[i - 1]->used           = 0;
     reply->cols[i - 1]->pkey           = 0;
-    reply->cols[i - 1]->val            = NULL;
-    reply->cols[i - 1]->val_len        = 0;
-    reply->cols[i - 1]->val_null       = 1;
     reply->cols[i - 1]->noencerr       = NO_ENC_ERR_NULL;
 
     if (noencerr != NULL) {
@@ -266,15 +263,9 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
         reply->cols[i - 1]->val_size = bin_size;
       break;
       default:
-//        reply->cols[i - 1]->val_size = bin_size * 4 + 1; 
-//        reply->cols[i - 1]->db2type = SQL_TYPE_OTHER; 
-//        reply->cols[i - 1]->val_size = 0;
       break;
     }
-    db2Debug2("  reply->cols[%d]->val      : %x", (i-1), reply->cols[i - 1]->val);
     db2Debug2("  reply->cols[%d]->val_size : %d", (i-1), reply->cols[i - 1]->val_size);
-    db2Debug2("  reply->cols[%d]->val_len  : %d", (i-1), reply->cols[i - 1]->val_len);
-    db2Debug2("  reply->cols[%d]->val_null : %d", (i-1), reply->cols[i - 1]->val_null);
   }
   /* release statement handle, this takes care of the parameter handles */
   db2FreeStmtHdl(stmthp, session->connp);

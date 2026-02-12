@@ -17,8 +17,7 @@ extern void         db2Debug2                 (const char* message, ...);
 
 /** local prototypes */
         void  db2BeginForeignScan (ForeignScanState* node, int eflags);
-static  int   addExprParams       (ForeignScanState* node);
-static  int   addTleExprParams    (ForeignScanState* node, int paramCount);
+static  void  addExprParams       (ForeignScanState* node);
 
 /** db2BeginForeignScan
  *   Recover ("deserialize") connection information, remote query,
@@ -29,14 +28,13 @@ static  int   addTleExprParams    (ForeignScanState* node, int paramCount);
 void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   ForeignScan* fsplan      = (ForeignScan*) node->ss.ps.plan;
   DB2FdwState* fdw_state   = NULL;
-  int          paramCount  = 0;
 
   db2Debug1("> db2BeginForeignScan");
   /* deserialize private plan data */
   fdw_state       = deserializePlanData(fsplan->fdw_private);
   node->fdw_state = (void *) fdw_state;
 
-  paramCount  = addExprParams(node);
+  addExprParams(node);
 
   /* add a fake parameter "if that string appears in the query */
   if (strstr (fdw_state->query, "?/*:now*/") != NULL) {
@@ -70,13 +68,12 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   db2Debug1("< db2BeginForeignScan");
 }
 
-static int addExprParams(ForeignScanState* node){
+static void addExprParams(ForeignScanState* node){
   DB2FdwState* fdw_state   = node->fdw_state;
   ForeignScan* fsplan      = (ForeignScan*) node->ss.ps.plan;
   List*        exec_exprs  = NIL;
   ParamDesc*   paramDesc   = NULL;
   ListCell*    cell        = NULL;
-  int          index       = 0;
 
   db2Debug1("> addExprParams");
   /* create an ExprState tree for the parameter expressions */
@@ -87,7 +84,6 @@ static int addExprParams(ForeignScanState* node){
     ExprState* expr = (ExprState*) lfirst (cell);
 
     /* count, but skip deleted entries */
-    ++index;
     if (expr == NULL)
       continue;
 
@@ -116,6 +112,5 @@ static int addExprParams(ForeignScanState* node){
     db2Debug2("  paramDesc->colnum: %d  ",paramDesc->colnum);
     fdw_state->paramList = paramDesc;
   }
-  db2Debug1("< addExprParams : %d", index);
-  return index;
+  db2Debug1("< addExprParams");
 }
