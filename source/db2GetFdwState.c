@@ -1,7 +1,5 @@
 #include <postgres.h>
-#include <foreign/foreign.h>
 #include <utils/lsyscache.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include <access/xact.h>
