@@ -7,6 +7,7 @@
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
+#include <utils/lsyscache.h>
 #include "db2_fdw.h"
 
 /** external prototypes */
@@ -14,9 +15,8 @@
 extern bool            optionIsTrue              (const char* value);
 #endif
 extern void            db2Debug1                 (const char* message, ...);
-#if PG_VERSION_NUM < 140000
+extern void            db2Debug2                 (const char* message, ...);
 extern char*           db2strdup                 (const char* source);
-#endif
 
 /** local prototypes */
 #if PG_VERSION_NUM < 140000
@@ -38,7 +38,7 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
   int       i       = 0;
   bool      has_key = false;
   db2Debug1("> db2AddForeignUpdateTargets");
-  db2Debug1("  add target columns for update on %d", relid);
+  db2Debug2("  add target columns for update on %d - %s", relid, get_rel_name(relid));
   /* loop through all columns of the foreign table */
   for (i = 0; i < tupdesc->natts; ++i) {
     Form_pg_attribute att     = TupleDescAttr (tupdesc, i);
@@ -79,6 +79,7 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
                        , att->attcollation
                        , 0
                        );
+          db2Debug2("  add resjunk for column %d - %s at index %d", attrno, NameStr(att->attname),rtindex);
           add_row_identity_var(root, var, rtindex, NameStr(att->attname));
           #endif  /* PG_VERSION_NUM */
           has_key = true;
