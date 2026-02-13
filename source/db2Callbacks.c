@@ -40,7 +40,7 @@ void db2UnregisterCallback (void *arg) {
  *   Commit or rollback DB2 transactions when appropriate.
  */
 void transactionCallback (XactEvent event, void *arg) {
-  db2Debug1("> transactionCallback");
+  db2Debug1("> transactionCallback(Event %d, Arg %x)", event, arg);
   switch (event) {
     case XACT_EVENT_PRE_COMMIT:
     case XACT_EVENT_PARALLEL_PRE_COMMIT:
