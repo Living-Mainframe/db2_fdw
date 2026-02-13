@@ -50,9 +50,10 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
   List*          remote_exprs      = NIL;
   List*          local_exprs       = NIL;
   List*          params_list       = NIL;
-  List*          fdw_scan_tlist    = NIL;
   List*          fdw_recheck_quals = NIL;
   List*          retrieved_attrs   = NIL;
+  List*          ptlist            = NIL;
+  int            ptlist_len        = 0; 
   ListCell*      lc                = NULL;
   bool           has_final_sort    = false;
   bool           has_limit         = false;
@@ -66,43 +67,64 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
     has_limit       = boolVal(list_nth(best_path->fdw_private, FdwPathPrivateHasLimit));
   }
 
+  db2Debug2("  length of tlist: %d", list_length(tlist));
+
+  ptlist     = build_tlist_to_deparse(foreignrel);
+  ptlist_len = list_length(ptlist);
+
   if (IS_SIMPLE_REL(foreignrel)) {
-    DB2ResultColumn** cols    = NULL;
-    ListCell*         cell    = NULL;
-    int               resnum  = 0;
+    DB2ResultColumn** cols      = NULL;
+    ListCell*         cell      = NULL;
+    int               iResCol   = 0;
 
     /* For base relations, set scan_relid as the relid of the relation. */
     scan_relid = foreignrel->relid;
 
-    /* find all the columns to include in the select list */
-    /* examine each SELECT list entry for Var nodes */
-    db2Debug3("  size of columnlist: %d", list_length(foreignrel->reltarget->exprs));
-    cols = (DB2ResultColumn**)db2alloc("resultColumns", list_length(foreignrel->reltarget->exprs) * sizeof(DB2ResultColumn*));
-    foreach (cell, foreignrel->reltarget->exprs) {
-      db2Debug3("  examine column %d", resnum);
-      cols[resnum] = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
-      getUsedColumns ((Expr*) lfirst (cell), foreignrel, cols[resnum]);
-      db2Debug3("  cols[%d]->colName %s added to result list", resnum, cols[resnum]->colName);
-      resnum++;
+    if (ptlist_len >0) {
+      DB2ResultColumn* resCol = NULL;
+      /* find all the columns to include in the select list */
+      /* examine each SELECT list entry for Var nodes */
+      db2Debug3("  size of tlist: %d", ptlist_len);
+      foreach (cell, ptlist) {
+        resCol             = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+        getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
+        resCol->next       = fpinfo->resultList;
+        db2Debug3("  resCol->next: %x", resCol->next);
+        fpinfo->resultList = resCol;
+        db2Debug3("  fpinfo->resultList: %x", fpinfo->resultList);
+      }
+      for (resCol = fpinfo->resultList; resCol; resCol = resCol->next) {
+        iResCol++;
+      }
+      cols    = (DB2ResultColumn**)db2alloc("resultColumns", iResCol+1 * sizeof(DB2ResultColumn*));
+      iResCol = 0;
+      for (resCol = fpinfo->resultList; resCol; resCol = resCol->next) {
+        db2Debug2("  resCol: %x", resCol);
+        cols[iResCol] = resCol;
+        db2Debug2("  cols[%d]: %x", iResCol, cols[iResCol]);
+        db2Debug2("  cols[%d]->resnum: %d", iResCol, cols[iResCol]->resnum);
+        iResCol++;
+        db2Debug2("  resCol->next: %x", resCol->next);
+      }
+      // sort the array in ascending order of the pgattnum, so that we can compare it with the order of columns in the foreign table
+      db2Debug3("  sorting result cols %d columns by pgattnum", iResCol);
+      qsort(cols, iResCol, sizeof(DB2ResultColumn*), compareResultColumns);
+      // generate the sorted array into the resultList
+      fpinfo->resultList = NULL;
+      for (int idx = 0; idx < iResCol; idx++) {
+        db2Debug3("  result column %d: %s", idx, cols[idx]->colName);
+        cols[idx]->next    = fpinfo->resultList;
+        cols[idx]->resnum  = idx+1;
+        db2Debug3("  column %s added to result list with resnum %d", cols[idx]->colName, cols[idx]->resnum);
+        fpinfo->resultList = cols[idx];
+      }
+      /* examine each condition for Var nodes */
+      db2Debug3("  size of conditions: %d", list_length(foreignrel->baserestrictinfo));
+      foreach (cell, foreignrel->baserestrictinfo) {
+        db2Debug3("  examine condition");
+        getUsedColumns ((Expr*) lfirst (cell), foreignrel, NULL);
+      }
     }
-    // sort the array in ascending order of the pgattnum, so that we can compare it with the order of columns in the foreign table
-    db2Debug3("  sorting result columns by pgattnum");
-    qsort(cols, list_length(foreignrel->reltarget->exprs), sizeof(DB2ResultColumn*), compareResultColumns);
-    // generate the sorted array into the resultList
-    for (int idx = 0; idx < list_length(foreignrel->reltarget->exprs); idx++) {
-      db2Debug3("  result column %d: %s", idx, cols[idx]->colName);
-      cols[idx]->next    = fpinfo->resultList;
-      cols[idx]->resnum  = idx+1;
-      db2Debug3("  column %s added to result list with resnum %d", cols[idx]->colName, cols[idx]->resnum);
-      fpinfo->resultList = cols[idx];
-    }
-    /* examine each condition for Var nodes */
-    db2Debug3("  size of conditions: %d", list_length(foreignrel->baserestrictinfo));
-    foreach (cell, foreignrel->baserestrictinfo) {
-      db2Debug3("  examine condition");
-      getUsedColumns ((Expr*) lfirst (cell), foreignrel, NULL);
-    }
-
     /* In a base-relation scan, we must apply the given scan_clauses.
      *
      * Separate the scan_clauses into those that can be executed remotely and those that can't.
@@ -154,14 +176,13 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
      * 
      * Build the list of columns to be fetched from the foreign server.
      */
-    fdw_scan_tlist = build_tlist_to_deparse(foreignrel);
-    if (list_length(fdw_scan_tlist) > 0) {
+    if (ptlist_len > 0) {
       ListCell*   cell    = NULL;
       int         resnum  = 1;
 
       /* examine each condition for Tlist nodes; they come in the correct sequence as in the query and do not need to be sorted */
-      db2Debug3("  size of tlist: %d", list_length(fdw_scan_tlist));
-      foreach (cell, fdw_scan_tlist) {
+      db2Debug3("  size of tlist: %d", ptlist_len);
+      foreach (cell, ptlist) {
         DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
         db2Debug3("  examine tlist");
         resCol->next       = fpinfo->resultList;
@@ -199,13 +220,13 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
         }
       }
       /* Now fix the subplan's tlist --- this might result in inserting a Result node atop the plan tree. */
-      outer_plan = change_plan_targetlist(outer_plan, fdw_scan_tlist, best_path->path.parallel_safe);
+      outer_plan = change_plan_targetlist(outer_plan, tlist, best_path->path.parallel_safe);
     }
   }
 
   /* Build the query string to be sent for execution, and identify expressions to be sent as parameters. */
   initStringInfo(&sql);
-  deparseSelectStmtForRel(&sql, root, foreignrel, fdw_scan_tlist, remote_exprs, best_path->path.pathkeys, has_final_sort, has_limit, false, &retrieved_attrs, &params_list);
+  deparseSelectStmtForRel(&sql, root, foreignrel, ptlist, remote_exprs, best_path->path.pathkeys, has_final_sort, has_limit, false, &retrieved_attrs, &params_list);
   db2Debug2("  deparsed foreign query: %s", sql.data);
   /* Remember remote_exprs for possible use by postgresPlanDirectModify */
   fpinfo->final_remote_exprs = remote_exprs;
@@ -213,7 +234,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
   /* Build the fdw_private list that will be available to the executor.
    * Items in the list must match order in enum FdwScanPrivateIndex.
    */
-  fpinfo->db2Table->rncols  = list_length(fdw_scan_tlist);
+  fpinfo->db2Table->rncols  = ptlist_len;
   fpinfo->query             = sql.data;
   fpinfo->retrieved_attr    = retrieved_attrs;
   fdw_private               = serializePlanData(fpinfo);
@@ -224,7 +245,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
    * field of the finished plan node; we can't keep them in private state
    * because then they wouldn't be subject to later planner processing.
    */
-  fscan = make_foreignscan(tlist, local_exprs, scan_relid, params_list, fdw_private, fdw_scan_tlist, fdw_recheck_quals, outer_plan);
+  fscan = make_foreignscan(tlist, local_exprs, scan_relid, params_list, fdw_private, ptlist, fdw_recheck_quals, outer_plan);
   db2Debug1("< %s::db2GetForeignPlan : %x",__FILE__,fscan);
   return fscan;
 }
@@ -263,14 +284,26 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
           break;
         /* if this is a wholerow reference, we need all columns */
         if (variable->varattno == 0) {
-          for (index = 0; index < fpinfo->db2Table->ncols; ++index) {
+          DB2ResultColumn* tmpCol = NULL;
+          db2Debug2("  found whole-row reference, need to add all columns");
+          db2Debug2("  fpinfo->resultList: %x", fpinfo->resultList);
+          // add all columns but the last one here
+          for (index = 0; index < (fpinfo->db2Table->ncols - 1); index++) {
             if (fpinfo->db2Table->cols[index]->pgname) {
-              addResult(resCol,fpinfo->db2Table->cols[index]);
-              resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
-              resCol->next       = fpinfo->resultList;
-              fpinfo->resultList = resCol;
+              tmpCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+              tmpCol->resnum     = index+1;
+              addResult(tmpCol,fpinfo->db2Table->cols[index]);
+              db2Debug2("  db2Table[%d]->colName %s added to result list", index, fpinfo->db2Table->cols[index]->colName);
+              tmpCol->next       = fpinfo->resultList;
+              db2Debug2("  tmpCol-next: %x", tmpCol->next);
+              fpinfo->resultList = tmpCol;
+              db2Debug2("  fpinfo->resultList: %x", fpinfo->resultList);
             }
           }
+          // now add the last colum using the resCol passed in, so that the column name in the result list is correct for whole row reference
+          addResult(resCol,fpinfo->db2Table->cols[index]);
+          resCol->resnum     = index+1;
+          db2Debug3("  db2Table[%d]->colName %s added to result list", index, fpinfo->db2Table->cols[index]->colName);
           break;
         }
         /* get db2Table column index corresponding to this column (-1 if none) */
