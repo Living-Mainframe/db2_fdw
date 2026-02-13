@@ -2,6 +2,7 @@
 #define DB2FDWSTATE_H
 
 #include <foreign/foreign.h>
+#include <nodes/pathnodes.h>
 #include "ParamDesc.h"
 #include "DB2ResultColumn.h"
 
