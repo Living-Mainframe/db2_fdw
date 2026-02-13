@@ -1281,10 +1281,12 @@ List* build_tlist_to_deparse(RelOptInfo* foreignrel) {
   /* For an upper relation, we have already built the target list while checking shippability, so just return that. */
   if (IS_UPPER_REL(foreignrel)) {
     tlist = fpinfo->grouped_tlist;
+    db2Debug2("  using fpinfo->grouped_tlist");
   } else {
     ListCell* lc  = NULL;
 
     /* We require columns specified in foreignrel->reltarget->exprs and those required for evaluating the local conditions. */
+    db2Debug2("  using foreignrel->reltarget->exprs");
     tlist = add_to_flat_tlist(tlist, pull_var_clause((Node*) foreignrel->reltarget->exprs, PVC_RECURSE_PLACEHOLDERS));
     foreach(lc, fpinfo->local_conds) {
       RestrictInfo* rinfo = lfirst_node(RestrictInfo, lc);
