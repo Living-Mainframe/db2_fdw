@@ -19,10 +19,10 @@ void db2GetOptions(Oid foreigntableid, List** options);
  *   in that order. Column options are ignored.
  */
 void db2GetOptions (Oid foreigntableid, List** options) {
-  ForeignTable*       table   = NULL;
+  ForeignDataWrapper* wrapper = NULL;
   ForeignServer*      server  = NULL;
   UserMapping*        mapping = NULL;
-  ForeignDataWrapper* wrapper = NULL;
+  ForeignTable*       table   = NULL;
 
   db2Debug1("> db2GetOptions");
   /** Gather all data for the foreign table. */
