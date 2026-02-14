@@ -57,7 +57,7 @@ static void db2PopulateFdwStateOld(PlannerInfo* root, RelOptInfo* baserel, Oid f
    * have columns from different tables, and we have to keep track of them.
    */
   for (i = 0; i < fdwState->db2Table->ncols; ++i) {
-    fdwState->db2Table->cols[i]->varno = baserel->relid;
+    fdwState->db2Table->cols[i]->pgrelid = baserel->relid;
   }
   /** Classify conditions into remote_conds or local_conds.
    * These parameters are used in foreign_join_ok and db2GetForeignPlan.

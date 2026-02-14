@@ -16,6 +16,7 @@ typedef struct db2ResultColumn {
   size_t                  colBytes;      // number of bytes representing colSize
   int                     colPrimKeyPart;// 1 if column is part of the primary key - only relevant for UPDATE or DELETE
   int                     colCodepage;   // codepage set for this column (only set on char columns), if 0 the content is binary
+  int                     pgbaserelid;   // range table index of this column's relation
   char*                   pgname;        // PG column name
   int                     pgattnum;      // PG attribute number
   Oid                     pgtype;        // PG data type
@@ -26,7 +27,6 @@ typedef struct db2ResultColumn {
   size_t                  val_size;      // allocated size in val
   size_t                  val_len;       // actual length of val
   int                     val_null;      // indicator for NULL value
-  int                     varno;         // range table index of this column's relation
   db2NoEncErrType         noencerr;      // no encoding error produced
   struct db2ResultColumn* next;
 } DB2ResultColumn;

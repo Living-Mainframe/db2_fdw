@@ -261,7 +261,7 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
     for (i = 0; i < db2Table_o->ncols; ++i) {
       struct db2Column *tmp = db2Table_o->cols[i];
 
-      if (tmp->varno == var->varno) {
+      if (tmp->pgrelid == var->varno) {
         tabname = db2Table_o->pgname;
 
         if (tmp->pgattnum == var->varattno) {
@@ -274,7 +274,7 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
       for (i = 0; i < db2Table_i->ncols; ++i) {
         struct db2Column *tmp = db2Table_i->cols[i];
 
-        if (tmp->varno == var->varno) {
+        if (tmp->pgrelid == var->varno) {
           tabname = db2Table_i->pgname;
 
           if (tmp->pgattnum == var->varattno) {
@@ -290,16 +290,16 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
       memcpy (newcol, col, sizeof (struct db2Column));
       used_flag = 1;
     } else {
-        /* non-existing column, print a warning */
-        ereport (WARNING
-                ,(errcode(ERRCODE_WARNING)
-                 ,errmsg ("column number %d of foreign table \"%s\" does not exist in foreign DB2 table, will be replaced by NULL"
-                         ,var->varattno
-                         ,tabname
-                         )
-                 )
-                );
-      }
+      /* non-existing column, print a warning */
+      ereport (WARNING
+              ,(errcode(ERRCODE_WARNING)
+               ,errmsg ("column number %d of foreign table \"%s\" does not exist in foreign DB2 table, will be replaced by NULL"
+                       ,var->varattno
+                       ,tabname
+                       )
+               )
+              );
+    }
     newcol->used = used_flag;
     /* pgattnum should be the index in SELECT clause of join query. */
     newcol->pgattnum = fdwState->db2Table->ncols + 1;

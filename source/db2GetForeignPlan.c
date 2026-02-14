@@ -542,13 +542,13 @@ static void addResult(DB2ResultColumn* resCol, DB2Column* column) {
     resCol->colBytes       = column->colBytes;
     resCol->colPrimKeyPart = column->colPrimKeyPart;
     resCol->colCodepage    = column->colCodepage;
+    resCol->pgbaserelid    = column->pgrelid;
     resCol->pgname         = db2strdup(column->pgname);
     resCol->pgattnum       = column->pgattnum;
     resCol->pgtype         = column->pgtype;
     resCol->pgtypmod       = column->pgtypmod;
     resCol->pkey           = column->pkey;
     resCol->val_size       = column->val_size;
-    resCol->varno          = column->varno;
     resCol->noencerr       = column->noencerr;
   }
   db2Debug1("< %s::addResult",__FILE__);
