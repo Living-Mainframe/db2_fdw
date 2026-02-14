@@ -26,7 +26,7 @@ extern void*        db2alloc                  (const char* type, size_t size);
 bool db2AnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
 int  acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int targrows, double* totalrows, double* totaldeadrows);
 
-/** db2AnalyzeForeignTable
+/* db2AnalyzeForeignTable
  * 
  */
 bool db2AnalyzeForeignTable (Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages) {
@@ -38,21 +38,23 @@ bool db2AnalyzeForeignTable (Relation relation, AcquireSampleRowsFunc* func, Blo
   return true;
 }
 
-/** acquireSampleRowsFunc
- *   Perform a sequential scan on the DB2 table and return a sampe of rows.
- *   All LOB values are truncated to WIDTH_THRESHOLD+1 because anything
- *   exceeding this is not used by compute_scalar_stats().
+/* acquireSampleRowsFunc
+ * Perform a sequential scan on the DB2 table and return a sample of rows.
+ * All LOB values are truncated to WIDTH_THRESHOLD+1 because anything exceeding this is not used by compute_scalar_stats().
  */
 int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int targrows, double* totalrows, double* totaldeadrows) {
-  int collected_rows = 0, i;
-  DB2FdwState* fdw_state;
-  bool first_column = true;
-  StringInfoData query;
-  TupleDesc tupDesc = RelationGetDescr (relation);
-  Datum* values = (Datum*) db2alloc("values", tupDesc->natts* sizeof (Datum));
-  bool*  nulls  = (bool*)  db2alloc("null"  , tupDesc->natts* sizeof (bool));
-  double rstate, rowstoskip = -1, sample_percent;
-  MemoryContext old_cxt, tmp_cxt;
+  int               collected_rows  = 0;
+  DB2FdwState*      fdw_state       = NULL;
+  bool              first_column    = true;
+  StringInfoData    query;
+  TupleDesc         tupDesc         = RelationGetDescr (relation);
+  Datum*            values          = (Datum*) db2alloc("values", tupDesc->natts* sizeof (Datum));
+  bool*             nulls           = (bool*)  db2alloc("null"  , tupDesc->natts* sizeof (bool));
+  double            rstate          = 0;
+  double            rowstoskip      = -1;
+  double            sample_percent  = 0;
+  MemoryContext     old_cxt;
+  MemoryContext     tmp_cxt;
 
   db2Debug1("> acquireSampleRowsFunc");
   elog (DEBUG1, "db2_fdw: analyze foreign table %d", RelationGetRelid (relation));
@@ -66,32 +68,20 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int t
   rstate = anl_init_selection_state (targrows);
 
   /* get connection options, connect and get the remote table description */
-  fdw_state = db2GetFdwState (RelationGetRelid (relation), &sample_percent, true);
-  fdw_state->paramList = NULL;
-  fdw_state->rowcount = 0;
+  fdw_state             = db2GetFdwState (RelationGetRelid (relation), &sample_percent, true);
+  fdw_state->paramList  = NULL;
+  fdw_state->rowcount   = 0;
 
   /* construct query */
   initStringInfo (&query);
   appendStringInfo (&query, "SELECT ");
 
   /* loop columns */
-  for (i = 0; i < fdw_state->db2Table->ncols; ++i) {
-    /* don't get LONG, LONG RAW and untranslatable values */
-    short dbType = c2dbType(fdw_state->db2Table->cols[i]->colType);
-    if (dbType == DB2_BIGINT || dbType == DB2_UNKNOWN_TYPE) {
-      fdw_state->db2Table->cols[i]->used = 0;
-    } else {
-      db2Debug2("  fdw_state->db2Table->cols[%d]->name: %s",i,fdw_state->db2Table->cols[i]->colName);
-      /* all columns are used */
-      fdw_state->db2Table->cols[i]->used = 1;
-      db2Debug2("  fdw_state->db2Table->cols[%d]->used: %d",i,fdw_state->db2Table->cols[i]->used);
-      if (first_column)
-        first_column = false;
-      else
-        appendStringInfo (&query, ", ");
-
-      /* append column name */
-      appendStringInfo (&query, "%s", fdw_state->db2Table->cols[i]->colName);
+  for (int i = 0; i < fdw_state->db2Table->ncols; ++i) {
+    if (DB2_UNKNOWN_TYPE != c2dbType(fdw_state->db2Table->cols[i]->colType)) {
+      checkDataType(fdw_state->db2Table->cols[i]->colType,fdw_state->db2Table->cols[i]->colScale,fdw_state->db2Table->cols[i]->pgtype,fdw_state->db2Table->pgname,fdw_state->db2Table->cols[i]->pgname);
+      appendStringInfo (&query, "%s%s", ((first_column) ? "" : ", "), fdw_state->db2Table->cols[i]->colName);
+      first_column = false;
     }
   }
 
@@ -108,11 +98,6 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int t
 
   fdw_state->query = query.data;
   elog (DEBUG2, "  fdw_state->query: '%s'", fdw_state->query);
-
-  /* get PostgreSQL column data types, check that they match DB2's */
-  for (i = 0; i < fdw_state->db2Table->ncols; ++i)
-    if (fdw_state->db2Table->cols[i]->used)
-      checkDataType (fdw_state->db2Table->cols[i]->colType, fdw_state->db2Table->cols[i]->colScale, fdw_state->db2Table->cols[i]->pgtype, fdw_state->db2Table->pgname, fdw_state->db2Table->cols[i]->pgname);
 
   db2Debug3("  loop through query results");
   /* loop through query results */
@@ -136,8 +121,7 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int t
       rows[collected_rows++] = heap_form_tuple (tupDesc, values, nulls);
       MemoryContextReset (tmp_cxt);
     } else {
-      /*
-       * Skip a number of rows before replacing a random sample row.
+      /* Skip a number of rows before replacing a random sample row.
        * A more detailed description of the algorithm can be found in analyze.c
        */
       if (rowstoskip < 0) {
@@ -158,8 +142,8 @@ int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows, int t
 
   MemoryContextDelete (tmp_cxt);
 
-  *totalrows = (double) fdw_state->rowcount / sample_percent * 100.0;
-  *totaldeadrows = 0;
+  *totalrows      = (double) fdw_state->rowcount / sample_percent * 100.0;
+  *totaldeadrows  = 0;
 
   /* report report */
   ereport (elevel, (errmsg ("\"%s\": table contains %lu rows; %d rows in sample", RelationGetRelationName (relation), fdw_state->rowcount, collected_rows-1)));
