@@ -126,7 +126,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   db2Debug2("  stmt->local_schema : '%s'",stmt->local_schema);
   db2Debug2("  stmt->remote_schema: '%s'",stmt->remote_schema);
   db2Debug2("  stmt->server_name  : '%s'",stmt->server_name);
-  db2Debug2("  stmt->tabel_list   : '%x'",stmt->table_list);
+  db2Debug2("  stmt->table_list   : '%x'",stmt->table_list);
   db2Debug2("  stmt->type         : %d  ",stmt->type);
 
   initStringInfo (&tblist);
