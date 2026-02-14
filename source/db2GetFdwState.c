@@ -31,7 +31,7 @@ bool         optionIsTrue  (const char* value);
  *   "sample_percent" is set from the foreign table options.
  *   "sample_percent" can be NULL, in that case it is not set.
  */
-DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool describe) {
+DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool describe) {
   DB2FdwState* fdwState    = db2alloc("fdw_state", sizeof (DB2FdwState));
   char*        pgtablename = get_rel_name (foreigntableid);
   List*        options;
