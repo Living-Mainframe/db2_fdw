@@ -20,9 +20,7 @@ extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
-#ifdef IMPORT_API
-char* fold_case             (char* name, fold_t foldcase);
-#endif 
+static char* fold_case             (char* name, fold_t foldcase);
 
 /** db2ImportForeignSchema
  *   Returns a List of CREATE FOREIGN TABLE statements.
@@ -269,8 +267,15 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
           break;
       }
       /* part of the primary key */
-      if (key)
-        appendStringInfo (&buf, " OPTIONS (key 'true')");
+      appendStringInfo (&buf
+                       , " OPTIONS (%s '%d', %s '%ld', %s '%d', %s '%d', %s '%d'%s)"
+                       ,OPT_DB2TYPE , colType
+                       ,OPT_DB2SIZE , colSize
+                       ,OPT_DB2SCALE, colScale
+                       ,OPT_DB2NULL , colNulls
+                       ,OPT_DB2CCSID, cp
+                       , (key) ? ", key 'true'" : ""
+                       );
       /* not nullable */
       if (!colNulls)
         appendStringInfo (&buf, " NOT NULL");
@@ -280,11 +285,10 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   return result;
 }
 
-#ifdef IMPORT_API
-/** fold_case
- *   Returns a dup'ed string that is the case-folded first argument.
+/* fold_case
+ * Returns a dup'ed string that is the case-folded first argument.
  */
-char* fold_case (char *name, fold_t foldcase) {
+static char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
   db2Debug1("> fold_case");
   if (foldcase == CASE_KEEP) {
@@ -309,4 +313,3 @@ char* fold_case (char *name, fold_t foldcase) {
   db2Debug1("< fold_case - returns: '%s'", result);
   return result;
 }
-#endif /* IMPORT_API */

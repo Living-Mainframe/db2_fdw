@@ -27,7 +27,6 @@
 #endif /* PQ_QUERY_PARAM_MAX_LIMIT */
 
 #undef  OLD_FDW_API
-#define IMPORT_API
 
 /* array_create_iterator has a new signature from 9.5 on */
 #define array_create_iterator(arr, slice_ndim) array_create_iterator(arr, slice_ndim, NULL)
@@ -128,6 +127,13 @@ typedef enum {
 #define OPT_MAX_LONG          "max_long"
 #define OPT_READONLY          "readonly"
 #define OPT_KEY               "key"
+
+#define OPT_DB2TYPE           "db2type"
+#define OPT_DB2SIZE           "db2size"
+#define OPT_DB2SCALE          "db2scale"
+#define OPT_DB2NULL           "db2null"
+#define OPT_DB2CCSID          "db2ccsid"
+
 #define OPT_SAMPLE            "sample_percent"
 #define OPT_PREFETCH          "prefetch"
 #define OPT_NO_ENCODING_ERROR "no_encoding_error"

@@ -66,6 +66,11 @@ DB2FdwOption valid_options[] = {
   {OPT_PREFETCH         , ForeignTableRelationId      , false},
   {OPT_FETCHSZ          , ForeignTableRelationId      , false},
   {OPT_KEY              , AttributeRelationId         , false},
+  {OPT_DB2TYPE          , AttributeRelationId         , false},
+  {OPT_DB2SIZE          , AttributeRelationId         , false},
+  {OPT_DB2SCALE         , AttributeRelationId         , false},
+  {OPT_DB2NULL          , AttributeRelationId         , false},
+  {OPT_DB2CCSID         , AttributeRelationId         , false},
 #if PG_VERSION_NUM >= 140000
   {OPT_BATCH_SIZE       , ForeignServerRelationId     , false},
   {OPT_BATCH_SIZE       , ForeignTableRelationId      , false},
@@ -237,12 +242,18 @@ PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
                   )
                 );
     }
+    /* check valid values for column options */
     /* check valid values for max_long */
-    if (strcmp (def->defname, OPT_MAX_LONG) == 0) {
+    if (strcmp (def->defname, OPT_DB2TYPE ) == 0 
+    ||  strcmp (def->defname, OPT_DB2NULL ) == 0
+    ||  strcmp (def->defname, OPT_DB2SIZE ) == 0
+    ||  strcmp (def->defname, OPT_DB2SCALE) == 0
+    ||  strcmp (def->defname, OPT_DB2CCSID) == 0
+    ||  strcmp (def->defname, OPT_MAX_LONG) == 0) {
       char *val = STRVAL(def->arg);
       char *endptr;
-      unsigned long max_long = strtoul (val, &endptr, 0);
-      if (val[0] == '\0' || *endptr != '\0' || max_long < 1 || max_long > 1073741823ul)
+      long  lvalue = strtol (val, &endptr, 0);
+      if (val[0] == '\0' || *endptr != '\0' || lvalue < LONG_MIN || lvalue > LONG_MAX)
         ereport (ERROR
                 , ( errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE)
                   , errmsg ("invalid value for option \"%s\"", def->defname)
