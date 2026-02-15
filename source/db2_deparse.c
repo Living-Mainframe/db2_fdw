@@ -2009,11 +2009,6 @@ static void deparseConstExpr         (Const*             expr, deparse_expr_cxt*
 }
 
 static void deparseParamExpr         (Param*             expr, deparse_expr_cxt* ctx) {
-  #ifdef OLD_FDW_API
-  /* don't try to push down parameters with 9.1 */
-  db2Debug1("> %s::deparseParamExpr", __FILE__);
-  db2Debug2("  don't try to push down parameters with 9.1");
-  #else
   ListCell* cell  = NULL;
   char      parname[10];
 
@@ -2038,7 +2033,6 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
     snprintf (parname, 10, ":p%d", index);
     appendAsType (ctx->buf, expr->paramtype);
   }
-  #endif /* OLD_FDW_API */
   db2Debug1("< %s::deparseParamExpr", __FILE__);
 }
 
@@ -2107,34 +2101,6 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
 //        }
 //      }
 //    }
-//  } else {
-//    #ifdef OLD_FDW_API
-//    // treat it like a parameter
-//    // don't try to push down parameters with 9.1
-//    db2Debug2("  don't try to push down parameters with 9.1");
-//    #else
-//    // don't try to handle type interval
-//    if (!canHandleType (expr->vartype) || expr->vartype == INTERVALOID) {
-//      db2Debug2("  !canHandleType (vartype %d) || vartype == INTERVALOID", expr->vartype);
-//    } else {
-//      ListCell*      cell   = NULL;
-//      int            index  = 0;
-//
-//      /* find the index in the parameter list */
-//      foreach (cell, *(ctx->params_list)) {
-//        ++index;
-//        if (equal (expr, (Node*) lfirst (cell)))
-//          break;
-//      }
-//      if (cell == NULL) {
-//        /* add the parameter to the list */
-//        ++index;
-//        *(ctx->params_list) = lappend (*(ctx->params_list), expr);
-//      }
-//      /* parameters will be called :p1, :p2 etc. */
-//      appendStringInfo (ctx->buf, ":p%d", index);
-//    }
-//    #endif /* OLD_FDW_API */
 //  }
 //  db2Debug1("< %s::deparseVarExpr", __FILE__);
 //}

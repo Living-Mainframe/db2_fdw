@@ -18,11 +18,9 @@ extern void*        db2alloc                  (const char* type, size_t size);
 extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
-DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
-void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
-#ifndef OLD_FDW_API
-bool         optionIsTrue  (const char* value);
-#endif
+       DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
+static void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
+       bool         optionIsTrue  (const char* value);
 
 /** db2GetFdwState
  *   Construct an DB2FdwState from the options of the foreign table.
@@ -135,7 +133,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool de
  *   Set db2Table->npgcols.
  *   For PostgreSQL 9.2 and better, find the primary key columns and mark them in db2Table.
  */
-void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
+static void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   Relation rel;
   TupleDesc tupdesc;
   int i, index;
@@ -187,9 +185,8 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   db2Debug2("  < getColumnData");
 }
 
-#ifndef OLD_FDW_API
-/** optionIsTrue
- *   Returns true if the string is "true", "on" or "yes".
+/* optionIsTrue
+ * Returns true if the string is "true", "on" or "yes".
  */
 bool optionIsTrue (const char *value) {
   bool result = false;
@@ -198,5 +195,3 @@ bool optionIsTrue (const char *value) {
   db2Debug3("    < optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
   return result;
 }
-#endif /* OLD_FDW_API */
-

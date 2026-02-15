@@ -12,10 +12,8 @@ extern void         db2Debug1                 (const char* message, ...);
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 
 /** local prototypes */
-void  db2GetForeignPaths  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
-#ifndef OLD_FDW_API
+       void  db2GetForeignPaths  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
 static Expr* find_em_expr_for_rel(EquivalenceClass * ec, RelOptInfo * rel);
-#endif
 
 /** db2GetForeignPaths
  *   Create a ForeignPath node and add it as only possible path.
@@ -106,10 +104,8 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
   db2Debug1("< db2GetForeignPaths");
 }
 
-#ifndef OLD_FDW_API
-/** find_em_expr_for_rel
- *   Find an equivalence class member expression, all of whose Vars come from
- *   the indicated relation.
+/* find_em_expr_for_rel
+ * Find an equivalence class member expression, all of whose Vars come from the indicated relation.
  */
 static Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
   ListCell* lc_em = NULL;
@@ -130,4 +126,3 @@ static Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
   db2Debug1("< find_em_expr_for_rel - returns: %x", result);
   return result;
 }
-#endif /* OLD_FDW_API */

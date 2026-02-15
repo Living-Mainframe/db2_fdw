@@ -83,9 +83,7 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
   TimestampTz    tstamp;
   bool           is_null;
   bool           first_param = true;
-#ifndef OLD_FDW_API
   MemoryContext  oldcontext;
-#endif /* OLD_FDW_API */
   StringInfoData info;     /* list of parameters for DEBUG message */
 
   db2Debug1("> setSelectParameters");
@@ -94,10 +92,8 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
   
   initStringInfo (&info);
 
-#ifndef OLD_FDW_API
   /* switch to short lived memory context */
   oldcontext = MemoryContextSwitchTo (econtext->ecxt_per_tuple_memory);
-#endif /* OLD_FDW_API */
 
   /* iterate parameter list and fill values */
   for (param = paramList; param; param = param->next) {
@@ -150,10 +146,8 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
     }
   }
 
-#ifndef OLD_FDW_API
   /* reset memory context */
   MemoryContextSwitchTo (oldcontext);
-#endif /* OLD_FDW_API */
 
   db2Debug1("< setSelectParameters - returns: '%s'",info.data);
   return info.data;
