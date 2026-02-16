@@ -19,6 +19,7 @@ extern char*        db2strdup                 (const char* source);
 extern bool         isForeignSchema           (DB2Session* session, char* schema);
 extern char**       getForeignTableList       (DB2Session* session, char* schema, int list_type, char* table_list);
 extern DB2Table*    describeForeignTable      (DB2Session* session, char* schema, char* tabname);
+extern bool         optionIsTrue              (const char* value);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
@@ -93,10 +94,8 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       continue;
     } else if (strcmp (def->defname, "readonly") == 0) {
       char *s = STRVAL(def->arg);
-      if (pg_strcasecmp (s, "on") != 0 || pg_strcasecmp (s, "yes") != 0 || pg_strcasecmp (s, "true") != 0)
-        readonly = true;
-      else if (pg_strcasecmp (s, "off") != 0 || pg_strcasecmp (s, "no") != 0 || pg_strcasecmp (s, "false") != 0)
-        readonly = false;
+      if (pg_strcasecmp (s, "on") != 0 || pg_strcasecmp (s, "yes") != 0 || pg_strcasecmp (s, "true") != 0 || pg_strcasecmp (s, "off") != 0 || pg_strcasecmp (s, "no") != 0 || pg_strcasecmp (s, "false") != 0)
+        readonly = optionIsTrue(s);
       else
         ereport (ERROR, (errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE), errmsg ("invalid value for option \"%s\"", def->defname)));
       continue;
