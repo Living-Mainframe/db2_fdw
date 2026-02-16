@@ -29,6 +29,7 @@ OBJS         = source/db2_fdw.o\
                source/db2ExplainForeignModify.o\
                source/db2IsForeignRelUpdatable.o\
                source/db2ImportForeignSchema.o\
+               source/db2ImportForeignSchemaData.o\
                source/db2GetFdwState.o\
                source/db2GetForeignRelSize.o\
                source/db2ReAllocFree.o\
@@ -47,7 +48,6 @@ OBJS         = source/db2_fdw.o\
                source/db2FreeStmtHdl.o\
                source/db2GetSession.o\
                source/db2Describe.o\
-               source/db2GetImportColumn.o\
                source/db2PrepareQuery.o\
                source/db2BindParameter.o\
                source/db2ExecuteQuery.o\

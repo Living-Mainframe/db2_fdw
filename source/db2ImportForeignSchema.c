@@ -10,17 +10,20 @@
 
 /** external prototypes */
 extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern int          db2GetImportColumn        (DB2Session* session, char* stmt, char* table_list, int list_type, char* tabname, char* colname, short* colType, size_t* colLen, short* typescale, short* nullable, int* key, int* cp);
 extern char*        guessNlsLang              (char* nls_lang);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
 extern short        c2dbType                  (short fcType);
 extern void         db2free                   (void* p);
 extern char*        db2strdup                 (const char* source);
+extern bool         isForeignSchema           (DB2Session* session, char* schema);
+extern char**       getForeignTableList       (DB2Session* session, char* schema, int list_type, char* table_list);
+extern DB2Table*    describeForeignTable      (DB2Session* session, char* schema, char* tabname);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
 static char* fold_case             (char* name, fold_t foldcase);
+static void generateForeignTableCreate(StringInfo buf, char* servername, char* local_schema, char* remote_schema, DB2Table* db2Table, fold_t foldcase, bool readonly);
 
 /** db2ImportForeignSchema
  *   Returns a List of CREATE FOREIGN TABLE statements.
@@ -29,32 +32,20 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   ForeignServer*      server;
   UserMapping*        mapping;
   ForeignDataWrapper* wrapper;
-  char                tabname   [TABLE_NAME_LEN] = { '\0' };
-  char                colname   [COLUMN_NAME_LEN] = { '\0' };
-  char                oldtabname[TABLE_NAME_LEN] = { '\0' };
-  char*               foldedname;
   char*               nls_lang  = NULL;
   char*               user      = NULL;
   char*               password  = NULL;
   char*               jwt_token = NULL;
   char*               dbserver  = NULL;
-  short               colType;
-  size_t              colSize;
-  short               colScale;
-  short               colNulls;
-  int                 key;
-  int                 cp;
-  int                 rc;
   List*               options;
   List*               result    = NIL;
   ListCell*           cell;
   DB2Session*         session;
   fold_t              foldcase  = CASE_SMART;
   StringInfoData      buf;
-  StringInfoData      tblist;
   bool                readonly  = false;
-  bool                firstcol  = true;
-  db2Debug1("> db2ImportForeignSchema");
+
+  db2Debug1("> %s::db2ImportForeignSchema",__FILE__);
   
   /* get the foreign server, the user mapping and the FDW */
   server  = GetForeignServer      (serverOid);
@@ -119,169 +110,47 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   /* connect to DB2 database */
   session = db2GetSession (dbserver, user, password, jwt_token, nls_lang, 1);
 
-  initStringInfo (&buf);
-  db2Debug2("  stmt->list_type    : %d  ",stmt->list_type);
-  db2Debug2("  stmt->local_schema : '%s'",stmt->local_schema);
-  db2Debug2("  stmt->remote_schema: '%s'",stmt->remote_schema);
-  db2Debug2("  stmt->server_name  : '%s'",stmt->server_name);
-  db2Debug2("  stmt->table_list   : '%x'",stmt->table_list);
-  db2Debug2("  stmt->type         : %d  ",stmt->type);
+  db2Debug2("  stmt->list_type    : %d", stmt->list_type);
+  db2Debug2("  stmt->local_schema : %s", stmt->local_schema);
+  db2Debug2("  stmt->remote_schema: %s", stmt->remote_schema);
+  db2Debug2("  stmt->server_name  : %s", stmt->server_name);
+  db2Debug2("  stmt->table_list   : %s", stmt->table_list);
+  db2Debug2("  stmt->type         : %d", stmt->type);
 
-  initStringInfo (&tblist);
-  if (stmt->list_type != FDW_IMPORT_SCHEMA_ALL) {
-    foreach (cell, stmt->table_list) {
-      RangeVar* rVar = lfirst(cell);
-      db2Debug2("  rVar             :  %x ", rVar);
-      if (rVar != NULL) {
-        db2Debug2("  rVar->type       :  %d ", rVar->type);
-        db2Debug2("  rVar->catalogname: '%s'", rVar->catalogname);
-        db2Debug2("  rVar->schemaname : '%s'", rVar->schemaname);
-        db2Debug2("  rVar->relname    : '%s'", rVar->relname);
-        if (tblist.len != 0) {
-          appendStringInfo(&tblist,",'%s'",rVar->relname);
-        } else {
-          appendStringInfo(&tblist,"'%s'",rVar->relname);
+  if (isForeignSchema (session, stmt->remote_schema)) {
+    StringInfoData  tblist;
+    char**          tablist  = NULL;
+    initStringInfo(&buf);
+    initStringInfo(&tblist);
+
+    if (stmt->list_type != FDW_IMPORT_SCHEMA_ALL) {
+      foreach (cell, stmt->table_list) {
+        RangeVar* rVar = lfirst(cell);
+        db2Debug2("  rVar             :  %x ", rVar);
+        if (rVar != NULL) {
+          db2Debug2("  rVar->type       :  %d ", rVar->type);
+          db2Debug2("  rVar->catalogname: '%s'", rVar->catalogname);
+          db2Debug2("  rVar->schemaname : '%s'", rVar->schemaname);
+          db2Debug2("  rVar->relname    : '%s'", rVar->relname);
+          appendStringInfo(&tblist,"%s'%s'",((tblist.len == 0) ? "" : ","),rVar->relname);
         }
       }
+      db2Debug2("  import table_list: %s",tblist.data);
     }
+    tablist  = getForeignTableList(session, stmt->remote_schema, stmt->list_type, tblist.data);
+    db2free (tblist.data);
+    for (int i = 0; tablist[i] != NULL; i++) {
+      DB2Table* db2Table = describeForeignTable(session, stmt->remote_schema, tablist[i]);
+      if (db2Table != NULL) {
+        generateForeignTableCreate(&buf, server->servername, stmt->local_schema, stmt->remote_schema, db2Table, foldcase, readonly);
+        db2Debug2 ("  pg fdw table ddl: '%s'",buf.data);
+        result = lappend (result, db2strdup (buf.data));
+        resetStringInfo (&buf);
+      }
+    }
+    db2free (tablist);
   }
-  db2Debug2("  import table_list: '%s'",tblist.data);
-  do {
-    /* get the next column definition */
-    rc = db2GetImportColumn (session, stmt->remote_schema, tblist.data, stmt->list_type, tabname, colname, &colType, &colSize, &colScale, &colNulls, &key, &cp);
-
-    if (rc == -1) {
-      /* remote schema does not exist, issue a warning */
-      ereport (ERROR,(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND)
-                     ,errmsg ("remote schema \"%s\" does not exist", stmt->remote_schema)
-                     ,errhint ("Enclose the schema name in double quotes to prevent case folding.")
-                     )
-              );
-      return NIL;
-    }
-
-    if ((rc == 0 && oldtabname[0] != '\0') || (rc == 1 && oldtabname[0] != '\0' && strcmp (tabname, oldtabname))) {
-      /* finish previous CREATE FOREIGN TABLE statement */
-      appendStringInfo (&buf, ") SERVER \"%s\" OPTIONS (schema '%s', table '%s'", server->servername, stmt->remote_schema, oldtabname);
-      if (readonly) {
-        appendStringInfo (&buf, ", readonly 'true'");
-      }
-      appendStringInfo (&buf, ")");
-      db2Debug2 ("  pg fdw table ddl: '%s'",buf.data);
-      result = lappend (result, db2strdup (buf.data));
-    }
-
-    if (rc == 1 && (oldtabname[0] == '\0' || strcmp (tabname, oldtabname))) {
-      /* start a new CREATE FOREIGN TABLE statement */
-      resetStringInfo (&buf);
-      foldedname = fold_case (tabname, foldcase);
-      appendStringInfo (&buf, "CREATE FOREIGN TABLE \"%s\".\"%s\" (", stmt->local_schema, foldedname);
-      db2free (foldedname);
-
-      firstcol = true;
-      strncpy (oldtabname, tabname, sizeof(oldtabname));
-    }
-
-    if (rc == 1) {
-      /** Add a column definition. */
-      if (firstcol)
-        firstcol = false;
-      else
-        appendStringInfo (&buf, ", ");
-
-      /* column name */
-      foldedname = fold_case (colname, foldcase);
-      appendStringInfo (&buf, "\"%s\" ", foldedname);
-      db2free (foldedname);
-
-      // check charlen is not 0; set it to 1 in that case
-      colSize = colSize == 0 ? 1 : colSize;
-      /* data type */
-      switch (c2dbType(colType)) {
-        case DB2_CHAR:
-          appendStringInfo (&buf, "character(%ld)", colSize);
-          break;
-        case DB2_VARCHAR:
-          appendStringInfo (&buf, "character varying(%ld)", colSize);
-          break;
-        case DB2_LONGVARCHAR:
-        case DB2_CLOB:
-        case DB2_VARGRAPHIC:
-        case DB2_GRAPHIC:
-        case DB2_DBCLOB:
-          appendStringInfo (&buf, "text");
-          break;
-        case DB2_SMALLINT:
-          appendStringInfo (&buf, "smallint");
-          break;
-        case DB2_INTEGER:
-          appendStringInfo (&buf, "integer");
-          break;
-        case DB2_BIGINT:
-          appendStringInfo (&buf, "bigint");
-          break;
-        case DB2_BOOLEAN:
-          appendStringInfo (&buf, "boolean");
-          break;
-        case DB2_NUMERIC:
-          appendStringInfo (&buf, "numeric(%ld,%d)", colSize, colScale);
-          break;
-        case DB2_DECIMAL:
-          appendStringInfo (&buf, "decimal(%ld,%d)", colSize, colScale);
-          break;
-        case DB2_DOUBLE:
-          appendStringInfo (&buf, "double precision");
-          break;
-        case DB2_DECFLOAT:
-        case DB2_FLOAT:
-          colSize = (colSize > 8) ? 8 : colSize;
-          appendStringInfo (&buf, "float(%ld)", colSize);
-          break;
-        case DB2_REAL:
-          appendStringInfo (&buf, "real");
-          break;
-        case DB2_XML:
-          appendStringInfo (&buf, "xml");
-          break;
-        case DB2_BINARY:
-        case DB2_VARBINARY:
-        case DB2_LONGVARBINARY:
-        case DB2_BLOB:
-          appendStringInfo (&buf, "bytea");
-          break;
-        case DB2_TYPE_DATE:
-          appendStringInfo (&buf, "date");
-          break;
-        case DB2_TYPE_TIMESTAMP:
-          appendStringInfo (&buf, "timestamp(%d)", (colScale > 6) ? 6 : colScale);
-          break;
-        case DB2_TYPE_TIMESTAMP_WITH_TIMEZONE:
-          appendStringInfo (&buf, "timestamp(%d) with time zone", (colScale > 6) ? 6 : colScale);
-          break;
-        case DB2_TYPE_TIME:
-          appendStringInfo (&buf, "time(%d)", (colScale > 6) ? 6 : colScale);
-          break;
-        default:
-          elog (DEBUG2, "column \"%s\" of table \"%s\" has an untranslatable data type", colname, tabname);
-          appendStringInfo (&buf, "text");
-          break;
-      }
-      /* part of the primary key */
-      appendStringInfo (&buf
-                       , " OPTIONS (%s '%d', %s '%ld', %s '%d', %s '%d', %s '%d'%s)"
-                       ,OPT_DB2TYPE , colType
-                       ,OPT_DB2SIZE , colSize
-                       ,OPT_DB2SCALE, colScale
-                       ,OPT_DB2NULL , colNulls
-                       ,OPT_DB2CCSID, cp
-                       , (key) ? ", key 'true'" : ""
-                       );
-      /* not nullable */
-      if (!colNulls)
-        appendStringInfo (&buf, " NOT NULL");
-    }
-  } while (rc == 1);
-  db2Debug1("< db2ImportForeignSchema");
+  db2Debug1("< %s::db2ImportForeignSchema : %d",__FILE__, list_length(result));
   return result;
 }
 
@@ -290,7 +159,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
  */
 static char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
-  db2Debug1("> fold_case");
+  db2Debug1("> fold_case(name: '%s', foldcase: %d)", name, foldcase);
   if (foldcase == CASE_KEEP) {
     result = db2strdup (name);
   } else {
@@ -312,4 +181,127 @@ static char* fold_case (char *name, fold_t foldcase) {
   }
   db2Debug1("< fold_case - returns: '%s'", result);
   return result;
+}
+
+static void generateForeignTableCreate(StringInfo buf, char* servername, char* local_schema, char* remote_schema, DB2Table* db2Table, fold_t foldcase, bool readonly) {
+  StringInfoData  coldef;
+  char*           foldedname;
+  bool            firstcol = true;
+
+  initStringInfo(&coldef);
+  foldedname = fold_case (db2Table->name, foldcase);
+  appendStringInfo( buf
+                  , "CREATE FOREIGN TABLE \"%s\".\"%s\" ("
+                  , local_schema
+                  , foldedname
+                  );
+  db2free (foldedname);
+  for (int i = 0; i < db2Table->ncols; i++) {
+    appendStringInfo(buf, (firstcol) ? "" : ", ");
+
+    /* column name */
+    foldedname = fold_case (db2Table->cols[i]->colName, foldcase);
+    appendStringInfo (buf, "\"%s\" ", foldedname);
+    db2free (foldedname);
+
+    // check charlen is not 0; set it to 1 in that case
+    db2Table->cols[i]->colSize = db2Table->cols[i]->colSize == 0 ? 1 : db2Table->cols[i]->colSize;
+    /* data type */
+    switch (c2dbType(db2Table->cols[i]->colType)) {
+      case DB2_CHAR:
+        appendStringInfo (buf, "character(%ld)", db2Table->cols[i]->colSize);
+        break;
+      case DB2_VARCHAR:
+        appendStringInfo (buf, "character varying(%ld)", db2Table->cols[i]->colSize);
+        break;
+      case DB2_LONGVARCHAR:
+      case DB2_CLOB:
+      case DB2_VARGRAPHIC:
+      case DB2_GRAPHIC:
+      case DB2_DBCLOB:
+        appendStringInfo (buf, "text");
+        break;
+      case DB2_SMALLINT:
+        appendStringInfo (buf, "smallint");
+        break;
+      case DB2_INTEGER:
+        appendStringInfo (buf, "integer");
+        break;
+      case DB2_BIGINT:
+        appendStringInfo (buf, "bigint");
+        break;
+      case DB2_BOOLEAN:
+        appendStringInfo (buf, "boolean");
+        break;
+      case DB2_NUMERIC:
+        appendStringInfo (buf, "numeric(%ld,%d)", db2Table->cols[i]->colSize, db2Table->cols[i]->colScale);
+        break;
+      case DB2_DECIMAL:
+        appendStringInfo (buf, "decimal(%ld,%d)", db2Table->cols[i]->colSize, db2Table->cols[i]->colScale);
+        break;
+      case DB2_DOUBLE:
+        appendStringInfo (buf, "double precision");
+        break;
+      case DB2_DECFLOAT:
+      case DB2_FLOAT:
+        db2Table->cols[i]->colSize = (db2Table->cols[i]->colSize > 8) ? 8 : db2Table->cols[i]->colSize;
+        appendStringInfo (buf, "float(%ld)", db2Table->cols[i]->colSize);
+        break;
+      case DB2_REAL:
+        appendStringInfo (buf, "real");
+        break;
+      case DB2_XML:
+        appendStringInfo (buf, "xml");
+        break;
+      case DB2_BINARY:
+      case DB2_VARBINARY:
+      case DB2_LONGVARBINARY:
+      case DB2_BLOB:
+        appendStringInfo (buf, "bytea");
+        break;
+      case DB2_TYPE_DATE:
+        appendStringInfo (buf, "date");
+        break;
+      case DB2_TYPE_TIMESTAMP:
+        appendStringInfo (buf, "timestamp(%d)", (db2Table->cols[i]->colScale > 6) ? 6 : db2Table->cols[i]->colScale);
+        break;
+      case DB2_TYPE_TIMESTAMP_WITH_TIMEZONE:
+        appendStringInfo (buf, "timestamp(%d) with time zone", (db2Table->cols[i]->colScale > 6) ? 6 : db2Table->cols[i]->colScale);
+        break;
+      case DB2_TYPE_TIME:
+        appendStringInfo (buf, "time(%d)", (db2Table->cols[i]->colScale > 6) ? 6 : db2Table->cols[i]->colScale);
+        break;
+      default:
+        elog (DEBUG2, "column \"%s\" of table \"%s\" has an untranslatable data type", db2Table->cols[i]->colName, db2Table->name);
+        appendStringInfo (buf, "text");
+        break;
+    }
+    appendStringInfo (buf, " OPTIONS (");
+    appendStringInfo (buf,   "%s '%d'" , OPT_DB2TYPE , db2Table->cols[i]->colType);
+    appendStringInfo (buf, ", %s '%ld'", OPT_DB2SIZE , db2Table->cols[i]->colSize);
+    appendStringInfo (buf, ", %s '%ld'", OPT_DB2BYTES, db2Table->cols[i]->colBytes);
+    appendStringInfo (buf, ", %s '%ld'", OPT_DB2CHARS, db2Table->cols[i]->colChars);
+    appendStringInfo (buf, ", %s '%d'" , OPT_DB2SCALE, db2Table->cols[i]->colScale);
+    appendStringInfo (buf, ", %s '%d'" , OPT_DB2NULL , db2Table->cols[i]->colNulls);
+    appendStringInfo (buf, ", %s '%d'" , OPT_DB2CCSID, db2Table->cols[i]->colCodepage);
+    /* part of the primary key */
+    if (db2Table->cols[i]->colPrimKeyPart)
+      appendStringInfo (buf, ", %s 'true'", OPT_KEY);
+    appendStringInfo (buf, ")");
+
+    /* not nullable */
+    if (!db2Table->cols[i]->colNulls)
+      appendStringInfo (buf, " NOT NULL");
+    firstcol = false;
+  }
+  appendStringInfo( buf
+                  , ") SERVER \"%s\" OPTIONS (schema '%s', table '%s'"
+                  , servername
+                  , remote_schema
+                  , db2Table->name
+                  );
+  if (readonly) {
+    appendStringInfo (buf, ", readonly 'true'");
+  }
+  appendStringInfo (buf, ")");
 }
