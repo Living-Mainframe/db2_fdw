@@ -130,6 +130,8 @@ typedef enum {
 
 #define OPT_DB2TYPE           "db2type"
 #define OPT_DB2SIZE           "db2size"
+#define OPT_DB2BYTES          "db2bytes"
+#define OPT_DB2CHARS          "db2chars"
 #define OPT_DB2SCALE          "db2scale"
 #define OPT_DB2NULL           "db2null"
 #define OPT_DB2CCSID          "db2ccsid"

@@ -68,6 +68,8 @@ DB2FdwOption valid_options[] = {
   {OPT_KEY              , AttributeRelationId         , false},
   {OPT_DB2TYPE          , AttributeRelationId         , false},
   {OPT_DB2SIZE          , AttributeRelationId         , false},
+  {OPT_DB2BYTES         , AttributeRelationId         , false},
+  {OPT_DB2CHARS         , AttributeRelationId         , false},
   {OPT_DB2SCALE         , AttributeRelationId         , false},
   {OPT_DB2NULL          , AttributeRelationId         , false},
   {OPT_DB2CCSID         , AttributeRelationId         , false},
@@ -247,6 +249,8 @@ PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
     if (strcmp (def->defname, OPT_DB2TYPE ) == 0 
     ||  strcmp (def->defname, OPT_DB2NULL ) == 0
     ||  strcmp (def->defname, OPT_DB2SIZE ) == 0
+    ||  strcmp (def->defname, OPT_DB2BYTES) == 0
+    ||  strcmp (def->defname, OPT_DB2CHARS) == 0
     ||  strcmp (def->defname, OPT_DB2SCALE) == 0
     ||  strcmp (def->defname, OPT_DB2CCSID) == 0
     ||  strcmp (def->defname, OPT_MAX_LONG) == 0) {
