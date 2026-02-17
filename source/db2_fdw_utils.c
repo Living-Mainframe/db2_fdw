@@ -1,24 +1,17 @@
 #include <postgres.h>
-
 #include <catalog/dependency.h>
 #include <catalog/pg_type.h>
-
 #include <mb/pg_wchar.h>
-
 #include <miscadmin.h>
-
+#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <optimizer/paths.h>
-
 #include <utils/builtins.h>
 #include <utils/float.h>
 #include <utils/guc.h>
 #include <utils/hsearch.h>
 #include <utils/inval.h>
 #include <utils/syscache.h>
-
-#include <nodes/pathnodes.h>
-
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -43,36 +36,39 @@ typedef struct {
 
 
 /** external prototypes */
-extern void         db2GetLob                 (DB2Session* session, DB2ResultColumn* column, char** value, long* value_len, unsigned long trunc);
-extern void         db2Shutdown               (void);
-extern short        c2dbType                  (short fcType);
-extern void         db2Debug1                 (const char* message, ...);
-extern void         db2Debug2                 (const char* message, ...);
-extern void         db2Debug3                 (const char* message, ...);
-extern void*        db2alloc                  (const char* type, size_t size);
-extern void*        db2strdup                 (const char* source);
-extern void         db2free                   (void* p);
+extern void         db2GetLob                  (DB2Session* session, DB2ResultColumn* column, char** value, long* value_len, unsigned long trunc);
+extern void         db2Shutdown                (void);
+extern short        c2dbType                   (short fcType);
+extern void         db2Debug4                  (const char* message, ...);
+extern void         db2Debug5                  (const char* message, ...);
+extern void*        db2alloc                   (const char* type, size_t size);
+extern void*        db2strdup                  (const char* source);
+extern void         db2free                    (void* p);
 
 /** local prototypes */
-char*               guessNlsLang              (char* nls_lang);
-void                exitHook                  (int code, Datum arg);
-void                convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
-void                reset_transmission_modes  (int nestlevel);
-int                 set_transmission_modes    (void);
-bool                is_builtin                (Oid objectId);
-bool                is_shippable              (Oid objectId, Oid classId, DB2FdwState* fpinfo);
-static void         InvalidateShippableCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
-static void         InitializeShippableCache  (void);
-static bool         lookup_shippable          (Oid objectId, Oid classId, DB2FdwState* fpinfo);
+char*               guessNlsLang               (char* nls_lang);
+void                exitHook                   (int code, Datum arg);
+void                convertTuple               (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
+void                reset_transmission_modes   (int nestlevel);
+int                 set_transmission_modes     (void);
+bool                is_builtin                 (Oid objectId);
+bool                is_shippable               (Oid objectId, Oid classId, DB2FdwState* fpinfo);
+static void         InvalidateShippableCacheCbk(Datum arg, int cacheid, uint32 hashvalue);
+static void         InitializeShippableCache   (void);
+static bool         lookup_shippable           (Oid objectId, Oid classId, DB2FdwState* fpinfo);
 
-/** guessNlsLang
- *   If nls_lang is not NULL, return "NLS_LANG=<nls_lang>".
- *   Otherwise, return a good guess for DB2's NLS_LANG.
+/* guessNlsLang
+ * If nls_lang is not NULL, return "NLS_LANG=<nls_lang>".
+ * Otherwise, return a good guess for DB2's NLS_LANG.
  */
 char* guessNlsLang (char *nls_lang) {
-  char *server_encoding, *lc_messages, *language = "AMERICAN_AMERICA", *charset = NULL;
+  char*          server_encoding = NULL;
+  char*          lc_messages     = NULL;
+  char*          language        = "AMERICAN_AMERICA";
+  char*          charset         = NULL;
   StringInfoData buf;
-  db2Debug1("> %s::guessNlsLang(nls_lang: %s)", __FILE__, nls_lang);
+
+  db2Debug4("> %s::guessNlsLang(nls_lang: %s)", __FILE__, nls_lang);
   initStringInfo (&buf);
   if (nls_lang == NULL) {
     server_encoding = db2strdup (GetConfigOption ("server_encoding", false, true));
@@ -175,23 +171,22 @@ char* guessNlsLang (char *nls_lang) {
   } else {
     appendStringInfo (&buf, "NLS_LANG=%s", nls_lang);
   }
-  db2Debug1("< %s::guessNlsLang - returns: '%s'", __FILE__, buf.data);
+  db2Debug4("< %s::guessNlsLang : %s", __FILE__, buf.data);
   return buf.data;
 }
 
-/** exitHook
- *   Close all DB2 connections on process exit.
+/* exitHook
+ * Close all DB2 connections on process exit.
  */
 void exitHook (int code, Datum arg) {
-  db2Debug1("> %s::exitHook",__FILE__);
+  db2Debug4("> %s::exitHook",__FILE__);
   db2Shutdown ();
-  db2Debug1("< %s::exitHook",__FILE__);
+  db2Debug4("< %s::exitHook",__FILE__);
 }
 
-/** convertTuple
- *   Convert a result row from DB2 stored in db2Table
- *   into arrays of values and null indicators.
- *   If trunc_lob it true, truncate LOBs to WIDTH_THRESHOLD+1 bytes.
+/* convertTuple
+ * Convert a result row from DB2 stored in db2Table into arrays of values and null indicators.
+ * If trunc_lob it true, truncate LOBs to WIDTH_THRESHOLD+1 bytes.
  */
 void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) {
   char*                value          = NULL;
@@ -201,13 +196,13 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
   DB2ResultColumn*     res            = NULL;
   bool                 isSimpleSelect = false;
 
-  db2Debug1("> %s::convertTuple",__FILE__);
-  db2Debug2("  natts: %d", natts);
-  db2Debug2("  truncate lob: %s", trunc_lob ? "true": "false");
+  db2Debug4("> %s::convertTuple",__FILE__);
+  db2Debug5("  natts: %d", natts);
+  db2Debug5("  truncate lob: %s", trunc_lob ? "true": "false");
 
   /* assign result values */
   isSimpleSelect = (natts == db2Table->npgcols);
-  db2Debug2("  isSimpleSelect: %s", isSimpleSelect ? "true": "false");
+  db2Debug5("  isSimpleSelect: %s", isSimpleSelect ? "true": "false");
 
   // initialize all columns to NULL
   for (j = 0; j < natts; j++) {
@@ -217,14 +212,14 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
 
   for (res = fdw_state->resultList; res; res = res->next) {
     j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
-    db2Debug2("  start processing column %d of %d: values index = %d", res->resnum, natts, j);
-    db2Debug2("  res->pgname   : %s"  ,res->pgname  );
-    db2Debug2("  res->pgattnum : %d"  ,res->pgattnum);
-    db2Debug2("  res->pgtype   : %d"  ,res->pgtype  );
-    db2Debug2("  res->pgtypmod : %d"  ,res->pgtypmod);
-    db2Debug2("  res->val      : %s"  ,res->val     );
-    db2Debug2("  res->val_len  : %d"  ,res->val_len );
-    db2Debug2("  res->val_null : %d"  ,res->val_null);
+    db2Debug5("  start processing column %d of %d: values index = %d", res->resnum, natts, j);
+    db2Debug5("  res->pgname   : %s"  ,res->pgname  );
+    db2Debug5("  res->pgattnum : %d"  ,res->pgattnum);
+    db2Debug5("  res->pgtype   : %d"  ,res->pgtype  );
+    db2Debug5("  res->pgtypmod : %d"  ,res->pgtypmod);
+    db2Debug5("  res->val      : %s"  ,res->val     );
+    db2Debug5("  res->val_len  : %d"  ,res->val_len );
+    db2Debug5("  res->val_null : %d"  ,res->val_null);
 
     if (res->val_null >= 0) {
       short db2Type = 0;
@@ -235,14 +230,14 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
       switch(c2dbType(res->colType)) {
         case DB2_BLOB:
         case DB2_CLOB: {
-          db2Debug3("  DB2_BLOB or DB2CLOB");
+          db2Debug5("  DB2_BLOB or DB2CLOB");
           /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
           /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
           db2GetLob (fdw_state->session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
         }
         break;
         case DB2_LONGVARBINARY: {
-          db2Debug3("  DB2_LONGBINARY datatypes");
+          db2Debug5("  DB2_LONGBINARY datatypes");
           /* for LONG and LONG RAW, the first 4 bytes contain the length */
           value_len = *((int32*) res->val);
           /* the rest is the actual data */
@@ -260,7 +255,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         case DB2_DOUBLE: {
           char* tmp_value = NULL;
   
-          db2Debug3("  DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
+          db2Debug5("  DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
           value     = res->val;
           value_len = res->val_len;
           value_len = (value_len == 0) ? strlen(value) : value_len;
@@ -271,7 +266,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         }
         break;
         default: {
-          db2Debug3("  shoud be string based values");
+          db2Debug5("  shoud be string based values");
           /* for other data types, db2Table contains the results */
           value     = res->val;
           value_len = res->val_len;
@@ -279,8 +274,8 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         }
         break;
       }
-      db2Debug2("  value         : %s"  , value);
-      db2Debug2("  value_len     : %ld" , value_len);
+      db2Debug5("  value         : %s"  , value);
+      db2Debug5("  value_len     : %ld" , value_len);
       /* fill the TupleSlot with the data (after conversion if necessary) */
       if (res->pgtype == BYTEAOID) {
         /* binary columns are not converted */
@@ -293,7 +288,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         regproc   typinput;
         HeapTuple tuple;
         Datum     dat;
-        db2Debug2("  pgtype: %d",res->pgtype);
+        db2Debug5("  pgtype: %d",res->pgtype);
         /* find the appropriate conversion function */
         tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (res->pgtype));
         if (!HeapTupleIsValid (tuple)) {
@@ -302,11 +297,11 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         typinput = ((Form_pg_type) GETSTRUCT (tuple))->typinput;
         ReleaseSysCache (tuple);
         dat = CStringGetDatum (value);
-        db2Debug3("  CStringGetDatum(%s): %d",value, dat);
+        db2Debug5("  CStringGetDatum(%s): %d",value, dat);
   
         /* for string types, check that the data are in the database encoding */
         if (res->pgtype == BPCHAROID || res->pgtype == VARCHAROID || res->pgtype == TEXTOID) {
-          db2Debug3("  pg_verify_mbstr");
+          db2Debug5("  pg_verify_mbstr");
           (void) pg_verify_mbstr (GetDatabaseEncoding(), value, value_len, res->noencerr == NO_ENC_ERR_TRUE);
         }
         /* call the type input function */
@@ -321,12 +316,12 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
           case NUMERICOID:
             /* these functions require the type modifier */
             values[j] = OidFunctionCall3 (typinput, dat, ObjectIdGetDatum (InvalidOid), Int32GetDatum (res->pgtypmod));
-            db2Debug3("  OidFunctionCall3 : values[%d]: %d", j, values[j]);
+            db2Debug5("  OidFunctionCall3 : values[%d]: %d", j, values[j]);
             break;
           default:
             /* the others don't */
             values[j] = OidFunctionCall1 (typinput, dat);
-            db2Debug3("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
+            db2Debug5("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
         }
       }
       /* release the data buffer for LOBs */
@@ -335,24 +330,22 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         if (value != NULL) {
           db2free (value);
         } else {
-          db2Debug2("  not freeing value, since it is null");
+          db2Debug5("  not freeing value, since it is null");
         }
       }
     } else {
-      db2Debug2("  column %d is NULL", res->resnum);
+      db2Debug5("  column %d is NULL", res->resnum);
     }
   }
-
-  db2Debug1("< %s::convertTuple",__FILE__);
+  db2Debug4("< %s::convertTuple",__FILE__);
 }
 
-/** Undo the effects of set_transmission_modes().
- */
+/* Undo the effects of set_transmission_modes(). */
 void reset_transmission_modes(int nestlevel) {
   AtEOXact_GUC(true, nestlevel);
 }
 
-/** Force assorted GUC parameters to settings that ensure that we'll output data values in a form that is unambiguous to the remote server.
+/* Force assorted GUC parameters to settings that ensure that we'll output data values in a form that is unambiguous to the remote server.
  *
  * This is rather expensive and annoying to do once per row, but there's little choice if we want to be sure values are transmitted accurately;
  * we can't leave the settings in place between rows for fear of affecting user-visible computations.
@@ -446,7 +439,7 @@ bool is_shippable (Oid objectId, Oid classId, DB2FdwState* fpinfo) {
  * We do not currently bother to check whether objects' extension membership changes once a shippability decision has been
  * made for them, however.
  */
-static void InvalidateShippableCacheCallback(Datum arg, int cacheid, uint32 hashvalue) {
+static void InvalidateShippableCacheCbk(Datum arg, int cacheid, uint32 hashvalue) {
   HASH_SEQ_STATUS       status;
   ShippableCacheEntry*  entry;
 
@@ -471,7 +464,7 @@ static void InitializeShippableCache(void) {
   ShippableCacheHash = hash_create("Shippability cache", 256, &ctl, HASH_ELEM | HASH_BLOBS);
 
   /* Set up invalidation callback on pg_foreign_server. */
-  CacheRegisterSyscacheCallback(FOREIGNSERVEROID, InvalidateShippableCacheCallback, (Datum) 0);
+  CacheRegisterSyscacheCallback(FOREIGNSERVEROID, InvalidateShippableCacheCbk, (Datum) 0);
 }
 
 /* Returns true if given object (operator/function/type) is shippable according to the server options.

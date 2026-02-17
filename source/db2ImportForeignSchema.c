@@ -13,6 +13,7 @@ extern DB2Session*  db2GetSession             (const char* connectstring, char* 
 extern char*        guessNlsLang              (char* nls_lang);
 extern void         db2Debug1                 (const char* message, ...);
 extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Debug4                 (const char* message, ...);
 extern short        c2dbType                  (short fcType);
 extern void         db2free                   (void* p);
 extern char*        db2strdup                 (const char* source);
@@ -22,54 +23,40 @@ extern DB2Table*    describeForeignTable      (DB2Session* session, char* schema
 extern bool         optionIsTrue              (const char* value);
 
 /** local prototypes */
-       List* db2ImportForeignSchema    (ImportForeignSchemaStmt* stmt, Oid serverOid);
-static char* fold_case                 (char* name, fold_t foldcase);
-static void  generateForeignTableCreate(StringInfo buf, char* servername, char* local_schema, char* remote_schema, DB2Table* db2Table, fold_t foldcase, bool readonly);
+       List*           db2ImportForeignSchema    (ImportForeignSchemaStmt* stmt, Oid serverOid);
+static char*           fold_case                 (char* name, fold_t foldcase);
+static void            generateForeignTableCreate(StringInfo buf, char* servername, char* local_schema, char* remote_schema, DB2Table* db2Table, fold_t foldcase, bool readonly);
+static ForeignServer*  getOptions                (Oid serverOid, List** options);
 
-/** db2ImportForeignSchema
- *   Returns a List of CREATE FOREIGN TABLE statements.
+/* db2ImportForeignSchema
+ * Returns a List of CREATE FOREIGN TABLE statements.
  */
 List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
-  ForeignServer*      server;
-  UserMapping*        mapping;
-  ForeignDataWrapper* wrapper;
   char*               nls_lang  = NULL;
   char*               user      = NULL;
   char*               password  = NULL;
   char*               jwt_token = NULL;
   char*               dbserver  = NULL;
-  List*               options;
-  List*               result    = NIL;
-  ListCell*           cell;
-  DB2Session*         session;
+  List*               options   = NULL;
+  ListCell*           cell      = NULL;
+  DB2Session*         session   = NULL;
   fold_t              foldcase  = CASE_SMART;
   StringInfoData      buf;
   bool                readonly  = false;
+  List*               result    = NIL;
+  ForeignServer*      server    = NULL;
 
   db2Debug1("> %s::db2ImportForeignSchema",__FILE__);
-  
-  /* get the foreign server, the user mapping and the FDW */
-  server  = GetForeignServer      (serverOid);
-  mapping = GetUserMapping        (GetUserId (), serverOid);
-  wrapper = GetForeignDataWrapper (server->fdwid);
-
-  /* get all options for these objects */
-  options = wrapper->options;
-  options = list_concat (options, server->options);
-  options = list_concat (options, mapping->options);
-
+  /* process the server options */
+  server = getOptions (serverOid, &options);
   foreach (cell, options) {
     DefElem *def = (DefElem *) lfirst (cell);
-    if (strcmp (def->defname, OPT_NLS_LANG) == 0)
-      nls_lang = STRVAL(def->arg);
-    if (strcmp (def->defname, OPT_DBSERVER) == 0)
-      dbserver = STRVAL(def->arg);
-    if (strcmp (def->defname, OPT_USER) == 0)
-      user = STRVAL(def->arg);
-    if (strcmp (def->defname, OPT_PASSWORD) == 0)
-      password = STRVAL(def->arg);
-    if (strcmp (def->defname, OPT_JWT_TOKEN) == 0)
-      jwt_token = STRVAL(def->arg);
+    db2Debug2("  option: '%s'", def->defname);
+    nls_lang  = (strcmp (def->defname, OPT_NLS_LANG)  == 0) ? STRVAL(def->arg) : nls_lang;
+    dbserver  = (strcmp (def->defname, OPT_DBSERVER)  == 0) ? STRVAL(def->arg) : dbserver;
+    user      = (strcmp (def->defname, OPT_USER)      == 0) ? STRVAL(def->arg) : user;
+    password  = (strcmp (def->defname, OPT_PASSWORD)  == 0) ? STRVAL(def->arg) : password;
+    jwt_token = (strcmp (def->defname, OPT_JWT_TOKEN) == 0) ? STRVAL(def->arg) : jwt_token;
   }
 
   /* process the options of the IMPORT FOREIGN SCHEMA command */
@@ -85,19 +72,14 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       else if (strcmp (s, "smart") == 0)
         foldcase = CASE_SMART;
       else
-        ereport (ERROR
-                , ( errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE)
-                  , errmsg("invalid value for option \"%s\"", def->defname)
-                  , errhint("Valid values in this context are: %s", "keep, lower, smart")
-                  )
-                );
+        ereport (ERROR, ( errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE), errmsg("invalid value for option \"%s\"", def->defname), errhint("Valid values in this context are: %s", "keep, lower, smart")));
       continue;
     } else if (strcmp (def->defname, "readonly") == 0) {
       char *s = STRVAL(def->arg);
       if (pg_strcasecmp (s, "on") != 0 || pg_strcasecmp (s, "yes") != 0 || pg_strcasecmp (s, "true") != 0 || pg_strcasecmp (s, "off") != 0 || pg_strcasecmp (s, "no") != 0 || pg_strcasecmp (s, "false") != 0)
         readonly = optionIsTrue(s);
       else
-        ereport (ERROR, (errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE), errmsg ("invalid value for option \"%s\"", def->defname)));
+        ereport (ERROR, (errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE), errmsg ("invalid value for option \"%s\"", def->defname),errhint ("Valid values in this context are: %s", "on, yes, true, off, no, false")));
       continue;
     }
     ereport (ERROR, (errcode (ERRCODE_FDW_INVALID_OPTION_NAME), errmsg ("invalid option \"%s\"", def->defname), errhint ("Valid options in this context are: %s", "case, readonly")));
@@ -303,4 +285,33 @@ static void generateForeignTableCreate(StringInfo buf, char* servername, char* l
     appendStringInfo (buf, ", readonly 'true'");
   }
   appendStringInfo (buf, ")");
+}
+
+/* getOptions
+ * Fetch the options for an db2_fdw foreign table.
+ * Returns a union of the options of the foreign data wrapper, the foreign server, the user mapping and the foreign table, in that order. 
+ * Column options are ignored.
+ */
+static ForeignServer* getOptions (Oid serverOid, List** options) {
+  ForeignDataWrapper* wrapper = NULL;
+  ForeignServer*      server  = NULL;
+  UserMapping*        mapping = NULL;
+
+  db2Debug4("  > %s::getOptions", __FILE__);
+  /* get the foreign server, the user mapping and the FDW */
+  server  = GetForeignServer      (serverOid);
+  mapping = GetUserMapping        (GetUserId (), serverOid);
+  if (server != NULL)
+    wrapper = GetForeignDataWrapper (server->fdwid);
+
+  /* get all options for these objects */
+  *options = NIL;
+  if (wrapper != NULL)
+    *options = list_concat (*options, wrapper->options) ;
+  if (server != NULL)
+    *options = list_concat (*options, server->options);
+  if (mapping != NULL)
+    *options = list_concat (*options, mapping->options);
+  db2Debug4("  < %s::getOptions : %x", __FILE__, server);
+  return server;
 }

@@ -129,7 +129,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
     /* allocate an db2Column struct for the column */
     reply->cols[i - 1]                 = (DB2Column *) db2alloc (" reply->cols[i - 1]", sizeof (DB2Column));
     reply->cols[i - 1]->colPrimKeyPart = 0;
-    reply->cols[i -1 ]->colCodepage    = 0;
+    reply->cols[i - 1]->colCodepage    = 0;
     reply->cols[i - 1]->pgname         = NULL;
     reply->cols[i - 1]->pgattnum       = 0;
     reply->cols[i - 1]->pgtype         = 0;

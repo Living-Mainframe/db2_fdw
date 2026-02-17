@@ -449,6 +449,7 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
     }
     srvId = ((Form_pg_foreign_server)GETSTRUCT(tup))->oid;
     table_close (rel, AccessShareLock);
+
     /* get the foreign server, the user mapping and the FDW */
     server  = GetForeignServer (srvId);
     mapping = GetUserMapping (GetUserId (), srvId);
