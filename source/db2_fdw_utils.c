@@ -226,12 +226,7 @@ char* deparseConstExpr         (DB2Session* session, RelOptInfo* foreignrel, Con
 }
 
 char* deparseParamExpr         (DB2Session* session, RelOptInfo* foreignrel, Param*             expr, const DB2Table* db2Table, List** params) {
-  char* value = NULL;
-  #ifdef OLD_FDW_API
-  /* don't try to push down parameters with 9.1 */
-  db2Debug1("> %s::deparseParamExpr", __FILE__);
-  db2Debug2("  don't try to push down parameters with 9.1");
-  #else
+  char*     value = NULL;
   ListCell* cell  = NULL;
   char      parname[10];
 
@@ -259,7 +254,6 @@ char* deparseParamExpr         (DB2Session* session, RelOptInfo* foreignrel, Par
     appendAsType (&result, expr->paramtype);
     value = result.data;
   }
-  #endif /* OLD_FDW_API */
   db2Debug1("< %s::deparseParamExpr: %s", __FILE__, value);
   return value;
 }
@@ -341,11 +335,6 @@ char* deparseVarExpr           (DB2Session* session, RelOptInfo* foreignrel, Var
       }
     }
   } else {
-    #ifdef OLD_FDW_API
-    // treat it like a parameter
-    // don't try to push down parameters with 9.1
-    db2Debug2("  don't try to push down parameters with 9.1");
-    #else
     // don't try to handle type interval
     if (!canHandleType (expr->vartype) || expr->vartype == INTERVALOID) {
       db2Debug2("  !canHandleType (vartype %d) || vartype == INTERVALOID", expr->vartype);
@@ -370,7 +359,6 @@ char* deparseVarExpr           (DB2Session* session, RelOptInfo* foreignrel, Var
       appendStringInfo (&result, ":p%d", index);
       value = result.data;
     }
-    #endif /* OLD_FDW_API */
   }
   db2Debug1("< %s::deparseVarExpr: %s", __FILE__, value);
   return value;

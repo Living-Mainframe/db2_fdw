@@ -121,10 +121,9 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
   db2Debug1("< db2GetForeignPaths");
 }
 
-#ifndef OLD_FDW_API
-/** find_em_expr_for_rel
- *   Find an equivalence class member expression, all of whose Vars come from
- *   the indicated relation.
+/* find_em_expr_for_rel
+ * Find an equivalence class member expression, all of whose Vars come from
+ * the indicated relation.
  */
 Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
   ListCell* lc_em = NULL;
@@ -145,4 +144,3 @@ Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
   db2Debug1("< find_em_expr_for_rel - returns: %x", result);
   return result;
 }
-#endif /* OLD_FDW_API */

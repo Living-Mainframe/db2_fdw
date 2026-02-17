@@ -16,9 +16,7 @@
 #include "db2_fdw.h"
 
 /** external prototypes */
-#ifndef OLD_FDW_API
 extern bool            optionIsTrue              (const char* value);
-#endif
 extern void            db2Debug1                 (const char* message, ...);
 #if PG_VERSION_NUM < 140000
 extern char*           db2strdup                 (const char* source);

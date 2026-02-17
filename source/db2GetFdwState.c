@@ -1,16 +1,10 @@
 #include <postgres.h>
 #include <foreign/foreign.h>
 #include <utils/lsyscache.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include <access/xact.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -28,9 +22,7 @@ extern char*        db2strdup                 (const char* source);
 /** local prototypes */
 DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
 void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
-#ifndef OLD_FDW_API
 bool         optionIsTrue  (const char* value);
-#endif
 
 /** db2GetFdwState
  *   Construct an DB2FdwState from the options of the foreign table.
@@ -40,22 +32,21 @@ bool         optionIsTrue  (const char* value);
  *   "sample_percent" can be NULL, in that case it is not set.
  */
 DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool describe) {
-  DB2FdwState* fdwState    = db2alloc("fdw_state", sizeof (DB2FdwState));
-  char*        pgtablename = get_rel_name (foreigntableid);
-  List*        options;
-  ListCell*    cell;
-  char*        schema   = NULL;
-  char*        table    = NULL;
-  char*        maxlong  = NULL;
-  char*        sample   = NULL;
-  char*        fetch    = NULL;
-  char*        noencerr = NULL;
-  char*        batchsz  = NULL;
-  long max_long;
+  DB2FdwState* fdwState     = db2alloc("fdw_state", sizeof (DB2FdwState));
+  char*        pgtablename  = get_rel_name (foreigntableid);
+  List*        options      = NULL;
+  ListCell*    cell         = NULL;
+  char*        schema       = NULL;
+  char*        table        = NULL;
+  char*        maxlong      = NULL;
+  char*        sample       = NULL;
+  char*        fetch        = NULL;
+  char*        noencerr     = NULL;
+  char*        batchsz      = NULL;
+  long         max_long     = DEFAULT_MAX_LONG;
 
   db2Debug1("> db2GetFdwState");
-  /*
-   * Get all relevant options from the foreign table, the user mapping,
+  /* Get all relevant options from the foreign table, the user mapping,
    * the foreign server and the foreign data wrapper.
    */
   db2GetOptions (foreigntableid, &options);
@@ -88,10 +79,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
   }
 
   /* convert "max_long" option to number or use default */
-  if (maxlong == NULL)
-    max_long = DEFAULT_MAX_LONG;
-  else
-    max_long = strtol (maxlong, NULL, 0);
+  max_long = (maxlong != NULL) ? strtol (maxlong, NULL, 0): max_long;
 
   /* convert "sample_percent" to double */
   if (sample_percent != NULL) {
@@ -102,10 +90,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
   }
 
   /* convert "prefetch" to number (or use default) */
-  if (fetch == NULL)
-    fdwState->prefetch = DEFAULT_PREFETCH;
-  else
-    fdwState->prefetch = (unsigned long) strtoul (fetch, NULL, 0);
+  fdwState->prefetch = (fetch == NULL) ? DEFAULT_PREFETCH : (unsigned long) strtoul (fetch, NULL, 0);
 
   /* check if options are ok */
   if (table == NULL)
@@ -129,10 +114,10 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double *sample_percent, bool de
   return fdwState;
 }
 
-/** getColumnData
- *   Get PostgreSQL column name and number, data type and data type modifier.
- *   Set db2Table->npgcols.
- *   For PostgreSQL 9.2 and better, find the primary key columns and mark them in db2Table.
+/* getColumnData
+ * Get PostgreSQL column name and number, data type and data type modifier.
+ * Set db2Table->npgcols.
+ * For PostgreSQL 9.2 and better, find the primary key columns and mark them in db2Table.
  */
 void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   Relation rel;
@@ -186,9 +171,8 @@ void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   db2Debug2("  < getColumnData");
 }
 
-#ifndef OLD_FDW_API
-/** optionIsTrue
- *   Returns true if the string is "true", "on" or "yes".
+/* optionIsTrue
+ * Returns true if the string is "true", "on" or "yes".
  */
 bool optionIsTrue (const char *value) {
   bool result = false;
@@ -197,5 +181,4 @@ bool optionIsTrue (const char *value) {
   db2Debug3("    < optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
   return result;
 }
-#endif /* OLD_FDW_API */
 
