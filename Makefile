@@ -35,7 +35,6 @@ OBJS         = source/db2_fdw.o\
                source/db2ReAllocFree.o\
                source/db2SetHandlers.o\
                source/db2Callbacks.o\
-               source/db2GetOptions.o\
                source/db2Debug.o\
                source/db2ServerVersion.o\
                source/db2ClientVersion.o\
