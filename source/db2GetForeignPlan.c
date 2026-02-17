@@ -1,21 +1,11 @@
 #include <postgres.h>
-#if PG_VERSION_NUM < 100000
-#include <libpq/md5.h>
-#else
 #include <common/md5.h>
-#endif /* PG_VERSION_NUM */
 #include <optimizer/planmain.h>
 #include <optimizer/tlist.h>
 #include <parser/parsetree.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -189,11 +179,7 @@ char* createQuery (DB2FdwState* fdwState, RelOptInfo* foreignrel, bool modify, L
 
   db2Debug1("> createQuery");
 
-  #if PG_VERSION_NUM < 90600
-  columnlist = foreignrel->reltargetlist;
-  #else
   columnlist = foreignrel->reltarget->exprs;
-  #endif
 
   if (IS_SIMPLE_REL (foreignrel)) {
     db2Debug3("  IS_SIMPLE_REL");
@@ -395,9 +381,7 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
       case T_CaseTestExpr:
       case T_CoerceToDomainValue:
       case T_CurrentOfExpr:
-      #if PG_VERSION_NUM >= 100000
       case T_NextValueExpr:
-      #endif
       break;
       case T_Var:
         variable = (Var*) expr;
@@ -438,13 +422,8 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
           getUsedColumns ((Expr*) lfirst (cell), db2Table, foreignrelid);
         }
       break;
-      #if PG_VERSION_NUM < 120000
-      case T_ArrayRef: {
-        ArrayRef* ref = (ArrayRef*)expr;
-      #else
       case T_SubscriptingRef: {
         SubscriptingRef* ref = (SubscriptingRef*) expr;
-      #endif
         foreach(cell, ref->refupperindexpr) {
           getUsedColumns((Expr*)lfirst(cell), db2Table, foreignrelid);
         }
@@ -574,11 +553,9 @@ void getUsedColumns (Expr* expr, DB2Table* db2Table, int foreignrelid) {
       case T_PlaceHolderVar:
         getUsedColumns (((PlaceHolderVar*) expr)->phexpr, db2Table, foreignrelid);
       break;
-      #if PG_VERSION_NUM >= 100000
       case T_SQLValueFunction:
         //nop
       break;                                /* contains no column references */
-      #endif
       default:
         /*
          * We must be able to handle all node types that can

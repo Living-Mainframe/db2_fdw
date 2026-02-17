@@ -2,16 +2,10 @@
 #include <commands/explain.h>
 #include <commands/vacuum.h>
 #include <utils/syscache.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include <access/xact.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -112,11 +106,7 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
       /** Evaluate the expression.
        * This code path cannot be reached in 9.1
        */
-#if PG_VERSION_NUM < 100000
-      datum = ExecEvalExpr ((ExprState *) (param->node), econtext, &is_null, NULL);
-#else
       datum = ExecEvalExpr ((ExprState *) (param->node), econtext, &is_null);
-#endif /* PG_VERSION_NUM */
     }
 
     if (is_null) {

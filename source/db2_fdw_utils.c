@@ -10,15 +10,9 @@
 #include <utils/datetime.h>
 #include <utils/guc.h>
 #include <utils/syscache.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -48,9 +42,7 @@ char*               deparseCaseExpr           (DB2Session* session, RelOptInfo* 
 char*               deparseCoalesceExpr       (DB2Session* session, RelOptInfo* foreignrel, CoalesceExpr*      expr, const DB2Table* db2Table, List** params);
 char*               deparseFuncExpr           (DB2Session* session, RelOptInfo* foreignrel, FuncExpr*          expr, const DB2Table* db2Table, List** params);
 char*               deparseCoerceViaIOExpr    (CoerceViaIO* expr);
-#if PG_VERSION_NUM >= 100000
 char*               deparseSQLValueFuncExpr   (SQLValueFunction* expr);
-#endif
 char*               datumToString             (Datum datum, Oid type);
 char*               guessNlsLang              (char* nls_lang);
 char*               deparseDate               (Datum datum);
@@ -182,12 +174,10 @@ char* deparseExpr (DB2Session* session, RelOptInfo* foreignrel, Expr* expr, cons
         retValue = deparseCoerceViaIOExpr((CoerceViaIO*) expr);
       }
       break;
-      #if PG_VERSION_NUM >= 100000
       case T_SQLValueFunction: {
         retValue = deparseSQLValueFuncExpr((SQLValueFunction*)expr);
       }
       break;
-      #endif
       default: {
         /* we cannot translate this to DB2 */
         db2Debug2("  expression cannot be translated to DB2", __FILE__);
@@ -552,19 +542,11 @@ char* deparseScalarArrayOpExpr (DB2Session* session, RelOptInfo* foreignrel, Sca
               /* the second (=last) argument is an ArrayCoerceExpr */
               ArrayCoerceExpr* arraycoerce = (ArrayCoerceExpr *) rightexpr;
               /* if the conversion requires more than binary coercion, don't push it down */
-              #if PG_VERSION_NUM < 110000
-              if (arraycoerce->elemfuncid != InvalidOid) {
-                db2Debug2("  arraycoerce->elemfuncid != InvalidOid");
-                bResult = false;
-                break;
-              }
-              #else
               if (arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType) {
                 db2Debug2(" arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType");
                 bResult = false;
                 break;
               }
-              #endif
               /* the actual array is here */
               rightexpr = arraycoerce->arg;
             }

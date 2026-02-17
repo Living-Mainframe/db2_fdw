@@ -3,23 +3,15 @@
 #include <commands/vacuum.h>
 #include <utils/builtins.h>
 #include <utils/syscache.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState             (Oid foreigntableid, double* sample_percent, bool describe);
-#ifdef WRITE_API
 extern void         addParam                   (ParamDesc** paramList, Oid pgtype, short colType, int colnum, int txts);
-#endif
 extern void         checkDataType              (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 extern void         db2Debug1                  (const char* message, ...);
 extern void         db2Debug2                  (const char* message, ...);

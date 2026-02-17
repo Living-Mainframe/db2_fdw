@@ -1,15 +1,9 @@
 #include <postgres.h>
 #include <nodes/makefuncs.h>
 #include <utils/memutils.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -20,9 +14,7 @@ extern bool dml_in_transaction;
 extern int             db2ExecuteQuery           (DB2Session* session, const DB2Table* db2Table, ParamDesc* paramList);
 extern void            db2Debug1                 (const char* message, ...);
 extern void            db2Debug2                 (const char* message, ...);
-#ifdef WRITE_API
 extern void            setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
-#endif
 extern void            convertTuple              (DB2FdwState* fdw_state, Datum* values, bool* nulls, bool trunc_lob) ;
 
 /** local prototypes */

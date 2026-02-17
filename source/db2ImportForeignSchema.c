@@ -3,15 +3,9 @@
 #include <foreign/foreign.h>
 #include <miscadmin.h>
 #include <utils/formatting.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 
 /** external prototypes */
@@ -26,9 +20,7 @@ extern char*        db2strdup                 (const char* source);
 
 /** local prototypes */
 List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
-#ifdef IMPORT_API
 char* fold_case             (char* name, fold_t foldcase);
-#endif 
 
 /** db2ImportForeignSchema
  *   Returns a List of CREATE FOREIGN TABLE statements.
@@ -286,9 +278,8 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   return result;
 }
 
-#ifdef IMPORT_API
-/** fold_case
- *   Returns a dup'ed string that is the case-folded first argument.
+/* fold_case
+ * Returns a dup'ed string that is the case-folded first argument.
  */
 char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
@@ -315,4 +306,3 @@ char* fold_case (char *name, fold_t foldcase) {
   db2Debug1("< fold_case - returns: '%s'", result);
   return result;
 }
-#endif /* IMPORT_API */

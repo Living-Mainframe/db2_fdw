@@ -1,16 +1,10 @@
 #include <postgres.h>
 #include <commands/explain.h>
 #include <nodes/nodeFuncs.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include <access/xact.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -45,11 +39,7 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   node->fdw_state = (void *) fdw_state;
 
   /* create an ExprState tree for the parameter expressions */
-#if PG_VERSION_NUM < 100000
-  exec_exprs = (List *) ExecInitExpr ((Expr *) fsplan->fdw_exprs, (PlanState *) node);
-#else
   exec_exprs = (List *) ExecInitExprList (fsplan->fdw_exprs, (PlanState *) node);
-#endif /* PG_VERSION_NUM */
 
   /* create the list of parameters */
   index = 0;

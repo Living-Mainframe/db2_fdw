@@ -1,14 +1,8 @@
 #include <postgres.h>
 #include <commands/explain.h>
-#if PG_VERSION_NUM < 120000
-#include <nodes/relation.h>
-#include <optimizer/var.h>
-#include <utils/tqual.h>
-#else
 #include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
-#endif
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
@@ -27,9 +21,7 @@ extern void*           db2alloc                  (const char* type, size_t size)
 
 /** local prototypes */
 TupleTableSlot* db2ExecForeignDelete (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
-#ifdef WRITE_API
 void            setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
-#endif
 
 /** db2ExecForeignDelete
  *   Set the parameter values from the slots and execute the DELETE statement.
@@ -78,10 +70,9 @@ TupleTableSlot* db2ExecForeignDelete (EState* estate, ResultRelInfo* rinfo, Tupl
   return slot;
 }
 
-#ifdef WRITE_API
-/** setModifyParameters
- *   Set the parameter values from the values in the slots.
- *   "newslot" contains the new values, "oldslot" the old ones.
+/* setModifyParameters
+ * Set the parameter values from the values in the slots.
+ * "newslot" contains the new values, "oldslot" the old ones.
  */
 void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleTableSlot * oldslot, DB2Table *db2Table, DB2Session * session) {
   ParamDesc *param;
@@ -175,4 +166,3 @@ void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleT
   }
   db2Debug1("< setModifyParameters");
 }
-#endif /* WRITE_API */
