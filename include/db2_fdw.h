@@ -17,6 +17,10 @@
 #define STRVAL(arg) ((Value*)(arg))->val.str
 #endif
 
+#if PG_VERSION_NUM < 130000
+#error "This extension requires PostgreSQL version 13.0 or higher."
+#endif
+
 /* defined in backend/commands/analyze.c */
 #ifndef WIDTH_THRESHOLD
 #define WIDTH_THRESHOLD 1024
@@ -26,11 +30,8 @@
 #define PQ_QUERY_PARAM_MAX_LIMIT 65535
 #endif /* PQ_QUERY_PARAM_MAX_LIMIT */
 
-#undef  OLD_FDW_API
-
 /* array_create_iterator has a new signature from 9.5 on */
 #define array_create_iterator(arr, slice_ndim) array_create_iterator(arr, slice_ndim, NULL)
-#define JOIN_API
 
 /* GetConfigOptionByName has a new signature from 9.6 on */
 #define GetConfigOptionByName(name, varname) GetConfigOptionByName(name, varname, false)

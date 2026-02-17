@@ -2041,12 +2041,9 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
 //
 //  db2Debug1("> %s::deparseVarExpr", __FILE__);
 //  /* check if the variable belongs to one of our foreign tables */
-//  #ifdef JOIN_API
 //  if (IS_SIMPLE_REL (ctx->foreignrel)) {
-//  #endif /* JOIN_API */
 //    if (expr->varno == ctx->foreignrel->relid && expr->varlevelsup == 0)
 //      var_table = ((DB2FdwState*)ctx->foreignrel->fdw_private)->db2Table;
-//  #ifdef JOIN_API
 //  } else {
 //    DB2FdwState* joinstate  = (DB2FdwState*) ctx->foreignrel->fdw_private;
 //    DB2FdwState* outerstate = (DB2FdwState*) joinstate->outerrel->fdw_private;
@@ -2057,7 +2054,6 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
 //    if (expr->varno == innerstate->db2Table->cols[0]->varno && expr->varlevelsup == 0)
 //      var_table = innerstate->db2Table;
 //  }
-//  #endif /* JOIN_API */
 //  if (var_table) {
 //    /* the variable belongs to a foreign table, replace it with the name */
 //    /* we cannot handle system columns */
