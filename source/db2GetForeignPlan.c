@@ -234,7 +234,6 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
   /* Build the fdw_private list that will be available to the executor.
    * Items in the list must match order in enum FdwScanPrivateIndex.
    */
-  fpinfo->db2Table->rncols  = ptlist_len;
   fpinfo->query             = sql.data;
   fpinfo->retrieved_attr    = retrieved_attrs;
   fdw_private               = serializePlanData(fpinfo);
