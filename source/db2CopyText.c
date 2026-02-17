@@ -9,7 +9,7 @@
 
 /** external prototypes */
 extern void*     db2alloc             (const char* type, size_t size);
-extern void      db2Debug1            (const char* message, ...);
+extern void      db2Debug4            (const char* message, ...);
 
 /** local prototypes */
 char*            db2CopyText          (const char* string, int size, int quote);
@@ -25,7 +25,7 @@ char* db2CopyText (const char* string, int size, int quote) {
   register int j = -1;
   char*    result;
 
-  db2Debug1("> db2CopyText(string: '%s', size: %d, quote: %d)",string,size,quote);
+  db2Debug4("> db2CopyText(string: '%s', size: %d, quote: %d)",string,size,quote);
   /* if "string" is parenthized, return a copy */
   if (string[0] == '(' && string[size - 1] == ')') {
     result = db2alloc ("copyText", size + 1);
@@ -53,6 +53,6 @@ char* db2CopyText (const char* string, int size, int quote) {
     result[++j] = '"';
   result[j + 1] = '\0';
 
-  db2Debug1("< db2CopyText - result: %s",result);
+  db2Debug4("< db2CopyText - result: %s",result);
   return result;
 }

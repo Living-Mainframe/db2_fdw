@@ -8,9 +8,11 @@
 
 /** external prototypes */
 extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Debug4                 (const char* message, ...);
 
 /** local prototypes */
 void db2GetOptions(Oid foreigntableid, List** options);
+bool optionIsTrue (const char* value);
 
 /** db2GetOptions
  *   Fetch the options for an db2_fdw foreign table.
@@ -54,4 +56,15 @@ void db2GetOptions (Oid foreigntableid, List** options) {
     db2Debug1("  unable to GetForeignTable: %d",foreigntableid);
   }
   db2Debug1("< db2GetOptions");
+}
+
+/* optionIsTrue
+ * Returns true if the string is "true", "on" or "yes".
+ */
+bool optionIsTrue (const char *value) {
+  bool result = false;
+  db2Debug4("> optionIsTrue(value: '%s')",value);
+  result = (pg_strcasecmp (value, "on") == 0 || pg_strcasecmp (value, "yes") == 0 || pg_strcasecmp (value, "true") == 0);
+  db2Debug4("< optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
+  return result;
 }

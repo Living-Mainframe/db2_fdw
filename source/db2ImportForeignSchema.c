@@ -22,9 +22,9 @@ extern DB2Table*    describeForeignTable      (DB2Session* session, char* schema
 extern bool         optionIsTrue              (const char* value);
 
 /** local prototypes */
-List* db2ImportForeignSchema(ImportForeignSchemaStmt* stmt, Oid serverOid);
-static char* fold_case             (char* name, fold_t foldcase);
-static void generateForeignTableCreate(StringInfo buf, char* servername, char* local_schema, char* remote_schema, DB2Table* db2Table, fold_t foldcase, bool readonly);
+       List* db2ImportForeignSchema    (ImportForeignSchemaStmt* stmt, Oid serverOid);
+static char* fold_case                 (char* name, fold_t foldcase);
+static void  generateForeignTableCreate(StringInfo buf, char* servername, char* local_schema, char* remote_schema, DB2Table* db2Table, fold_t foldcase, bool readonly);
 
 /** db2ImportForeignSchema
  *   Returns a List of CREATE FOREIGN TABLE statements.
