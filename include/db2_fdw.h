@@ -18,6 +18,10 @@
 #define STRVAL(arg) ((Value*)(arg))->val.str
 #endif
 
+#if PG_VERSION_NUM < 130000
+#error "This extension requires PostgreSQL version 13.0 or higher."
+#endif
+
 /* defined in backend/commands/analyze.c */
 #ifndef WIDTH_THRESHOLD
 #define WIDTH_THRESHOLD 1024
