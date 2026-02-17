@@ -46,6 +46,7 @@ extern void*        db2strdup                  (const char* source);
 extern void         db2free                    (void* p);
 
 /** local prototypes */
+bool                optionIsTrue               (const char *value);
 char*               guessNlsLang               (char* nls_lang);
 void                exitHook                   (int code, Datum arg);
 void                convertTuple               (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
@@ -56,6 +57,17 @@ bool                is_shippable               (Oid objectId, Oid classId, DB2Fd
 static void         InvalidateShippableCacheCbk(Datum arg, int cacheid, uint32 hashvalue);
 static void         InitializeShippableCache   (void);
 static bool         lookup_shippable           (Oid objectId, Oid classId, DB2FdwState* fpinfo);
+
+/* optionIsTrue
+ * Returns true if the string is "true", "on" or "yes".
+ */
+bool optionIsTrue (const char *value) {
+  bool result = false;
+  db2Debug4("> optionIsTrue(value: '%s')",value);
+  result = (pg_strcasecmp (value, "on") == 0 || pg_strcasecmp (value, "yes") == 0 || pg_strcasecmp (value, "true") == 0);
+  db2Debug4("< optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
+  return result;
+}
 
 /* guessNlsLang
  * If nls_lang is not NULL, return "NLS_LANG=<nls_lang>".
