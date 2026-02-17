@@ -1,26 +1,32 @@
 #include <postgres.h>
-#include <utils/lsyscache.h>
-#include <optimizer/optimizer.h>
+#include <sqlcli.h>
 #include <access/heapam.h>
 #include <access/xact.h>
+#include <catalog/pg_collation.h>
+#include <optimizer/optimizer.h>
+#include <utils/formatting.h>
+#include <utils/lsyscache.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern char*        guessNlsLang              (char* nls_lang);
-extern void         db2GetOptions             (Oid foreigntableid, List** options);
-extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern DB2Table*    db2Describe               (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
-extern void         db2Debug1                 (const char* message, ...);
-extern void         db2Debug2                 (const char* message, ...);
-extern void         db2Debug3                 (const char* message, ...);
-extern void*        db2alloc                  (const char* type, size_t size);
-extern char*        db2strdup                 (const char* source);
+extern char*        guessNlsLang  (char* nls_lang);
+extern void         db2GetOptions (Oid foreigntableid, List** options);
+extern bool         optionIsTrue  (const char* value);
+extern DB2Session*  db2GetSession (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
+extern DB2Table*    db2Describe   (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
+extern char*        db2CopyText   (const char* string, int size, int quote);
+extern char*        c2name        (short fcType);
+extern void         db2Debug1     (const char* message, ...);
+extern void         db2Debug2     (const char* message, ...);
+extern void*        db2alloc      (const char* type, size_t size);
+extern void         db2free       (void* p);
+extern char*        db2strdup     (const char* source);
 
 /** local prototypes */
        DB2FdwState* db2GetFdwState(Oid foreigntableid, double* sample_percent, bool describe);
+static DB2Table*    describeForeignTable (Oid foreigntableid, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
 static void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
-       bool         optionIsTrue  (const char* value);
 
 /** db2GetFdwState
  *   Construct an DB2FdwState from the options of the foreign table.
@@ -32,23 +38,20 @@ static void         getColumnData (DB2Table* db2Table, Oid foreigntableid);
 DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool describe) {
   DB2FdwState* fdwState    = db2alloc("fdw_state", sizeof (DB2FdwState));
   char*        pgtablename = get_rel_name (foreigntableid);
-  List*        options;
-  ListCell*    cell;
-  char*        schema   = NULL;
-  char*        table    = NULL;
-  char*        maxlong  = NULL;
-  char*        sample   = NULL;
-  char*        prefetch = NULL;
-  char*        fetchsz  = NULL;
-  char*        noencerr = NULL;
-  char*        batchsz  = NULL;
-  long max_long;
+  List*        options     = NIL;
+  ListCell*    cell        = NULL;
+  char*        schema      = NULL;
+  char*        table       = NULL;
+  char*        maxlong     = NULL;
+  char*        sample      = NULL;
+  char*        prefetch    = NULL;
+  char*        fetchsz     = NULL;
+  char*        noencerr    = NULL;
+  char*        batchsz     = NULL;
+  long         max_long    = 0;
 
   db2Debug1("> db2GetFdwState");
-  /*
-   * Get all relevant options from the foreign table, the user mapping,
-   * the foreign server and the foreign data wrapper.
-   */
+  /* Get all relevant options from the foreign table, the user mapping, the foreign server and the foreign data wrapper. */
   db2GetOptions (foreigntableid, &options);
   foreach (cell, options) {
     DefElem *def = (DefElem *) lfirst (cell);
@@ -81,10 +84,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool de
   }
 
   /* convert "max_long" option to number or use default */
-  if (maxlong == NULL)
-    max_long = DEFAULT_MAX_LONG;
-  else
-    max_long = strtol (maxlong, NULL, 0);
+  max_long = (maxlong == NULL) ? DEFAULT_MAX_LONG : strtol (maxlong, NULL, 0);
 
   /* convert "sample_percent" to double */
   if (sample_percent != NULL) {
@@ -93,45 +93,264 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool de
     else
       *sample_percent = strtod (sample, NULL);
   }
-
   /* convert "prefetch" to number (or use default) */
-  if (prefetch == NULL)
-    fdwState->prefetch = DEFAULT_PREFETCH;
-  else
-    fdwState->prefetch = (unsigned long) strtoul (prefetch, NULL, 0);
+  fdwState->prefetch = (prefetch == NULL) ? DEFAULT_PREFETCH : (unsigned long) strtoul (prefetch, NULL, 0);
 
   /* convert "fetchsize" to number (or use default) */
-  if (fetchsz == NULL)
-    fdwState->fetch_size = DEFAULT_FETCHSZ;
-  else
-    fdwState->fetch_size = (int) strtol (fetchsz, NULL, 0);
+  fdwState->fetch_size = (fetchsz == NULL) ? DEFAULT_FETCHSZ : (int) strtol (fetchsz, NULL, 0);
 
     /* check if options are ok */
-  if (table == NULL)
+  if (table == NULL) {
     ereport (ERROR, (errcode (ERRCODE_FDW_OPTION_NAME_NOT_FOUND), errmsg ("required option \"%s\" in foreign table \"%s\" missing", OPT_TABLE, pgtablename)));
+  }
 
   /* guess a good NLS_LANG environment setting */
   fdwState->nls_lang = guessNlsLang (fdwState->nls_lang);
 
-  /* connect to DB2 database */
-  fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->jwt_token, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
-
   if (describe) {
-    /* get remote table description */
-    fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr, batchsz);
-
-    /* add PostgreSQL data to table description */
-    getColumnData (fdwState->db2Table, foreigntableid);
+    fdwState->db2Table = describeForeignTable(foreigntableid, schema, table, pgtablename, max_long, noencerr, batchsz);
+    if (fdwState->db2Table == NULL) {
+      /* connect to DB2 database */
+      fdwState->session = db2GetSession (fdwState->dbserver, fdwState->user, fdwState->password, fdwState->jwt_token, fdwState->nls_lang, GetCurrentTransactionNestLevel () );
+      /* get remote table description */
+      fdwState->db2Table = db2Describe (fdwState->session, schema, table, pgtablename, max_long, noencerr, batchsz);
+      /* add PostgreSQL data to table description */
+      getColumnData (fdwState->db2Table, foreigntableid);
+    }
   }
 
   db2Debug1("< db2GetFdwState");
   return fdwState;
 }
 
-/** getColumnData
- *   Get PostgreSQL column name and number, data type and data type modifier.
- *   Set db2Table->npgcols.
- *   For PostgreSQL 9.2 and better, find the primary key columns and mark them in db2Table.
+static DB2Table* describeForeignTable (Oid foreigntableid, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz) {
+  DB2Table* db2Table = NULL;
+  char*     qtable    = NULL;
+  char*     qschema   = NULL;
+  char*     tablename = NULL;
+  Relation  rel;
+  TupleDesc tupdesc;
+  int       length    = 0;
+
+  db2Debug1("> %s::describeForeignTable",__FILE__);
+
+  db2Table = (DB2Table*)db2alloc("db2_table", sizeof (DB2Table));
+  /* get a complete quoted table name */
+  qtable = db2CopyText (table, strlen (table), 1);
+  length = strlen (qtable);
+  if (schema != NULL) {
+    qschema = db2CopyText (schema, strlen (schema), 1);
+    length += strlen (qschema) + 1;
+  }
+  tablename = db2alloc ("db2Table->name", length + 1);
+  tablename[0] = '\0';		/* empty */
+  if (schema != NULL) {
+    strncat (tablename, qschema, length);
+    strncat (tablename, ".", length);
+  }
+  strncat (tablename, qtable,length);
+  db2free (qtable);
+  if (schema != NULL)
+    db2free (qschema);
+
+  db2Table->name = tablename;
+  db2Debug2("  table description");
+  db2Debug2("  db2Table->name    : '%s'", db2Table->name);
+  db2Table->pgname = pgname;
+  db2Debug2("  db2Table->pgname  : '%s'", db2Table->pgname);
+
+  db2Table->batchsz = DEFAULT_BATCHSZ;
+  if (batchsz != NULL) {
+    char* end;
+    db2Table->batchsz = strtol(batchsz,&end,10);
+    db2Debug2("  db2Table->batchsz : %d", db2Table->batchsz);
+  }
+
+  rel = table_open (foreigntableid, NoLock);
+  tupdesc = rel->rd_att;
+
+  db2Table->npgcols = tupdesc->natts;
+  db2Debug2("  db2Table->npgcols : %d", db2Table->npgcols);
+  db2Table->ncols   = tupdesc->natts;
+  db2Debug2("  db2Table->ncols   : %d", db2Table->ncols);
+  db2Table->cols    = (DB2Column**) db2alloc ("db2Table->cols", sizeof (DB2Column*) * db2Table->ncols);
+  db2Debug2("  db2Table->cols    : %x", db2Table->cols);
+
+  /* loop through foreign table columns */
+  for (int i = 0, cidx = 0; i < tupdesc->natts; ++i) {
+    Form_pg_attribute att_tuple = TupleDescAttr (tupdesc, i);
+    List*             options   = NIL;
+    ListCell*         option    = NULL;
+
+    /* ignore dropped columns */
+    if (att_tuple->attisdropped) {
+      continue;
+    }
+    /* get PostgreSQL column number and type */
+    if (cidx <= db2Table->ncols) {
+      int           bin_size  = 0;
+      int           charlen   = 0;
+      unsigned int  colSize   = 0;
+      short         scale     = 0;
+      bool          db2type_set = false;
+      bool          db2size_set = false;
+      bool          db2bytes_set = false;
+      bool          db2chars_set = false;
+      bool          db2scale_set = false;
+      bool          db2nulls_set = false;
+      bool          db2codepage_set = false;
+
+      db2Table->cols[cidx]           = (DB2Column*) db2alloc ("db2Table->cols[cidx]", sizeof (DB2Column));
+      db2Table->cols[cidx]->used     = 0;
+      db2Table->cols[cidx]->pgattnum = att_tuple->attnum;
+      db2Table->cols[cidx]->pgtype   = att_tuple->atttypid;
+      db2Table->cols[cidx]->pgtypmod = att_tuple->atttypmod;
+      db2Table->cols[cidx]->pgname   = db2strdup (NameStr(att_tuple->attname));
+      db2Table->cols[cidx]->colName  = db2CopyText ( str_toupper(db2Table->cols[cidx]->pgname, strlen(db2Table->cols[cidx]->pgname), DEFAULT_COLLATION_OID)
+                                                   , strlen(db2Table->cols[cidx]->pgname)
+                                                   , 1
+                                                   );
+      /* loop through column options */
+      options = GetForeignColumnOptions (foreigntableid, att_tuple->attnum);
+      if (noencerr != NULL) {
+        db2Table->cols[cidx]->noencerr = optionIsTrue(noencerr) ? NO_ENC_ERR_TRUE : NO_ENC_ERR_FALSE;
+      } else {
+        db2Table->cols[cidx]->noencerr = NO_ENC_ERR_NULL;
+      }
+      foreach (option, options) {
+        DefElem* def = (DefElem*) lfirst (option);
+        if (strcmp (def->defname, OPT_KEY) == 0) {
+          db2Table->cols[cidx]->pkey     = optionIsTrue ((STRVAL(def->arg))) ? 1 : 0;                             /* is it the "key" option and is it set to "true" ? */
+          db2Table->cols[cidx]->colPrimKeyPart  = db2Table->cols[cidx]->pkey;
+        } else if (strcmp (def->defname, OPT_NO_ENCODING_ERROR) == 0) {
+          db2Table->cols[cidx]->noencerr = optionIsTrue((STRVAL(def->arg))) ? NO_ENC_ERR_TRUE : NO_ENC_ERR_FALSE; /* is it the "no_encoding_error" option set         */
+        } else if (strcmp (def->defname, OPT_DB2TYPE) == 0) {
+          db2type_set = true;
+          db2Table->cols[cidx]->colType = (short)strtol(STRVAL(def->arg), NULL, 10);
+        } else if (strcmp (def->defname, OPT_DB2SIZE) == 0) {
+          db2size_set = true;
+          db2Table->cols[cidx]->colSize = (size_t)strtol(STRVAL(def->arg), NULL, 10);
+        } else if (strcmp (def->defname, OPT_DB2BYTES) == 0) {
+          db2bytes_set = true;
+          db2Table->cols[cidx]->colBytes = (size_t)strtol(STRVAL(def->arg), NULL, 10);
+        } else if (strcmp (def->defname, OPT_DB2CHARS) == 0) {
+          db2chars_set = true;
+          db2Table->cols[cidx]->colChars = (size_t)strtol(STRVAL(def->arg), NULL, 10);
+        } else if (strcmp (def->defname, OPT_DB2SCALE) == 0) {
+          db2scale_set = true;
+          db2Table->cols[cidx]->colScale = (short)strtol(STRVAL(def->arg), NULL, 10);
+        } else if (strcmp (def->defname, OPT_DB2NULL) == 0) {
+          db2nulls_set = true;
+          db2Table->cols[cidx]->colNulls = (short)strtol(STRVAL(def->arg), NULL, 10);
+        } else if (strcmp (def->defname, OPT_DB2CCSID) == 0) {
+          db2codepage_set = true;
+          db2Table->cols[cidx]->colCodepage = (int)strtol(STRVAL(def->arg), NULL, 10);
+        }
+      }
+      if (!db2type_set || !db2size_set || !db2bytes_set || !db2chars_set || !db2scale_set || !db2nulls_set || !db2codepage_set) {
+        db2Debug1("  column %d - %s without required options, discarding db2Table", cidx, db2Table->cols[cidx]->pgname);
+        db2free (db2Table);
+        db2Table = NULL;
+        break;
+      }
+      bin_size  = db2Table->cols[cidx]->colBytes;
+      charlen   = db2Table->cols[cidx]->colChars;
+      colSize   = db2Table->cols[cidx]->colSize;
+      scale     = db2Table->cols[cidx]->colScale;
+      // val_size berechnen
+      /* determine db2Type and length to allocate */
+      switch (db2Table->cols[cidx]->colType) {
+        case SQL_CHAR:
+        case SQL_VARCHAR:
+        case SQL_LONGVARCHAR:
+          db2Table->cols[cidx]->val_size = bin_size + 1;
+        break;
+        case SQL_BLOB:
+        case SQL_CLOB:
+          db2Table->cols[cidx]->val_size = bin_size + 1;
+        break;
+        case SQL_GRAPHIC:
+        case SQL_VARGRAPHIC:
+        case SQL_LONGVARGRAPHIC:
+        case SQL_WCHAR:
+        case SQL_WVARCHAR:
+        case SQL_WLONGVARCHAR:
+        case SQL_DBCLOB:
+          db2Table->cols[cidx]->val_size = bin_size + 1;
+        break;
+        case SQL_BOOLEAN:
+          db2Table->cols[cidx]->val_size = bin_size + 1;
+        break;
+        case SQL_INTEGER:
+        case SQL_SMALLINT:
+            db2Table->cols[cidx]->val_size = charlen + 2;
+        break;
+        case SQL_NUMERIC:
+        case SQL_DECIMAL:
+          if (db2Table->cols[cidx]->colScale == 0)
+            db2Table->cols[cidx]->val_size = bin_size;
+          else
+            db2Table->cols[cidx]->val_size = (scale > colSize ? scale : colSize) + 5;
+        break;
+        case SQL_REAL:
+        case SQL_DOUBLE:
+        case SQL_FLOAT:
+        case SQL_DECFLOAT:
+          db2Table->cols[cidx]->val_size = 24 + 1;
+        break;
+        case SQL_TYPE_DATE:
+        case SQL_TYPE_TIME:
+        case SQL_TYPE_TIMESTAMP:
+        case SQL_TYPE_TIMESTAMP_WITH_TIMEZONE:
+          db2Table->cols[cidx]->val_size = colSize + 1;
+        break;
+        case SQL_BIGINT:
+          db2Table->cols[cidx]->val_size = 24;
+        break;
+        case SQL_XML:
+          db2Table->cols[cidx]->val_size = LOB_CHUNK_SIZE + 1;
+        break;
+        case SQL_BINARY:
+        case SQL_VARBINARY:
+        case SQL_LONGVARBINARY:
+          db2Table->cols[cidx]->val_size = bin_size;
+        break;
+        default:
+        break;
+      }
+      db2Debug2("  db2Table->cols >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+      db2Debug2("  db2Table->cols[%d] : %x" , cidx, db2Table->cols[cidx]);
+      db2Debug2("  db2Table->cols[%d]->colName        : %s" , cidx, db2Table->cols[cidx]->colName);
+      db2Debug2("  db2Table->cols[%d]->colType        : %d - (%s)" , cidx, db2Table->cols[cidx]->colType,c2name(db2Table->cols[cidx]->colType));
+      db2Debug2("  db2Table->cols[%d]->colSize        : %ld", cidx, db2Table->cols[cidx]->colSize);
+      db2Debug2("  db2Table->cols[%d]->colScale       : %d" , cidx, db2Table->cols[cidx]->colScale);
+      db2Debug2("  db2Table->cols[%d]->colNulls       : %d" , cidx, db2Table->cols[cidx]->colNulls);
+      db2Debug2("  db2Table->cols[%d]->colChars       : %ld", cidx, db2Table->cols[cidx]->colChars);
+      db2Debug2("  db2Table->cols[%d]->colBytes       : %ld", cidx, db2Table->cols[cidx]->colBytes);
+      db2Debug2("  db2Table->cols[%d]->colPrimKeyPart : %d" , cidx, db2Table->cols[cidx]->colPrimKeyPart);
+      db2Debug2("  db2Table->cols[%d]->colCodepage    : %d" , cidx, db2Table->cols[cidx]->colCodepage);
+      db2Debug2("  db2Table->cols[%d]->pgrelid        : %d" , cidx, db2Table->cols[cidx]->pgrelid);
+      db2Debug2("  db2Table->cols[%d]->pgname         : %s" , cidx, db2Table->cols[cidx]->pgname);
+      db2Debug2("  db2Table->cols[%d]->pgattnum       : %d" , cidx, db2Table->cols[cidx]->pgattnum);
+      db2Debug2("  db2Table->cols[%d]->pgtype         : %d" , cidx, db2Table->cols[cidx]->pgtype);
+      db2Debug2("  db2Table->cols[%d]->pgtypmod       : %d" , cidx, db2Table->cols[cidx]->pgtypmod);
+      db2Debug2("  db2Table->cols[%d]->used           : %d" , cidx, db2Table->cols[cidx]->used);
+      db2Debug2("  db2Table->cols[%d]->pkey           : %d" , cidx, db2Table->cols[cidx]->pkey);
+      db2Debug2("  db2Table->cols[%d]->val_size       : %ld", cidx, db2Table->cols[cidx]->val_size);
+      db2Debug2("  db2Table->cols[%d]->noencerr       : %d" , cidx, db2Table->cols[cidx]->noencerr);
+    }
+    ++cidx;
+  }
+
+  table_close (rel, NoLock);
+  db2Debug1("< %s::describeForeignTable : %x",__FILE__, db2Table);
+  return db2Table;
+}
+
+/* getColumnData
+ * Get PostgreSQL column name and number, data type and data type modifier.
+ * Set db2Table->npgcols.
+ * For PostgreSQL 9.2 and better, find the primary key columns and mark them in db2Table.
  */
 static void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
   Relation rel;
@@ -183,15 +402,4 @@ static void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
 
   table_close (rel, NoLock);
   db2Debug2("  < getColumnData");
-}
-
-/* optionIsTrue
- * Returns true if the string is "true", "on" or "yes".
- */
-bool optionIsTrue (const char *value) {
-  bool result = false;
-  db2Debug3("    > optionIsTrue(value: '%s')",value);
-  result = (pg_strcasecmp (value, "on") == 0 || pg_strcasecmp (value, "yes") == 0 || pg_strcasecmp (value, "true") == 0);
-  db2Debug3("    < optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
-  return result;
 }
