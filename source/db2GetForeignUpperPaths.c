@@ -1,9 +1,7 @@
 #include <postgres.h>
-#include <foreign/fdwapi.h>
 #include <catalog/pg_operator.h>
 #include <catalog/pg_opfamily.h>
 #include <miscadmin.h>
-
 #include <nodes/makefuncs.h>
 #include <optimizer/cost.h>
 #include <optimizer/optimizer.h>
@@ -162,13 +160,13 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
     copy = (DB2FdwState*) db2alloc("fdw_state_upper", sizeof(DB2FdwState));
 
     /* Connection/session fields */
-    copy->dbserver   = fdw_in->dbserver   ? db2strdup(fdw_in->dbserver)   : NULL;
-    copy->user       = fdw_in->user       ? db2strdup(fdw_in->user)       : NULL;
-    copy->password   = fdw_in->password   ? db2strdup(fdw_in->password)   : NULL;
-    copy->jwt_token  = fdw_in->jwt_token  ? db2strdup(fdw_in->jwt_token)  : NULL;
-    copy->nls_lang   = fdw_in->nls_lang   ? db2strdup(fdw_in->nls_lang)   : NULL;
+    copy->dbserver     = fdw_in->dbserver   ? db2strdup(fdw_in->dbserver)   : NULL;
+    copy->user         = fdw_in->user       ? db2strdup(fdw_in->user)       : NULL;
+    copy->password     = fdw_in->password   ? db2strdup(fdw_in->password)   : NULL;
+    copy->jwt_token    = fdw_in->jwt_token  ? db2strdup(fdw_in->jwt_token)  : NULL;
+    copy->nls_lang     = fdw_in->nls_lang   ? db2strdup(fdw_in->nls_lang)   : NULL;
     /* Planner-time session handle can be shared (it is not serialized). */
-    copy->session    = fdw_in->session;
+    copy->session      = fdw_in->session;
 
     /* Planning/execution fields */
     copy->query        = fdw_in->query ? db2strdup(fdw_in->query) : NULL;
@@ -181,26 +179,22 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
     copy->order_clause = fdw_in->order_clause ? db2strdup(fdw_in->order_clause) : NULL;
     copy->where_clause = fdw_in->where_clause ? db2strdup(fdw_in->where_clause) : NULL;
 
-    /* Shallow-copy expression lists (Expr nodes are immutable at this stage), but
-     * ensure list cells are independent because createQuery mutates the list.
-     */
+    /* Shallow-copy expression lists (Expr nodes are immutable at this stage), but ensure list cells are independent because createQuery mutates the list. */
     copy->params       = fdw_in->params       ? list_copy(fdw_in->params)       : NIL;
     copy->remote_conds = fdw_in->remote_conds ? list_copy(fdw_in->remote_conds) : NIL;
     copy->local_conds  = fdw_in->local_conds  ? list_copy(fdw_in->local_conds)  : NIL;
 
-    /* Deep-copy DB2 table/columns because DB2Column.used is re-derived for each
-     * planned query shape.
-     */
-    copy->db2Table = db2CloneDb2TableForPlan(fdw_in->db2Table);
+    /* Deep-copy DB2 table/columns because DB2Column used is re-derived for each planned query shape. */
+    copy->db2Table     = db2CloneDb2TableForPlan(fdw_in->db2Table);
 
     /* Join info: keep as-is (typically NULL for baserels). */
-    copy->outerrel    = fdw_in->outerrel;
-    copy->innerrel    = fdw_in->innerrel;
-    copy->jointype    = fdw_in->jointype;
-    copy->joinclauses = fdw_in->joinclauses ? list_copy(fdw_in->joinclauses) : NIL;
+    copy->outerrel     = fdw_in->outerrel;
+    copy->innerrel     = fdw_in->innerrel;
+    copy->jointype     = fdw_in->jointype;
+    copy->joinclauses  = fdw_in->joinclauses ? list_copy(fdw_in->joinclauses) : NIL;
 
     /* paramList is constructed at execution time from fdw_exprs. */
-    copy->paramList = NULL;
+    copy->paramList    = NULL;
   }
   output_rel->fdw_private = copy;
   db2Debug1("< %s::db2CloneFdwStateUpper", __FILE__);
