@@ -176,6 +176,13 @@ static bool         is_subquery_var           (Var* node, RelOptInfo* foreignrel
 static void         printRemoteParam          (int paramindex, Oid paramtype, int32 paramtypmod, deparse_expr_cxt* context);
 static void         printRemotePlaceholder    (Oid paramtype, int32 paramtypmod, deparse_expr_cxt* context);
 
+       void         deparseDirectUpdateSql    (StringInfo buf, PlannerInfo *root, Index rtindex, Relation rel, RelOptInfo *foreignrel, List *targetlist, List *targetAttrs, List *remote_conds, List **params_list, List *returningList, List **retrieved_attrs);
+static void         deparseReturningList      (StringInfo buf, RangeTblEntry *rte, Index rtindex, Relation rel, bool trig_after_row, List *withCheckOptionList, List *returningList, List **retrieved_attrs);
+       void         deparseDeleteSql          (StringInfo buf, RangeTblEntry *rte, Index rtindex, Relation rel, List *returningList, List **retrieved_attrs);
+       void         deparseDirectDeleteSql    (StringInfo buf, PlannerInfo *root, Index rtindex, Relation rel, RelOptInfo *foreignrel, List *remote_conds, List **params_list, List *returningList, List **retrieved_attrs);
+
+
+
 /* Examine each qual clause in input_conds, and classify them into two groups, which are returned as two lists:
  *	- remote_conds contains expressions that can be evaluated remotely
  *	- local_conds contains expressions that can't be evaluated remotely
@@ -3572,4 +3579,187 @@ EquivalenceMember* find_em_for_rel_target(PlannerInfo* root, EquivalenceClass* e
     i++;
   }
   return NULL;
+}
+
+/* deparse remote UPDATE statement
+ *
+ * 'buf' is the output buffer to append the statement to 'rtindex' is the RT index of the associated target relation
+ * 'rel' is the relation descriptor for the target relation
+ * 'foreignrel' is the RelOptInfo for the target relation or the join relation containing all base relations in the query
+ * 'targetlist' is the tlist of the underlying foreign-scan plan node (note that this only contains new-value expressions and junk attrs)
+ * 'targetAttrs' is the target columns of the UPDATE
+ * 'remote_conds' is the qual clauses that must be evaluated remotely
+ * '*params_list' is an output list of exprs that will become remote Params
+ * 'returningList' is the RETURNING targetlist
+ * '*retrieved_attrs' is an output list of integers of columns being retrieved 	by RETURNING (if any)
+ */
+void deparseDirectUpdateSql(StringInfo buf, PlannerInfo *root, Index rtindex, Relation rel, RelOptInfo *foreignrel, List *targetlist, List *targetAttrs, List *remote_conds, List **params_list, List *returningList, List **retrieved_attrs) {
+	deparse_expr_cxt context;
+	int			nestlevel;
+	bool		first;
+	RangeTblEntry *rte = planner_rt_fetch(rtindex, root);
+	ListCell   *lc,
+			   *lc2;
+	List	   *additional_conds = NIL;
+
+	/* Set up context struct for recursion */
+	context.root = root;
+	context.foreignrel = foreignrel;
+	context.scanrel = foreignrel;
+	context.buf = buf;
+	context.params_list = params_list;
+
+	appendStringInfoString(buf, "UPDATE ");
+	deparseRelation(buf, rel);
+	if (foreignrel->reloptkind == RELOPT_JOINREL)
+		appendStringInfo(buf, " %s%d", REL_ALIAS_PREFIX, rtindex);
+	appendStringInfoString(buf, " SET ");
+
+	/* Make sure any constants in the exprs are printed portably */
+	nestlevel = set_transmission_modes();
+
+	first = true;
+	forboth(lc, targetlist, lc2, targetAttrs)
+	{
+		TargetEntry *tle = lfirst_node(TargetEntry, lc);
+		int			attnum = lfirst_int(lc2);
+
+		/* update's new-value expressions shouldn't be resjunk */
+		Assert(!tle->resjunk);
+
+		if (!first)
+			appendStringInfoString(buf, ", ");
+		first = false;
+
+		deparseColumnRef(buf, rtindex, attnum, rte, false);
+		appendStringInfoString(buf, " = ");
+		deparseExprInt((Expr*) tle->expr, &context);
+	}
+
+	reset_transmission_modes(nestlevel);
+
+	if (foreignrel->reloptkind == RELOPT_JOINREL)
+	{
+		List	   *ignore_conds = NIL;
+
+
+		appendStringInfoString(buf, " FROM ");
+		deparseFromExprForRel(buf, root, foreignrel, true, rtindex,
+							  &ignore_conds, &additional_conds, params_list);
+		remote_conds = list_concat(remote_conds, ignore_conds);
+	}
+
+	appendWhereClause(remote_conds, additional_conds, &context);
+
+	if (additional_conds != NIL)
+		list_free_deep(additional_conds);
+
+	if (foreignrel->reloptkind == RELOPT_JOINREL)
+		deparseExplicitTargetList(returningList, true, retrieved_attrs,
+								  &context);
+	else
+		deparseReturningList(buf, rte, rtindex, rel, false,
+							 NIL, returningList, retrieved_attrs);
+}
+
+/*
+ * Add a RETURNING clause, if needed, to an INSERT/UPDATE/DELETE.
+ */
+static void deparseReturningList(StringInfo buf, RangeTblEntry *rte, Index rtindex, Relation rel, bool trig_after_row, List *withCheckOptionList, List *returningList, List **retrieved_attrs) {
+	Bitmapset  *attrs_used = NULL;
+
+	if (trig_after_row) {
+		/* whole-row reference acquires all non-system columns */
+		attrs_used =
+			bms_make_singleton(0 - FirstLowInvalidHeapAttributeNumber);
+	}
+
+	if (withCheckOptionList != NIL) {
+		/* We need the attrs, non-system and system, mentioned in the local query's WITH CHECK OPTION list.
+		 *
+		 * Note: we do this to ensure that WCO constraints will be evaluated on the data actually inserted/updated on the remote side, which
+		 * might differ from the data supplied by the core code, for example as a result of remote triggers.
+		 */
+		pull_varattnos((Node *) withCheckOptionList, rtindex,
+					   &attrs_used);
+	}
+
+	if (returningList != NIL) {
+		/*
+		 * We need the attrs, non-system and system, mentioned in the local
+		 * query's RETURNING list.
+		 */
+		pull_varattnos((Node *) returningList, rtindex,
+					   &attrs_used);
+	}
+
+	if (attrs_used != NULL)
+		deparseTargetList(buf, rte, rtindex, rel, true, attrs_used, false,
+						  retrieved_attrs);
+	else
+		*retrieved_attrs = NIL;
+}
+
+/* deparse remote DELETE statement
+ * The statement text is appended to buf, and we also create an integer List of the columns being retrieved by RETURNING (if any), which is returned to *retrieved_attrs.
+ */
+void deparseDeleteSql(StringInfo buf, RangeTblEntry *rte, Index rtindex, Relation rel, List *returningList, List **retrieved_attrs)
+{
+	appendStringInfoString(buf, "DELETE FROM ");
+	deparseRelation(buf, rel);
+	appendStringInfoString(buf, " WHERE ctid = $1");
+
+	deparseReturningList(buf, rte, rtindex, rel,
+						 rel->trigdesc && rel->trigdesc->trig_delete_after_row,
+						 NIL, returningList, retrieved_attrs);
+}
+
+/* deparse remote DELETE statement
+ *
+ * 'buf' is the output buffer to append the statement to  'rtindex' is the RT index of the associated target relation
+ * 'rel' is the relation descriptor for the target relation
+ * 'foreignrel' is the RelOptInfo for the target relation or the join relation containing all base relations in the query
+ * 'remote_conds' is the qual clauses that must be evaluated remotely
+ * '*params_list' is an output list of exprs that will become remote Params
+ * 'returningList' is the RETURNING targetlist
+ * '*retrieved_attrs' is an output list of integers of columns being retrieved by RETURNING (if any)
+ */
+void deparseDirectDeleteSql(StringInfo buf, PlannerInfo *root, Index rtindex, Relation rel, RelOptInfo *foreignrel, List *remote_conds, List **params_list, List *returningList, List **retrieved_attrs) {
+	deparse_expr_cxt context;
+	List	   *additional_conds = NIL;
+
+	/* Set up context struct for recursion */
+	context.root = root;
+	context.foreignrel = foreignrel;
+	context.scanrel = foreignrel;
+	context.buf = buf;
+	context.params_list = params_list;
+
+	appendStringInfoString(buf, "DELETE FROM ");
+	deparseRelation(buf, rel);
+	if (foreignrel->reloptkind == RELOPT_JOINREL)
+		appendStringInfo(buf, " %s%d", REL_ALIAS_PREFIX, rtindex);
+
+	if (foreignrel->reloptkind == RELOPT_JOINREL)
+	{
+		List	   *ignore_conds = NIL;
+
+		appendStringInfoString(buf, " USING ");
+		deparseFromExprForRel(buf, root, foreignrel, true, rtindex,
+							  &ignore_conds, &additional_conds, params_list);
+		remote_conds = list_concat(remote_conds, ignore_conds);
+	}
+
+	appendWhereClause(remote_conds, additional_conds, &context);
+
+	if (additional_conds != NIL)
+		list_free_deep(additional_conds);
+
+	if (foreignrel->reloptkind == RELOPT_JOINREL)
+		deparseExplicitTargetList(returningList, true, retrieved_attrs,
+								  &context);
+	else
+		deparseReturningList(buf, planner_rt_fetch(rtindex, root),
+							 rtindex, rel, false,
+							 NIL, returningList, retrieved_attrs);
 }

@@ -22,7 +22,7 @@
  *  @since  1.0
  */
 typedef struct db2FdwState {
-// DB2 Section
+  // DB2 Section
   char*               dbserver;               // DB2 connect string
   char*               user;                   // DB2 username
   char*               password;               // DB2 password
@@ -39,9 +39,9 @@ typedef struct db2FdwState {
   unsigned long       prefetch;               // number of rows to prefetch (SQL_ATTR_PREFETCH_NROWS 0-1024)
   char*               order_clause;           // for sort-pushdown
   char*               where_clause;           // deparsed where clause
-// attributes taken over from PgFdwRelationInfo
+  // attributes taken over from PgFdwRelationInfo
   bool                pushdown_safe;          // True: relation can be pushed down. Always true for simple foreign scan.
-// All entries in these lists should have RestrictInfo wrappers; that improves efficiency of selectivity and cost estimation.
+  // All entries in these lists should have RestrictInfo wrappers; that improves efficiency of selectivity and cost estimation.
   List*               retrieved_attr;         // Retrieved Attributes List.
   List*               remote_conds;           // Restriction clauses, safe to pushdown subsets.
   List*               local_conds;            // Restriction clauses, unsafe to pushdown subsets.

@@ -66,6 +66,10 @@ OBJS         = source/db2_fdw.o\
                source/db2Shutdown.o\
                source/db2CopyText.o\
                source/db2IsStatementOpen.o\
+               source/db2PlanDirectModify.o\
+               source/db2BeginDirectModify.o\
+               source/db2IterateDirectModify.o\
+               source/db2EndDirectModify.o\
                source/db2_utils.o
 RELEASE      = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 DATA         = $(wildcard sql/*--*.sql)

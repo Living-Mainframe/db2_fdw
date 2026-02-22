@@ -11,6 +11,8 @@
 #define _db2_fdw_h_
 
 #ifdef POSTGRES_H
+#include <foreign/foreign.h>
+#include <foreign/fdwapi.h>
 #if PG_VERSION_NUM >= 150000
 #define STRVAL(arg) ((String *)(arg))->sval
 #else

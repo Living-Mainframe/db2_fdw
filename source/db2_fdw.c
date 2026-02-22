@@ -125,6 +125,11 @@ extern void             db2EndForeignInsert         (EState* estate, ResultRelIn
 extern void             db2ExplainForeignModify     (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, ExplainState* es);
 extern int              db2IsForeignRelUpdatable    (Relation rel);
 extern List*            db2ImportForeignSchema      (ImportForeignSchemaStmt* stmt, Oid serverOid);
+extern bool             db2PlanDirectModify         (PlannerInfo* root, ModifyTable* plan, Index resultRelation, int subplan_index);
+extern void             db2BeginDirectModify        (ForeignScanState* node, int eflags);
+extern TupleTableSlot*  db2IterateDirectModify      (ForeignScanState* node);
+extern void             db2EndDirectModify          (ForeignScanState* node);
+
 #if PG_VERSION_NUM >= 140000
 extern void             db2ExecForeignTruncate      (List *rels, DropBehavior behavior, bool restart_seqs);
 extern TupleTableSlot** db2ExecForeignBatchInsert   (EState *estate, ResultRelInfo *rinfo, TupleTableSlot **slots, TupleTableSlot **planSlots, int *numSlots);
@@ -164,6 +169,12 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
   fdwroutine->ImportForeignSchema       = db2ImportForeignSchema;
   fdwroutine->BeginForeignInsert        = db2BeginForeignInsert;
   fdwroutine->EndForeignInsert          = db2EndForeignInsert;
+
+//  fdwroutine->PlanDirectModify          = db2PlanDirectModify;
+//	fdwroutine->BeginDirectModify         = db2BeginDirectModify;
+//	fdwroutine->IterateDirectModify       = db2IterateDirectModify;
+//	fdwroutine->EndDirectModify           = db2EndDirectModify;
+
   #if PG_VERSION_NUM >= 140000
   fdwroutine->ExecForeignTruncate       = db2ExecForeignTruncate;
   fdwroutine->ExecForeignBatchInsert    = db2ExecForeignBatchInsert;
