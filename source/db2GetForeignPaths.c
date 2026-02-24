@@ -7,9 +7,6 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 
 /** local prototypes */
@@ -28,7 +25,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
   ListCell*      cell;
   char*          delim = " ";
 
-  db2Entry(1,"> db2GetForeignPaths.c::db2GetForeignPaths");
+  db2Entry1();
   initStringInfo (&orderedquery);
 
   foreach (cell, root->query_pathkeys) {
@@ -118,7 +115,7 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
                                                       ,NIL
                                                       )
     );
-  db2Exit(1,"< db2GetForeignPaths.c::db2GetForeignPaths");
+  db2Exit1();
 }
 
 /* find_em_expr_for_rel
@@ -128,7 +125,7 @@ static Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
   ListCell* lc_em  = NULL;
   Expr*     result = NULL;
 
-  db2Entry(4,"> db2GetForeignPaths.c::find_em_expr_for_rel");
+  db2Entry4();
   foreach (lc_em, ec->ec_members) {
     EquivalenceMember* em = lfirst (lc_em);
     if (bms_equal (em->em_relids, rel->relids)) {
@@ -137,6 +134,6 @@ static Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
       break;
     }
   }
-  db2Exit(4,"< db2GetForeignPaths.c::find_em_expr_for_rel : %x", result);
+  db2Exit4(": %x", result);
   return result;
 }

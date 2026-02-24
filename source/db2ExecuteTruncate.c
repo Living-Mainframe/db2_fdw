@@ -11,9 +11,6 @@ extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 extern int          err_code;              /* error code, set by db2CheckErr()                              */
 
 /** external prototypes */
-extern void         db2Entry             (int level, const char* message, ...);
-extern void         db2Exit              (int level, const char* message, ...);
-extern void         db2Debug             (int level, const char* message, ...);
 extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void         db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern HdlEntry*    db2AllocStmtHdl      (SQLSMALLINT type, DB2ConnEntry* connp, db2error error, const char* errmsg);
@@ -27,7 +24,7 @@ int db2ExecuteTruncate   (DB2Session* session, const char* query) {
   SQLINTEGER  rowcount_val = 0;
   int         rowcount     = 0;
   
-  db2Entry(1,"> db2ExecuteTruncate.c::db2ExecuteTruncate(DB2Session: %x, query: %s)",session,query);
+  db2Entry1("(DB2Session: %x, query: %s)",session,query);
 
   rc = SQLEndTran(SQL_HANDLE_DBC, session->connp->hdbc, SQL_COMMIT);
   rc = db2CheckErr(rc, session->connp->hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
@@ -42,8 +39,8 @@ int db2ExecuteTruncate   (DB2Session* session, const char* query) {
     db2Error_d(err_code == 8177 ? FDW_SERIALIZATION_FAILURE : FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLExecute failed to execute remote query", db2Message);
   }
 
-  db2Debug(2,"rowcount_val: %lld", rowcount_val);
+  db2Debug2("rowcount_val: %lld", rowcount_val);
   rowcount = (int) rowcount_val;
-  db2Exit(1,"< db2ExecuteTruncate.c::db2ExecuteTruncate - returns: %d",rowcount);
+  db2Exit1(": %d",rowcount);
   return rowcount;
 }

@@ -9,9 +9,6 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 
 /** local prototypes */
 void db2ExplainForeignModify (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, struct ExplainState* es);
@@ -22,10 +19,10 @@ void db2ExplainForeignModify (ModifyTableState* mtstate, ResultRelInfo* rinfo, L
  */
 void db2ExplainForeignModify (ModifyTableState* mtstate, ResultRelInfo* rinfo, List* fdw_private, int subplan_index, struct ExplainState* es) {
   DB2FdwState* fdw_state = (DB2FdwState*) rinfo->ri_FdwState;
-  db2Entry(1,"> db2ExplainForeignModify.c::db2ExplainForeignModify");
-  db2Debug(2,"relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
+  db2Entry1();
+  db2Debug2("relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
   /* show query */
   ExplainPropertyText ("DB2 statement", fdw_state->query, es);
-  db2Exit(1,"< db2ExplainForeignModify.c::db2ExplainForeignModify");
+  db2Exit1();
 }
 

@@ -9,9 +9,6 @@
 #include "db2_fdw.h"
 
 /** external prototypes */
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 extern char*        db2strdup                 (const char* source);
 extern bool         optionIsTrue              (const char* value);
 
@@ -22,8 +19,8 @@ void db2AddForeignUpdateTargets(Query* parsetree, RangeTblEntry* target_rte, Rel
 void db2AddForeignUpdateTargets(PlannerInfo* root, Index rtindex, RangeTblEntry* target_rte, Relation target_relation);
 #endif
 
-/** db2AddForeignUpdateTargets
- *     Add the primary key columns as resjunk entries.
+/* db2AddForeignUpdateTargets
+ * Add the primary key columns as resjunk entries.
  */
 #if PG_VERSION_NUM < 140000
 void db2AddForeignUpdateTargets (Query* parsetree,RangeTblEntry* target_rte, Relation target_relation){
@@ -34,8 +31,8 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
   TupleDesc tupdesc = target_relation->rd_att;
   int       i       = 0;
   bool      has_key = false;
-  db2Entry(1,"> db2AddForeignUpdateTargets.c::db2AddForeignUpdateTargets");
-  db2Debug(2,"add target columns for update on %d - %s", relid, get_rel_name(relid));
+  db2Entry1();
+  db2Debug2("add target columns for update on %d - %s", relid, get_rel_name(relid));
   /* loop through all columns of the foreign table */
   for (i = 0; i < tupdesc->natts; ++i) {
     Form_pg_attribute att     = TupleDescAttr (tupdesc, i);
@@ -83,10 +80,10 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
                        , att->attcollation
                        , 0
                        );
-          db2Debug(2,"create var rtindex: %d, attrno: %d, typid: %d, typmod: %d, collation: %d",rtindex,attrno,att->atttypid,att->atttypmod,att->attcollation);
+          db2Debug2("create var rtindex: %d, attrno: %d, typid: %d, typmod: %d, collation: %d",rtindex,attrno,att->atttypid,att->atttypmod,att->attcollation);
           /* Register it as a required row-identity column. The name becomes the resjunk column name in the plan. */
           add_row_identity_var(root, var, rtindex, key_col_name);
-          db2Debug(2,"add resjunk column %s: %d", key_col_name, rtindex);
+          db2Debug2("add resjunk column %s: %d", key_col_name, rtindex);
           #endif  /* PG_VERSION_NUM */
           has_key = true;
         }
@@ -102,5 +99,5 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
               )
             );
   }
-  db2Exit(1,"< db2AddForeignUpdateTargets.c::db2AddForeignUpdateTargets");
+  db2Exit1();
 }

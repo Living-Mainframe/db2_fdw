@@ -11,9 +11,6 @@
 /** external prototypes */
 extern List*        serializePlanData         (DB2FdwState* fdwState);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
-extern void         db2Debug1                 (const char* message, ...);
-extern void         db2Debug2                 (const char* message, ...);
-extern void         db2Debug3                 (const char* message, ...);
 extern void         db2free                   (void* p);
 extern char*        db2strdup                 (const char* p);
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* rel, Expr* expr, List** params);

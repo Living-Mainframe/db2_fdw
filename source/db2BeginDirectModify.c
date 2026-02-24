@@ -8,9 +8,6 @@
 #include "db2_fdw.h"
 #include "DB2FdwDirectModifyState.h"
 
-extern void                     db2Entry                  (int level, const char* message, ...);
-extern void                     db2Exit                   (int level, const char* message, ...);
-extern void                     db2Debug                  (int level, const char* message, ...);
 extern void*                    db2alloc                  (const char* type, size_t size);
 extern DB2Session*              db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern DB2FdwDirectModifyState* db2GetFdwDirectModifyState(Oid foreigntableid, double* sample_percent, bool describe);
@@ -30,7 +27,7 @@ void db2BeginDirectModify(ForeignScanState* node, int eflags) {
   Index                     rtindex;
   Relation                  foreigntable;
 
-  db2Entry(1,"> db2BeginDirectModify.c::db2BeginDirectModify");
+  db2Entry1();
   /* Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL. */
   if (!(eflags & EXEC_FLAG_EXPLAIN_ONLY)) {
     /* Get info about foreign table. */
@@ -95,7 +92,7 @@ void db2BeginDirectModify(ForeignScanState* node, int eflags) {
                           );
     }
   }
-  db2Exit(1,"< db2BeginDirectModify.c::db2BeginDirectModify");
+  db2Exit1();
 }
 
 /*
@@ -106,7 +103,7 @@ static TupleDesc get_tupdesc_for_join_scan_tuples(ForeignScanState *node) {
   EState	   *estate = node->ss.ps.state;
   TupleDesc	tupdesc;
 
-  db2Entry(4,"> db2BeginDirectModify.c::get_tupdesc_for_join_scan_tuples");
+  db2Entry4();
   /* The core code has already set up a scan tuple slot based on fsplan->fdw_scan_tlist, and this slot's tupdesc is mostly good enough, but there's one case where it isn't.
    * If we have any whole-row row identifier Vars, they may have vartype RECORD, and we need to replace that with the associated table's actual composite type.
    * This ensures that when we read those ROW() expression values from the remote server, we can convert them to a composite type the local server knows.
@@ -135,7 +132,7 @@ static TupleDesc get_tupdesc_for_join_scan_tuples(ForeignScanState *node) {
     att->atttypid = reltype;
     /* shouldn't need to change anything else */
   }
-  db2Exit(4,"< db2BeginDirectModify.c::get_tupdesc_for_join_scan_tuples");
+  db2Exit4();
   return tupdesc;
 }
 
@@ -145,7 +142,7 @@ static void init_returning_filter(DB2FdwDirectModifyState* dmstate, List* fdw_sc
   ListCell* lc            = NULL;
   int       i             = 0;
 
-  db2Entry(4,"< db2BeginDirectModify.c::init_returning_filter");
+  db2Entry4();
   /* Calculate the mapping between the fdw_scan_tlist's entries and the result tuple's attributes.
    *
    * The "map" is an array of indexes of the result tuple's attributes in fdw_scan_tlist, i.e., one entry for every attribute 
@@ -184,7 +181,7 @@ static void init_returning_filter(DB2FdwDirectModifyState* dmstate, List* fdw_sc
     }
     i++;
   }
-  db2Exit(4,"< db2BeginDirectModify.c::init_returning_filter");
+  db2Exit4();
 }
 
 /* Prepare for processing of parameters used in remote query. */
@@ -192,7 +189,7 @@ static void prepare_query_params(PlanState* node, List* fdw_exprs, int numParams
   int       i   = 0;
   ListCell* lc  = NULL;
 
-  db2Entry(4,"> db2BeginDirectModify.c::prepare_query_params");
+  db2Entry4();
   Assert(numParams > 0);
 
   /* Prepare for output conversion of parameters used in remote query. */
@@ -219,6 +216,6 @@ static void prepare_query_params(PlanState* node, List* fdw_exprs, int numParams
 
   /* Allocate buffer for text form of query parameters. */
   *param_values = (const char **) db2alloc("prepare_query_params::param_values",numParams * sizeof(char *));
-  db2Exit(4,"< db2BeginDirectModify.c::prepare_query_params");
+  db2Exit4();
 }
 

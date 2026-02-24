@@ -8,9 +8,6 @@ extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 extern DB2EnvEntry* rootenvEntry;          /* Linked list of handles for cached DB2 connections.            */
 
 /** external prototypes */
-extern void      db2Entry             (int level, const char* message, ...);
-extern void      db2Exit              (int level, const char* message, ...);
-extern void      db2Debug             (int level, const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -34,7 +31,7 @@ void db2EndSubtransaction (void* arg, int nest_level, int is_commit) {
   SQLRETURN     rc     = 0;
   HdlEntry*     hstmtp = NULL;
 
-  db2Entry(1,"> db2EndSubtransaction.c::db2EndSubtransaction");
+  db2Entry1();
   /* do nothing if the transaction level is lower than nest_level */
   if (con->xact_level < nest_level)
     return;
@@ -63,7 +60,7 @@ void db2EndSubtransaction (void* arg, int nest_level, int is_commit) {
     db2Error (FDW_ERROR, "db2RollbackSavepoint internal error: handle not found in cache");
   }
 
-  db2Debug(2,"rollback to savepoint s%d", nest_level);
+  db2Debug2("rollback to savepoint s%d", nest_level);
   snprintf  ((char*)query, 49, "ROLLBACK TO SAVEPOINT s%d", nest_level);
 
   /* create statement handle */
@@ -83,5 +80,5 @@ void db2EndSubtransaction (void* arg, int nest_level, int is_commit) {
     db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error setting savepoint: SQLExecute failed to set savepoint", db2Message);
   }
   db2FreeStmtHdl(hstmtp, connp);
-  db2Exit(1,"< db2EndSubtransaction.c::db2EndSubtransaction");
+  db2Exit1();
 }

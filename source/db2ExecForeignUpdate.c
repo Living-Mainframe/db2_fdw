@@ -11,9 +11,6 @@ extern bool dml_in_transaction;
 
 /** external prototypes */
 extern int          db2ExecuteQuery           (DB2Session* session, ParamDesc* paramList);
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 extern void         setModifyParameters       (ParamDesc* paramList, TupleTableSlot* newslot, TupleTableSlot* oldslot, DB2Table* db2Table, DB2Session* session);
 extern void         convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
 
@@ -29,8 +26,8 @@ TupleTableSlot* db2ExecForeignUpdate (EState* estate, ResultRelInfo* rinfo, Tupl
   int           rows      = 0;
   MemoryContext oldcontext;
 
-  db2Entry(1,"> db2ExecForeignUpdate.c::db2ExecForeignUpdate");
-  db2Debug(2,"relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
+  db2Entry1();
+  db2Debug2("relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
 
   ++fdw_state->rowcount;
   dml_in_transaction = true;
@@ -63,7 +60,7 @@ TupleTableSlot* db2ExecForeignUpdate (EState* estate, ResultRelInfo* rinfo, Tupl
   /* store the virtual tuple */
   ExecStoreVirtualTuple (slot);
 
-  db2Exit(1,"< db2ExecForeignUpdate.c::db2ExecForeignUpdate");
+  db2Exit1();
   return slot;
 }
 

@@ -12,9 +12,6 @@
 /** external prototypes */
 extern void*        db2alloc                  (const char* type, size_t size);
 extern void         db2free                   (void* p);
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 
 /** local prototypes */
        void db2ExplainForeignScan(ForeignScanState* node, ExplainState* es);
@@ -26,11 +23,11 @@ static void db2Explain           (void* fdw, ExplainState* es);
  */
 void db2ExplainForeignScan (ForeignScanState* node, ExplainState* es) {
   DB2FdwState* fdw_state = (DB2FdwState*) node->fdw_state;
-  db2Entry(1,"> db2ExplainForeignScan.c::db2ExplainForeignScan");
-  elog (DEBUG1, "db2_fdw: explain foreign table scan");
+  db2Entry1();
+  db2Debug2("db2_fdw: explain foreign table scan");
   ExplainPropertyText ("DB2 query", fdw_state->query, es);
   db2Explain (fdw_state, es);
-  db2Exit(1,"< db2ExplainForeignScan.c::db2ExplainForeignScan");
+  db2Exit1();
 }
 
 /* db2Explain */
@@ -45,7 +42,7 @@ static void db2Explain (void* fdw, ExplainState* es) {
   char*        src       = fdw_state->query;
   char*        dest      = NULL;
 
-  db2Entry(1,"> db2ExplainForeignScan.c::db2Explain");
+  db2Entry1();
   for (const char* p = src; *p; p++) {
     if (*p == '"') count++;
   }
@@ -75,7 +72,7 @@ static void db2Explain (void* fdw, ExplainState* es) {
       snprintf(execution_cmd,sizeof(execution_cmd),"db2expln -t -d %s -q \"%s\" |grep -E \"Estimated Cost|Estimated Cardinality\" ",fdw_state->dbserver,tempQuery);
     }
   }
-  db2Debug(2,"execution_cmd: '%s'",execution_cmd);
+  db2Debug2("execution_cmd: '%s'",execution_cmd);
   /* Open the command for reading. */
   fp = popen(execution_cmd, "r");
   if (fp == NULL) {
@@ -91,5 +88,5 @@ static void db2Explain (void* fdw, ExplainState* es) {
   /* close */
   pclose(fp);
   db2free(tempQuery);
-  db2Exit(1,"< db2ExplainForeignScan.c::db2Explain");
+  db2Exit1();
 }

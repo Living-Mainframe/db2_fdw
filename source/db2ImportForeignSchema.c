@@ -9,9 +9,6 @@
 /** external prototypes */
 extern DB2Session*    db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern char*          guessNlsLang              (char* nls_lang);
-extern void           db2Entry                  (int level, const char* message, ...);
-extern void           db2Exit                   (int level, const char* message, ...);
-extern void           db2Debug                  (int level, const char* message, ...);
 extern short          c2dbType                  (short fcType);
 extern void           db2free                   (void* p);
 extern char*          db2strdup                 (const char* source);
@@ -44,12 +41,12 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   List*               result    = NIL;
   ForeignServer*      server    = NULL;
 
-  db2Entry(1,"> db2ImportForeignSchema.c::db2ImportForeignSchema");
+  db2Entry1();
   /* process the server options */
   server = getOptions (serverOid, &options);
   foreach (cell, options) {
     DefElem *def = (DefElem *) lfirst (cell);
-    db2Debug(2,"option: '%s'", def->defname);
+    db2Debug2("option: '%s'", def->defname);
     nls_lang  = (strcmp (def->defname, OPT_NLS_LANG)  == 0) ? STRVAL(def->arg) : nls_lang;
     dbserver  = (strcmp (def->defname, OPT_DBSERVER)  == 0) ? STRVAL(def->arg) : dbserver;
     user      = (strcmp (def->defname, OPT_USER)      == 0) ? STRVAL(def->arg) : user;
@@ -60,7 +57,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   /* process the options of the IMPORT FOREIGN SCHEMA command */
   foreach (cell, stmt->options) {
     DefElem *def = (DefElem *) lfirst (cell);
-    db2Debug(2,"option: '%s'", def->defname);
+    db2Debug2("option: '%s'", def->defname);
     if (strcmp (def->defname, "case") == 0) {
       char *s = STRVAL(def->arg);
       if (strcmp (s, "keep") == 0)
@@ -89,12 +86,12 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
   /* connect to DB2 database */
   session = db2GetSession (dbserver, user, password, jwt_token, nls_lang, 1);
 
-  db2Debug(2,"stmt->list_type    : %d", stmt->list_type);
-  db2Debug(2,"stmt->local_schema : %s", stmt->local_schema);
-  db2Debug(2,"stmt->remote_schema: %s", stmt->remote_schema);
-  db2Debug(2,"stmt->server_name  : %s", stmt->server_name);
-  db2Debug(2,"stmt->table_list   : %s", stmt->table_list);
-  db2Debug(2,"stmt->type         : %d", stmt->type);
+  db2Debug2("stmt->list_type    : %d", stmt->list_type);
+  db2Debug2("stmt->local_schema : %s", stmt->local_schema);
+  db2Debug2("stmt->remote_schema: %s", stmt->remote_schema);
+  db2Debug2("stmt->server_name  : %s", stmt->server_name);
+  db2Debug2("stmt->table_list   : %s", stmt->table_list);
+  db2Debug2("stmt->type         : %d", stmt->type);
 
   if (isForeignSchema (session, stmt->remote_schema)) {
     StringInfoData  tblist;
@@ -105,16 +102,16 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
     if (stmt->list_type != FDW_IMPORT_SCHEMA_ALL) {
       foreach (cell, stmt->table_list) {
         RangeVar* rVar = lfirst(cell);
-        db2Debug(2,"rVar             :  %x ", rVar);
+        db2Debug2("rVar             :  %x ", rVar);
         if (rVar != NULL) {
-          db2Debug(2,"rVar->type       :  %d ", rVar->type);
-          db2Debug(2,"rVar->catalogname: '%s'", rVar->catalogname);
-          db2Debug(2,"rVar->schemaname : '%s'", rVar->schemaname);
-          db2Debug(2,"rVar->relname    : '%s'", rVar->relname);
+          db2Debug2("rVar->type       :  %d ", rVar->type);
+          db2Debug2("rVar->catalogname: '%s'", rVar->catalogname);
+          db2Debug2("rVar->schemaname : '%s'", rVar->schemaname);
+          db2Debug2("rVar->relname    : '%s'", rVar->relname);
           appendStringInfo(&tblist,"%s'%s'",((tblist.len == 0) ? "" : ","),rVar->relname);
         }
       }
-      db2Debug(2,"import table_list: %s",tblist.data);
+      db2Debug2("import table_list: %s",tblist.data);
     }
     tablist  = getForeignTableList(session, stmt->remote_schema, stmt->list_type, tblist.data);
     db2free (tblist.data);
@@ -122,14 +119,14 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       DB2Table* db2Table = describeForeignTable(session, stmt->remote_schema, tablist[i]);
       if (db2Table != NULL) {
         generateForeignTableCreate(&buf, server->servername, stmt->local_schema, stmt->remote_schema, db2Table, foldcase, readonly);
-        db2Debug(2,"pg fdw table ddl: '%s'",buf.data);
+        db2Debug2("pg fdw table ddl: '%s'",buf.data);
         result = lappend (result, db2strdup (buf.data));
         resetStringInfo (&buf);
       }
     }
     db2free (tablist);
   }
-  db2Exit(1,"< db2ImportForeignSchema.c::db2ImportForeignSchema : %d", list_length(result));
+  db2Exit1(": %d", list_length(result));
   return result;
 }
 
@@ -138,7 +135,7 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
  */
 static char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
-  db2Entry(4,"> db2ImportForeignSchema.c::fold_case(name: '%s', foldcase: %d)", name, foldcase);
+  db2Entry4("(name: '%s', foldcase: %d)", name, foldcase);
   if (foldcase == CASE_KEEP) {
     result = db2strdup (name);
   } else {
@@ -158,7 +155,7 @@ static char* fold_case (char *name, fold_t foldcase) {
   if (result == NULL) {
      elog (ERROR, "impossible case folding type %d", foldcase);
   }
-  db2Exit(4,"< db2ImportForeignSchema.c::fold_case - returns: '%s'", result);
+  db2Exit4(": '%s'", result);
   return result;
 }
 
@@ -167,7 +164,7 @@ static void generateForeignTableCreate(StringInfo buf, char* servername, char* l
   char*           foldedname;
   bool            firstcol = true;
 
-  db2Entry(4,"> db2ImportForeignSchema.c::generateForeignTableCreate");
+  db2Entry4();
   initStringInfo(&coldef);
   foldedname = fold_case (db2Table->name, foldcase);
   appendStringInfo( buf
@@ -284,7 +281,7 @@ static void generateForeignTableCreate(StringInfo buf, char* servername, char* l
     appendStringInfo (buf, ", readonly 'true'");
   }
   appendStringInfo (buf, ")");
-  db2Exit(4,"< db2ImportForeignSchema.c::generateForeignTableCreate : %s", buf->data);
+  db2Exit4(": %s", buf->data);
 }
 
 /* getOptions
@@ -297,7 +294,7 @@ static ForeignServer* getOptions (Oid serverOid, List** options) {
   ForeignServer*      server  = NULL;
   UserMapping*        mapping = NULL;
 
-  db2Entry(4,"> db2ImportForeignSchema.c::getOptions");
+  db2Entry4();
   /* get the foreign server, the user mapping and the FDW */
   server  = GetForeignServer      (serverOid);
   mapping = GetUserMapping        (GetUserId (), serverOid);
@@ -312,6 +309,6 @@ static ForeignServer* getOptions (Oid serverOid, List** options) {
     *options = list_concat (*options, server->options);
   if (mapping != NULL)
     *options = list_concat (*options, mapping->options);
-  db2Exit(4,"< db2ImportForeignSchema.c::getOptions : %x", server);
+  db2Exit4(": %x", server);
   return server;
 }

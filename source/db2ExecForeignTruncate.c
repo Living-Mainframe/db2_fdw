@@ -8,9 +8,6 @@
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState       (Oid foreigntableid, double* sample_percent, bool drescribe);
 extern DB2Session*  db2GetSession        (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern void         db2Entry             (int level, const char* message, ...);
-extern void         db2Exit              (int level, const char* message, ...);
-extern void         db2Debug             (int level, const char* message, ...);
 extern int          db2ExecuteTruncate   (DB2Session* session, const char* query);
 extern void         db2CloseStatement    (DB2Session* session);
 extern void         db2free              (void* p);
@@ -29,7 +26,7 @@ void db2ExecForeignTruncate(List *rels, DropBehavior behavior, bool restart_seqs
   DB2FdwState* fdw_state = NULL;
   ListCell*    lc;
 
-  db2Entry(1,"> db2ExecForeignTruncate.c::db2ExecForeignTruncate");
+  db2Entry1();
   if (rels != NIL) {
     /* Optionally, you could inspect "behavior" (DROP_CASCADE / DROP_RESTRICT) and try to be clever. 
      * In practice, Db2 won't cascade TRUNCATE through RI anyway, so we just ignore it and let DB2 raise an error if there
@@ -48,7 +45,7 @@ void db2ExecForeignTruncate(List *rels, DropBehavior behavior, bool restart_seqs
       fdw_state->session = NULL;
     }
   }
-  db2Exit(1,"< db2ExecForeignTruncate.c::db2ExecForeignTruncate");
+  db2Exit1();
 }
 
 /* db2BuildTruncateFdwState */
@@ -58,7 +55,7 @@ static DB2FdwState* db2BuildTruncateFdwState(Relation rel, bool restart_seqs) {
   char*          identity_clause;
   char*          storage_clause  = "DROP STORAGE";       /* or REUSE STORAGE */
   char*          trigger_clause  = "IGNORE DELETE TRIGGERS";
-  db2Entry(1,"> db2ExecForeignTruncate.c::db2BuildTruncateFdwState");
+  db2Entry1();
 
   /** Map Postgres' RESTART/CONTINUE IDENTITY to Db2's TRUNCATE options. */
   if (restart_seqs)
@@ -83,8 +80,8 @@ static DB2FdwState* db2BuildTruncateFdwState(Relation rel, bool restart_seqs) {
    */
   appendStringInfo(&sql, "TRUNCATE TABLE %s %s %s %s IMMEDIATE", fdwState->db2Table->name, storage_clause, trigger_clause, identity_clause);
   fdwState->query = sql.data;
-  db2Debug(2,"fdwState->query: '%s'",sql.data);
-  db2Exit(1,"< db2ExecForeignTruncate.c::db2BuildTruncateFdwState : %x",fdwState);
+  db2Debug2("fdwState->query: '%s'",sql.data);
+  db2Exit1(": %x",fdwState);
   return fdwState;
 }
 #endif

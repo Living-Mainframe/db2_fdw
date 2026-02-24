@@ -9,9 +9,6 @@ extern DB2EnvEntry*  rootenvEntry;          /* contains DB2 error messages, set 
 
 /** external prototypes */
 extern void*         db2alloc             (const char* type, size_t size);
-extern void          db2Entry             (int level, const char* message, ...);
-extern void          db2Exit              (int level, const char* message, ...);
-extern void          db2Debug             (int level, const char* message, ...);
 extern DB2ConnEntry* db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
 extern DB2EnvEntry*  db2AllocEnvHdl       (const char* nls_lang);
 extern DB2EnvEntry*  findenvEntry         (DB2EnvEntry* start, const char* nlslang);
@@ -31,7 +28,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
   DB2EnvEntry*  envp    = NULL;
   DB2ConnEntry* connp   = NULL;
 
-  db2Entry(1,"> db2GetSession.c::db2GetSession");
+  db2Entry1();
   /* it's easier to deal with empty strings */
   if (!srvname)   srvname   = "";
   if (!user)      user      = "";
@@ -40,7 +37,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
   if (!nls_lang)  nls_lang  = "";
 
   /* search environment and server handle in cache */
-  db2Debug(2,"rootenvEntry: %x", rootenvEntry);
+  db2Debug2("rootenvEntry: %x", rootenvEntry);
   envp = findenvEntry (rootenvEntry, nls_lang);
   if (envp == NULL) {
     envp = db2AllocEnvHdl(nls_lang);
@@ -50,7 +47,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
     connp = db2AllocConnHdl(envp, srvname, user, password, jwt_token, NULL);
   }
   if (connp->xact_level <= 0) {
-    db2Debug(2,"db2_fdw::db2GetSession: begin serializable remote transaction");
+    db2Debug2("db2_fdw::db2GetSession: begin serializable remote transaction");
     connp->xact_level = 1;
   }
 
@@ -63,6 +60,6 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
   /* set savepoints up to the current level */
   db2SetSavepoint (session, curlevel);
 
-  db2Exit(1,"< db2GetSession.c::db2GetSession");
+  db2Exit1();
   return session;
 }

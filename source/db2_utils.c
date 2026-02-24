@@ -4,11 +4,6 @@
 #include <postgres_ext.h>
 #include "db2_fdw.h"
 
-/** external variables */
-extern void   db2Entry             (int level, const char* message, ...);
-extern void   db2Exit              (int level, const char* message, ...);
-extern void   db2Debug             (int level, const char* message, ...);
-
 /** local prototypes */
 SQLSMALLINT   c2param              (SQLSMALLINT fparamType);
 char*         param2name           (SQLSMALLINT fparamType);
@@ -81,23 +76,23 @@ char* param2name(SQLSMALLINT fparamType){
  */
 SQLSMALLINT c2param (SQLSMALLINT fcType) {
   SQLSMALLINT fparamType = SQL_C_CHAR;
-  db2Entry(4,"> db2_utils.c::c2param(fcType: %d)",fcType);
+  db2Entry4("(fcType: %d)",fcType);
   switch (fcType) {
     case SQL_BLOB:
       fparamType = SQL_C_BLOB_LOCATOR;
-      db2Debug(5,"SQL_BLOB => SQL_C_LOCATOR");
+      db2Debug5("SQL_BLOB => SQL_C_LOCATOR");
       break;
     case SQL_CLOB:
       fparamType = SQL_C_CLOB_LOCATOR;
-      db2Debug(5,"SQL_COB => SQL_C_CLOB_LOCATOR");
+      db2Debug5("SQL_COB => SQL_C_CLOB_LOCATOR");
       break;
     default:
       /* all other columns are converted to strings */
       fparamType = SQL_C_CHAR;
-      db2Debug(5,"%s => SQL_C_CHAR",c2name(fcType));
+      db2Debug5("%s => SQL_C_CHAR",c2name(fcType));
       break;
   }
-  db2Exit(4,"< db2_utils.c::c2param : %d)",fparamType);
+  db2Exit4(": %d",fparamType);
   return fparamType;
 }
 
@@ -113,7 +108,7 @@ void parse2num_struct(const char* s, SQL_NUMERIC_STRUCT* ns) {
            long int   intPart  = 0;
                 int   negative = 0;
                 int   fracLen  = 0;
-  db2Entry(4,"> db2_utils.c::parse2num_struct( '%s')",s);
+  db2Entry4("(s: %s)",s);
   // Simple, minimal parser: handles optional leading '-' and '.'; no thousands sep.
   memset(ns, 0, sizeof(*ns));
   ns->precision = 18;  // set to your target
@@ -163,7 +158,7 @@ void parse2num_struct(const char* s, SQL_NUMERIC_STRUCT* ns) {
     ns->val[i] = (SQLCHAR)(mag & 0xFF);
     mag >>= 8;
   }
-  db2Exit(4,"< db2_utils.c::parse2num_struct");
+  db2Exit4();
 }
 
 /** c2dbType

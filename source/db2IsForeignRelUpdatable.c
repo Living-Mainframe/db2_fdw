@@ -5,8 +5,6 @@
 
 /** external prototypes */
 extern bool         optionIsTrue              (const char* value);
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
 
 /** local prototypes */
 int db2IsForeignRelUpdatable(Relation rel);
@@ -17,7 +15,7 @@ int db2IsForeignRelUpdatable(Relation rel);
 int db2IsForeignRelUpdatable(Relation rel) {
   ListCell* cell;
   int       result = 0;
-  db2Entry(1,"> db2IsForeignRelUpdatable.c::db2IsForeignRelUpdatable");
+  db2Entry1();
   /* loop foreign table options */
   foreach (cell, GetForeignTable (RelationGetRelid (rel))->options) {
     DefElem *def = (DefElem *) lfirst (cell);
@@ -26,7 +24,7 @@ int db2IsForeignRelUpdatable(Relation rel) {
       return 0;
   }
   result = (1 << CMD_UPDATE) | (1 << CMD_INSERT) | (1 << CMD_DELETE);
-  db2Exit(1,"< db2IsForeignRelUpdatable.c::db2IsForeignRelUpdatable - returns: %d", result);
+  db2Exit1(": %d", result);
   return result;
 }
 

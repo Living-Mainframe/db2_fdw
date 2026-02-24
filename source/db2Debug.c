@@ -19,12 +19,11 @@ _Thread_local static int debug_depth = 0;
   (x==FDW_SERIALIZATION_FAILURE ? ERRCODE_T_R_SERIALIZATION_FAILURE : ERRCODE_FDW_ERROR))))))
 
 /** local prototype */
-int  isLogLevel(int level);
-void db2Error  (db2error sqlstate, const char* message);
-void db2Error_d(db2error sqlstate, const char* message, const char* detail, ...) __attribute__ ((format (gnu_printf, 2, 0)));
-void db2Entry  (int level, const char* message, ...)__attribute__ ((format (gnu_printf, 2, 0)));
-void db2Exit   (int level, const char* message, ...)__attribute__ ((format (gnu_printf, 2, 0)));
-void db2Debug  (int level, const char* message, ...)__attribute__ ((format (gnu_printf, 2, 0)));
+int  isLogLevel  (int level);
+void db2Error    (db2error sqlstate, const char* message);
+void db2Error_d  (db2error sqlstate, const char* message, const char* detail, ...) __attribute__ ((format (gnu_printf, 2, 0)));
+void db2EntryExit(int level, int entry, const char* message, ...)__attribute__ ((format (gnu_printf, 3, 0)));
+void db2Debug    (int level, const char* message, ...)__attribute__ ((format (gnu_printf, 2, 0)));
 
 /** db2Error_d
  *    Report a PostgreSQL error with a detail message.
@@ -76,34 +75,28 @@ int isLogLevel(int level) {
   return dLevel;
 }
 
-void db2Entry(int level, const char* message, ...) {
+void db2EntryExit(int level, int entry, const char* message, ...) {
   if (isLogLevel(level)) {
     char    cBuffer [4000];
     va_list arg_marker;
-    va_start (arg_marker, message);
-
-    vsnprintf (cBuffer, sizeof(cBuffer), message, arg_marker);
-    db2Debug(level, cBuffer);
-    ++debug_depth;
-  }
-}
-
-void db2Exit(int level, const char* message, ...) {
-  if (isLogLevel(level)) {
-    char    cBuffer [4000];
-    va_list arg_marker;
-    va_start (arg_marker, message);
+    va_start(arg_marker, message);
     vsnprintf (cBuffer, sizeof(cBuffer), message, arg_marker);
 
-    --debug_depth;
-    db2Debug(level, cBuffer);
+    if (entry == 1) {
+        db2Debug(level, cBuffer);
+        ++debug_depth;
+
+    } else {
+      --debug_depth;
+      db2Debug(level, cBuffer);
+    }
   }
 }
 
 void db2Debug(int level, const char* message, ...) {
   if (isLogLevel(level)) {
     char    cBuffer [4000];
-    char*   sIndent = (char*)palloc0(2*debug_depth+1);
+    char*   sIndent = (char*)palloc0(2 * debug_depth + 1);
     int     dLevel  = DEBUG5;
     va_list arg_marker;
 

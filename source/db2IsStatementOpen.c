@@ -7,8 +7,6 @@
 /** external variables */
 
 /** external prototypes */
-extern void         db2Entry             (int level, const char* message, ...);
-extern void         db2Exit              (int level, const char* message, ...);
 
 /** local prototypes */
 int                 db2IsStatementOpen   (DB2Session* session);
@@ -18,8 +16,8 @@ int                 db2IsStatementOpen   (DB2Session* session);
  */
 int db2IsStatementOpen (DB2Session* session) {
   int result = 0;
-  db2Entry(1,"> db2IsStatementOpen.c::db2IsStatementOpen");
+  db2Entry1();
   result = (session->stmtp != NULL && session->stmtp->hsql != SQL_NULL_HSTMT);
-  db2Exit(1,"< db2IsStatementOpen.c::db2IsStatementOpen : %d",result);
+  db2Exit1(": %d",result);
   return result;
 }

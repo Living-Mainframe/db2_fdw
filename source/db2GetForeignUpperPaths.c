@@ -18,9 +18,6 @@
 #include "DB2FdwPathExtraData.h"
 
 /** external prototypes */
-extern void               db2Entry                  (int level, const char* message, ...);
-extern void               db2Exit                   (int level, const char* message, ...);
-extern void               db2Debug                  (int level, const char* message, ...);
 extern void*              db2alloc                  (const char* type, size_t size);
 extern char*              db2strdup                 (const char* source);
 extern void*              db2free                   (void* p);
@@ -50,112 +47,111 @@ static bool         foreign_grouping_ok       (PlannerInfo* root, RelOptInfo* gr
 static void         merge_fdw_options         (DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, const DB2FdwState* fpinfo_i);
 
 void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra) {
-  db2Entry(1,"> db2GetForeignUpperPaths.c::db2GetForeignUpperPaths");
+  db2Entry1();
   if (root != NULL && root->parse != NULL && input_rel->fdw_private != NULL && output_rel->fdw_private == NULL) {
     Query*       query   = root->parse;
-    db2Debug(3,"query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
-    db2Debug(3,"query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
-    db2Debug(3,"query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
-    db2Debug(3,"query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
-    db2Debug(3,"query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
+    db2Debug3("query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
+    db2Debug3("query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
+    db2Debug3("query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
+    db2Debug3("query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
+    db2Debug3("query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
     #if PG_VERSION_NUM >= 180000
-    db2Debug(3,"query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
+    db2Debug3("query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
     #endif
-    db2Debug(3,"query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
-    db2Debug(3,"query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
-    db2Debug(3,"query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
-    db2Debug(3,"query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
+    db2Debug3("query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
+    db2Debug3("query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
+    db2Debug3("query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
+    db2Debug3("query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
 
 //  if (db2_is_shippable(root, stage, input_rel, output_rel)) {
       db2CloneFdwStateUpper(root, input_rel, output_rel);
 
       switch (stage) {
         case UPPERREL_SETOP:              // UNION/INTERSECT/EXCEPT
-          db2Debug(2,"stage: %d - UPPERREL_SETOP", stage);
+          db2Debug2("stage: %d - UPPERREL_SETOP", stage);
         break;
         case UPPERREL_PARTIAL_GROUP_AGG:  // partial grouping/aggregation
-          db2Debug(2,"stage: %d - UPPERREL_PARTIAL_GROUP_AGG", stage);
-          db2Debug(2,"query->hasAggs: %d", query->hasAggs);
-          db2Debug(2,"query->groupClause: %x", query->groupClause);
+          db2Debug2("stage: %d - UPPERREL_PARTIAL_GROUP_AGG", stage);
+          db2Debug2("query->hasAggs: %d", query->hasAggs);
+          db2Debug2("query->groupClause: %x", query->groupClause);
           if (query->hasAggs || query->groupClause != NIL) {
             add_foreign_grouping_paths(root, input_rel, output_rel, (GroupPathExtraData*) extra);
           }
         break;
         case UPPERREL_GROUP_AGG: {        // grouping/aggregation
-          db2Debug(2,"stage: %d - UPPERREL_GROUP_AGG", stage);
-          db2Debug(2,"query->hasAggs: %d", query->hasAggs);
-          db2Debug(2,"query->groupClause: %x", query->groupClause);
+          db2Debug2("stage: %d - UPPERREL_GROUP_AGG", stage);
+          db2Debug2("query->hasAggs: %d", query->hasAggs);
+          db2Debug2("query->groupClause: %x", query->groupClause);
           if (query->hasAggs || query->groupClause != NIL) {
             add_foreign_grouping_paths(root, input_rel, output_rel, (GroupPathExtraData*) extra);
           }
         }
         break;
         case UPPERREL_WINDOW: {           // window functions
-          db2Debug(2,"stage: %d - UPPERREL_WINDOW", stage);
-          db2Debug(2,"query->hasWindowFuncs: %d", query->hasWindowFuncs);
+          db2Debug2("stage: %d - UPPERREL_WINDOW", stage);
+          db2Debug2("query->hasWindowFuncs: %d", query->hasWindowFuncs);
           if (query->hasWindowFuncs) {
-            db2Debug(2,"window function push down not yet implemented");
+            db2Debug2("window function push down not yet implemented");
           }
         }
         break;
         #if PG_VERSION_NUM >= 150000
         case UPPERREL_PARTIAL_DISTINCT: { // partial "SELECT DISTINCT"
-          db2Debug(2,"stage: %d - UPPERREL_PARTIAL_DISTINCT", stage);
-          db2Debug(2,"query->hasDistinctOn: %d", query->hasDistinctOn);
+          db2Debug2("stage: %d - UPPERREL_PARTIAL_DISTINCT", stage);
+          db2Debug2("query->hasDistinctOn: %d", query->hasDistinctOn);
           if (query->hasDistinctOn) {
-            db2Debug(2,"distinct function push down not yet implemented");
+            db2Debug2("distinct function push down not yet implemented");
           }
         }
         break;
         #endif
         case UPPERREL_DISTINCT: {         // "SELECT DISTINCT"
-          db2Debug(2,"stage: %d - UPPERREL_DISTINCT", stage);
-          db2Debug(2,"query->hasDistinctOn: %d", query->hasDistinctOn);
+          db2Debug2("stage: %d - UPPERREL_DISTINCT", stage);
+          db2Debug2("query->hasDistinctOn: %d", query->hasDistinctOn);
           if (query->hasDistinctOn) {
-            db2Debug(2,"distinct function push down not yet implemented");
+            db2Debug2("distinct function push down not yet implemented");
           }
         }
         break;
         case UPPERREL_ORDERED:            // ORDER BY
-          db2Debug(2,"stage: %d - UPPERREL_ORDERED", stage);
-          db2Debug(2,"query->setOperations: %x", query->setOperations);
+          db2Debug2("stage: %d - UPPERREL_ORDERED", stage);
+          db2Debug2("query->setOperations: %x", query->setOperations);
           if (query->setOperations != NULL) {
             add_foreign_ordered_paths(root, input_rel, output_rel);
           }
         break;
         case UPPERREL_FINAL:              // any remaining top-level actions
-          db2Debug(2,"stage: %d - UPPERREL_FINAL", stage);
+          db2Debug2("stage: %d - UPPERREL_FINAL", stage);
           add_foreign_final_paths(root, input_rel, output_rel, (FinalPathExtraData*) extra);
         break;
         default:                          // unknown stage type
-          db2Debug(2,"stage: %d - unknown", stage);
+          db2Debug2("stage: %d - unknown", stage);
         break;
       }
 //    } else {
-//      db2Debug(2,"stage and or functions are not shippable to DB2");
+//      db2Debug2("stage and or functions are not shippable to DB2");
 //    }
   } else {
-    db2Debug(2,"skipping this call");
-    db2Debug(2,"root: %x", root);
-    db2Debug(2,"root->parse: %x", root->parse);
-    db2Debug(2,"input_rel->fdw_private: %x", input_rel->fdw_private);
-    db2Debug(2,"output_rel->fdw_private: %x", output_rel->fdw_private);
+    db2Debug2("skipping this call");
+    db2Debug2("root: %x", root);
+    db2Debug2("root->parse: %x", root->parse);
+    db2Debug2("input_rel->fdw_private: %x", input_rel->fdw_private);
+    db2Debug2("output_rel->fdw_private: %x", output_rel->fdw_private);
   }
-  db2Exit(1,"< db2GetForeignUpperPaths.c::db2GetForeignUpperPaths");
+  db2Exit1();
 }
 
-/** db2CloneFdwStateUpper
- *   Create a deep copy suitable for upper-relation planning.
+/* db2CloneFdwStateUpper
+ * Create a deep copy suitable for upper-relation planning.
  *
- *   Rationale: planning can change mutable fields like DB2Column.used and also
- *   rewrite the params list (createQuery will NULL out entries). We must avoid
- *   those mutations affecting the original baserel/joinrel planning state.
+ * Rationale: planning can change mutable fields like DB2Column.used and also rewrite the params list (createQuery will NULL out entries).
+ * We must avoid those mutations affecting the original baserel/joinrel planning state.
  */
 static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelOptInfo* output_rel) {
   DB2FdwState* fdw_in = (DB2FdwState*)input_rel->fdw_private;
   DB2FdwState* copy   = NULL;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::db2CloneFdwStateUpper");
+  db2Entry4();
   if (fdw_in != NULL) {
     copy = (DB2FdwState*) db2alloc("fdw_state_upper", sizeof(DB2FdwState));
 
@@ -197,14 +193,14 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
     copy->paramList    = NULL;
   }
   output_rel->fdw_private = copy;
-  db2Exit(4,"< db2GetForeignUpperPaths.c::db2CloneFdwStateUpper");
+  db2Exit4();
 }
 
 static DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
   DB2Table* dst = NULL;
   int i;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::db2CloneDb2TableForPlan");
+  db2Entry4();
   if (src != NULL) {
     dst = (DB2Table*) db2alloc("db2_table_clone", sizeof(DB2Table));
 
@@ -223,14 +219,14 @@ static DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
       dst->cols = NULL;
     }
   }
-  db2Exit(4,"< db2GetForeignUpperPaths.c::db2CloneDb2TableForPlan : %x", dst);
+  db2Exit4(": %x", dst);
   return dst;
 }
 
 static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
   DB2Column* dst = NULL;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::db2CloneDb2ColumnForPlan");
+  db2Entry4();
   if (src != NULL) {
     dst = (DB2Column*) db2alloc("db2_column_clone", sizeof(DB2Column));
     /* start with a struct copy, then fix up pointer members */
@@ -239,7 +235,7 @@ static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
     dst->colName = src->colName ? db2strdup(src->colName) : NULL;
     dst->pgname  = src->pgname  ? db2strdup(src->pgname)  : NULL;
   }
-  db2Exit(4,"< db2GetForeignUpperPaths.c::db2CloneDb2ColumnForPlan : %x", dst);
+  db2Exit4(": %x", dst);
   return dst;
 }
 
@@ -258,10 +254,10 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
   Cost         startup_cost;
   Cost         total_cost;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c:::add_foreign_grouping_paths");
+  db2Entry4();
   /* Nothing to be done, if there is no grouping or aggregation required. */
   if (!parse->groupClause && !parse->groupingSets && !parse->hasAggs &&	!root->hasHavingQual) {
-    db2Debug(5,"Nothing to be done, if there is no grouping or aggregation required");
+    db2Debug5("Nothing to be done, if there is no grouping or aggregation required");
   } else {
     Assert(extra->patype == PARTITIONWISE_AGGREGATE_NONE || extra->patype == PARTITIONWISE_AGGREGATE_FULL);
     /* save the input_rel as outerrel in fpinfo */
@@ -281,7 +277,7 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
      * Use HAVING qual from extra. In case of child partition, it will have translated Vars.
      */
     if (!foreign_grouping_ok(root, grouped_rel, extra->havingQual)) {
-      db2Exit(5,"foreigm grouping is not ok");
+      db2Debug5("foreigm grouping is not ok");
     } else {
       /* Compute the selectivity and cost of the local_conds, so we don't have to do it over again for each path.
       * (Currently we create just a single path here, but in future it would be possible that we build more paths
@@ -315,7 +311,7 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
       add_path(grouped_rel, (Path*) grouppath);
     }
   }
-  db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_grouping_paths");
+  db2Exit4();
 }
 
 /* add_foreign_ordered_paths
@@ -337,14 +333,14 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
   ForeignPath*         ordered_path;
   ListCell*            lc;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+  db2Entry4();
 
   // Shouldn't get here unless the query has ORDER BY
   Assert(parse->sortClause);
 
   // We don't support cases where there are any SRFs in the targetlist
   if (parse->hasTargetSRFs) {
-    db2Debug(5,"no support where there are any SRFs in the targetlist");
+    db2Debug5("no support where there are any SRFs in the targetlist");
   } else {
     bool isSafe = true;
 
@@ -365,7 +361,7 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
       Assert(root->query_pathkeys == root->sort_pathkeys);
       /* Safe to push down if the query_pathkeys is safe to push down */
       fpinfo->pushdown_safe = ifpinfo->qp_is_pushdown_safe;
-      db2Debug(5,"query_pathkeys is safe to push down");
+      db2Debug5("query_pathkeys is safe to push down");
     } else {
       // The input_rel should be a grouping relation
       Assert(input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_GROUP_AGG);
@@ -377,19 +373,19 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
         EquivalenceClass* pathkey_ec  = pathkey->pk_eclass;
         /* is_foreign_expr would detect volatile expressions as well, but checking ec_has_volatile here saves some cycles. */
         if (pathkey_ec->ec_has_volatile) {
-          db2Debug(5,"ec_has_volatile is true");
+          db2Debug5("ec_has_volatile is true");
           isSafe = false;
           break;
         }
         /* Can't push down the sort if pathkey's opfamily is not shippable. */
         if (!is_shippable(pathkey->pk_opfamily, OperatorFamilyRelationId, fpinfo)) {
-          db2Debug(5,"pathkey's opfamily is not shippable");
+          db2Debug5("pathkey's opfamily is not shippable");
           isSafe = false;
           break;
         }
         /* The EC must contain a shippable EM that is computed in input_rel's reltarget, else we can't push down the sort. */
         if (find_em_for_rel_target(root, pathkey_ec, input_rel) == NULL) {
-          db2Debug(5,"non shippable EM that is computed in input_rel's reltarget");
+          db2Debug5("non shippable EM that is computed in input_rel's reltarget");
           isSafe = false;
           break;
         }
@@ -425,7 +421,7 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
       }
     }
   }
-  db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+  db2Exit4();
 }
 
 /* add_foreign_final_paths
@@ -449,26 +445,26 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   List*                fdw_private              = NIL;
   ForeignPath*         final_path               = NULL;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+  db2Entry4();
 
   /** Currently, we only support this for SELECT commands */
   if (parse->commandType != CMD_SELECT) {
-    db2Debug(5,"only support SELECT command");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("only support SELECT command");
+    db2Exit4();
     return;
   }
 
   // No work if there is no FOR UPDATE/SHARE clause and if there is no need to add a LIMIT node
   if (!parse->rowMarks && !extra->limit_needed) {
-    db2Debug(5,"no FOR UPDATE/SHARE clause and no need to add a LIMIT node");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("no FOR UPDATE/SHARE clause and no need to add a LIMIT node");
+    db2Exit4();
     return;
   }
 
   // We don't support cases where there are any SRFs in the targetlist
   if (parse->hasTargetSRFs) {
-    db2Debug(5,"no support for any SRFs in the targetlist");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("no support for any SRFs in the targetlist");
+    db2Exit4();
     return;
   }
 
@@ -521,8 +517,8 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
         /* Safe to push down */
         fpinfo->pushdown_safe = true;
-        db2Debug(5,"created foreign final path; this gets rid of a no-longer-needed outer plan (if any), which makes the EXPLAIN output look cleaner");
-        db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+        db2Debug5("created foreign final path; this gets rid of a no-longer-needed outer plan (if any), which makes the EXPLAIN output look cleaner");
+        db2Exit4();
         return;
       }
     }
@@ -530,8 +526,8 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
     /* If we get here it means no ForeignPaths; since we would already have considered pushing down all operations for the query to the
      * remote server, give up on it.
      */
-    db2Debug(5,"no ForeignPaths; since we would already have considered pushing down all operations for the query to the remote server, give up on it");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("no ForeignPaths; since we would already have considered pushing down all operations for the query to the remote server, give up on it");
+    db2Exit4();
     return;
   }
 
@@ -557,8 +553,8 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
   /* If the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down. */
   if (ifpinfo->local_conds) {
-    db2Debug(5,"the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down");
+    db2Exit4();
     return;
   }
 
@@ -570,14 +566,14 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
    * Since we do not currently have a way to do a remote-version check (without accessing the remote server), disable pushing the FETCH clause for now.
    */
   if (parse->limitOption == LIMIT_OPTION_WITH_TIES) {
-    db2Debug(5,"the query has FETCH FIRST .. WITH TIES without ORDER BY");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("the query has FETCH FIRST .. WITH TIES without ORDER BY");
+    db2Exit4();
     return;
   }
   /* Also, the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote. */
   if (!is_foreign_expr(root, input_rel, (Expr *) parse->limitOffset) || !is_foreign_expr(root, input_rel, (Expr *) parse->limitCount)) {
-    db2Debug(5,"the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+    db2Debug5("the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote");
+    db2Exit4();
     return;
   }
 
@@ -624,12 +620,12 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
   /* and add it to the final_rel */
   add_path(final_rel, (Path*) final_path);
-  db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
+  db2Exit4();
 }
 
 /* Adjust the cost estimates of a foreign grouping path to include the cost of generating properly-sorted output. */
 static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys, double retrieved_rows, double width, double limit_tuples, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_run_cost) {
-  db2Entry(4,"> db2GetForeignUpperPaths.c::adjust_foreign_grouping_path_cost");
+  db2Entry4();
   /* If the GROUP BY clause isn't sort-able, the plan chosen by the remote side is unlikely to generate properly-sorted output, so it would need
    * an explicit sort; adjust the given costs with cost_sort().
    * Likewise, if the GROUP BY clause is sort-able but isn't a superset of the given pathkeys, adjust the costs with that function.
@@ -649,7 +645,7 @@ static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys,
     *p_startup_cost *= sort_multiplier;
     *p_run_cost     *= sort_multiplier;
   }
-  db2Exit(4,"< db2GetForeignUpperPaths.c::adjust_foreign_grouping_path_cost");
+  db2Exit4();
 }
 
 /* Assess whether the aggregation, grouping and having operations can be pushed down to the foreign server.
@@ -664,11 +660,11 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
   int          i               = 0;
   List*        tlist           = NIL;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::foreign_grouping_ok");
+  db2Entry4();
   /* We currently don't support pushing Grouping Sets. */
   if (query->groupingSets) {
-    db2Debug(5,"no support pushing Grouping Sets");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok");
+    db2Debug5("no support pushing Grouping Sets");
+    db2Exit4();
     return false;
   }
 
@@ -679,8 +675,8 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
    * Hence the aggregate cannot be pushed down.
    */
   if (ofpinfo->local_conds) {
-    db2Debug(5,"foreign_grouping_ok: local_conds found");
-    db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
+    db2Debug5("foreign_grouping_ok: local_conds found");
+    db2Exit4(": false");
     return false;
   }
 
@@ -708,15 +704,15 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
 
       /* If any GROUP BY expression is not shippable, then we cannot push down aggregation to the foreign server. */
       if (!is_foreign_expr(root, grouped_rel, expr)) {
-        db2Debug(5,"foreign_grouping_ok: non-foreign expr found");
-        db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
+        db2Debug5("foreign_grouping_ok: non-foreign expr found");
+        db2Exit4(": false");
         return false;
       }
 
       /* If it would be a foreign param, we can't put it into the tlist, so we have to fail. */
       if (is_foreign_param(root, grouped_rel, expr)) {
-        db2Debug(5,"foreign_grouping_ok: foreign param found");
-        db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
+        db2Debug5("foreign_grouping_ok: foreign param found");
+        db2Exit4(": false");
         return false;
       }
 
@@ -743,8 +739,8 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
          * (We don't have to check is_foreign_param, since that certainly won't return true for any such expression.)
          */
         if (!is_foreign_expr(root, grouped_rel, (Expr *) aggvars)) {
-          db2Debug(5,"foreign_grouping_ok: non-foreign aggvar found");
-          db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
+          db2Debug5("foreign_grouping_ok: non-foreign aggvar found");
+          db2Exit4(": false");
           return false;
         }
 
@@ -798,9 +794,10 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
        * Again, we need not check is_foreign_param for a foreign aggregate.
        */
       if (IsA(expr, Aggref)) {
-        if (!is_foreign_expr(root, grouped_rel, expr))
+        if (!is_foreign_expr(root, grouped_rel, expr)) {
+          db2Exit4(": false");
           return false;
-
+        }
         tlist = add_to_flat_tlist(tlist, list_make1(expr));
       }
     }
@@ -823,7 +820,7 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
    * Note that the decoration we add to the base relation name mustn't include any digits, or it'll confuse postgresExplainForeignScan.
    */
   fpinfo->relation_name = psprintf("Aggregate on (%s)", ofpinfo->relation_name);
-  db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : true");
+  db2Exit4(": true");
   return true;
 }
 
@@ -846,7 +843,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   Cost          startup_cost;
   Cost          total_cost;
 
-  db2Entry(4,"> db2GetForeignUpperPaths.c::estimate_path_cost_size");
+  db2Entry4();
   /* Make sure the core code has set up the relation's reltarget */
   Assert(foreignrel->reltarget);
 
@@ -1200,7 +1197,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   *p_disabled_nodes = disabled_nodes;
   *p_startup_cost   = startup_cost;
   *p_total_cost     = total_cost;
-  db2Exit(4,"< db2GetForeignUpperPaths.c::estimate_path_cost_size");
+  db2Exit4();
 }
 
 /* Merge FDW options from input relations into a new set of options for a join or an upper rel.
@@ -1209,7 +1206,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
  * For an upper relation, fpinfo_o provides the information for the input relation; fpinfo_i is expected to NULL.
  */
 static void merge_fdw_options(DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, const DB2FdwState* fpinfo_i) {
-  db2Entry(4,"> db2GetForeignUpperPaths.c::merge_fdw_options");
+  db2Entry4();
   /* We must always have fpinfo_o. */
   Assert(fpinfo_o);
 
@@ -1243,5 +1240,5 @@ static void merge_fdw_options(DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, 
      */
     fpinfo->async_capable = fpinfo_o->async_capable || fpinfo_i->async_capable;
   }
-  db2Exit(4,"< db2GetForeignUpperPaths.c::merge_fdw_options");
+  db2Exit4();
 }

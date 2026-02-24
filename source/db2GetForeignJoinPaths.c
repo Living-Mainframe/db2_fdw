@@ -7,9 +7,6 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 extern char*        db2strdup                 (const char* source);
 extern void*        db2alloc                  (const char* type, size_t size);
@@ -30,23 +27,23 @@ void db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInf
   Cost         startup_cost;
   Cost         total_cost;
 
-  db2Entry(1,"> db2GetForeignJoinPaths.c::db2GetForeignJoinPaths");
+  db2Entry1();
   /* Currently we don't push-down joins in query for UPDATE/DELETE.
    * This would require a path for EvalPlanQual.
    * This restriction might be relaxed in a later release.
    */
   if (root->parse->commandType != CMD_SELECT) {
-    db2Debug(2,"db2_fdw: don't push down join because it is no SELECT");
+    db2Debug2("db2_fdw: don't push down join because it is no SELECT");
   } else {
     /* N-way join is not supported, due to the column definition infrastracture.
     * If we can track relid mapping of join relations, we can support N-way join.
     */
     if (!IS_SIMPLE_REL (outerrel) || !IS_SIMPLE_REL (innerrel)) {
-      db2Debug(2,"either outerrel or ínnerel is not a simple relation");
+      db2Debug2("either outerrel or ínnerel is not a simple relation");
     } else {
       /* skip if this join combination has been considered already */
       if (joinrel->fdw_private) {
-        db2Debug(2,"this join combination has been considered already");
+        db2Debug2("this join combination has been considered already");
       } else {
         /* Create unfinished DB2FdwState which is used to indicate
         * that the join relation has already been considered, so that we won't waste
@@ -109,7 +106,7 @@ void db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInf
       }
     }
   }
-  db2Exit(1,"< db2GetForeignJoinPaths.c::db2GetForeignJoinPaths");
+  db2Exit1();
 }
 
 /* foreign_join_ok
@@ -126,7 +123,7 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
   List*        otherclauses = NULL;
   char*        tabname      = NULL;/* for warning messages */
 
-  db2Entry(1,"> db2GetForeignJoinPaths.c::foreign_join_ok");
+  db2Entry1();
   /* we only support pushing down INNER joins */
   if (jointype != JOIN_INNER)
     return false;
@@ -299,7 +296,7 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
 
   fdwState->db2Table->npgcols = fdwState->db2Table->ncols;
 
-  db2Exit(1,"< db2GetForeignJoinPaths.c::foreign_join_ok");
+  db2Exit1();
   return true;
 }
 

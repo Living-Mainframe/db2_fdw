@@ -15,8 +15,6 @@ extern regproc* output_funcs;
 /** external prototypes */
 extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern void            db2PrepareQuery           (DB2Session* session, const char *query, DB2ResultColumn* db2ResultList, unsigned long prefetch, int fetchsize);
-extern void            db2Entry                  (int level, const char* message, ...);
-extern void            db2Exit                   (int level, const char* message, ...);
 extern void*           db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
@@ -28,7 +26,7 @@ void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo
   HeapTuple  tuple;
   int        i;
 
-  db2Entry(1,"> db2BeginForeignModifyCommon.c::db2BeginForeignModifyCommon");
+  db2Entry1();
   rinfo->ri_FdwState = fdw_state;
 
   /* connect to DB2 database */
@@ -60,5 +58,5 @@ void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo
 
   /* create a memory context for short-lived memory */
   fdw_state->temp_cxt = AllocSetContextCreate(estate->es_query_cxt, "db2_fdw temporary data", ALLOCSET_SMALL_MINSIZE, ALLOCSET_SMALL_INITSIZE, ALLOCSET_SMALL_MAXSIZE);
-  db2Exit(1,"< db2BeginForeignModifyCommon.c::db2BeginForeignModifyCommon");
+  db2Exit1();
 }

@@ -7,8 +7,6 @@
 
 /** external prototypes */
 extern void         db2Cancel                 (void);
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
 
 /** local prototypes */
 void db2SetHandlers(void);
@@ -18,9 +16,9 @@ void db2Die        (SIGNAL_ARGS);
  * Set signal handler for SIGTERM.
  */
 void db2SetHandlers (void) {
-  db2Entry(5,"> db2SetHandlers.c::db2SetHandlers");
+  db2Entry5();
   pqsignal (SIGTERM, db2Die);
-  db2Exit(5,"< db2SetHandlers.c::db2SetHandlers");
+  db2Exit5();
 }
 
 /* db2Die
@@ -28,7 +26,7 @@ void db2SetHandlers (void) {
  * This is a signal handler function.
  */
 void db2Die (SIGNAL_ARGS) {
-  db2Entry(1,"> db2SetHandlers.c::db2Die");
+  db2Entry1();
   /* Terminate any running queries.
    * The DB2 sessions will be terminated by exitHook().
    */
@@ -39,5 +37,5 @@ void db2Die (SIGNAL_ARGS) {
    * this is done in db2Error_d.
    */
   die (postgres_signal_arg);
-  db2Exit(1,"< db2SetHandlers.c::db2Die");
+  db2Exit1();
 }

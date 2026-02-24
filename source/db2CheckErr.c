@@ -11,9 +11,6 @@ char                db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 /** external variables */
 
 /** external prototypes */
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 
 /** local prototypes */
 SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -35,7 +32,7 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
  * @since  1.0.0
  */
 SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file) {
-  db2Entry(4,"> db2CheckErr.c::db2CheckErr");
+  db2Entry4();
   memset (db2Message,0x00,sizeof(db2Message));
   switch (status) {
     case SQL_INVALID_HANDLE: {
@@ -55,9 +52,9 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
       memset(message   ,0x00,SQL_MAX_MESSAGE_LENGTH);
  
       while (SQL_SUCCEEDED(SQLGetDiagRec(handleType,handle,i,sqlstate,&sqlcode,message,SQL_MAX_MESSAGE_LENGTH,&msgLen))) {
-        db2Debug(5,"SQLCODE :  %d ",sqlcode);
-        db2Debug(5,"SQLSTATE:  %d ",sqlstate);
-        db2Debug(5,"MESSAGE : '%s'",message);
+        db2Debug5("SQLCODE :  %d ",sqlcode);
+        db2Debug5("SQLSTATE:  %d ",sqlstate);
+        db2Debug5("MESSAGE : '%s'",message);
         snprintf((char*)submessage, SUBMESSAGE_LEN, "SQLSTATE = %s  SQLCODE = %d\nline=%d\nfile=%s\n", sqlstate,sqlcode,line,file);
         if ((sizeof(db2Message) - strlen((char*)db2Message)) > strlen((char*)submessage) + 1) {
           strncat ((char*)db2Message,(char*)submessage, SUBMESSAGE_LEN);
@@ -86,8 +83,8 @@ SQLRETURN db2CheckErr (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleTyp
     }
     break;
   }
-  db2Debug(5,"db2Message: '%s'",db2Message);
-  db2Debug(5,"err_code  :  %d ",err_code);
-  db2Exit(4,"< db2CheckErr.c::db2CheckErr - returns: %d",status);
+  db2Debug5("db2Message: '%s'",db2Message);
+  db2Debug5("err_code  :  %d ",err_code);
+  db2Exit4(": %d",status);
   return status;
 }

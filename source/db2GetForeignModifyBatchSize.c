@@ -10,9 +10,6 @@
 /** external variables */
 
 /** external prototypes */
-extern void db2Entry                    (int level, const char* message, ...);
-extern void db2Exit                     (int level, const char* message, ...);
-extern void db2Debug                    (int level, const char* message, ...);
 
 /** local prototypes */
        int  db2GetForeignModifyBatchSize(ResultRelInfo *rinfo);
@@ -28,7 +25,7 @@ int db2GetForeignModifyBatchSize(ResultRelInfo *rinfo) {
   int          batch_size  = 1;
   DB2FdwState* fmstate     = (DB2FdwState*) rinfo->ri_FdwState;
 
-  db2Entry(1,"> db2GetForeignModifyBatchSize.c::db2GetForeignModifyBatchSize");
+  db2Entry1();
   /* should be called only once */
   Assert(rinfo->ri_BatchSize == 0);
 
@@ -71,7 +68,7 @@ int db2GetForeignModifyBatchSize(ResultRelInfo *rinfo) {
       }
     }
   }
-  db2Exit(1,"< db2GetForeignModifyBatchSize.c::db2GetForeignModifyBatchSize : %d", batch_size);
+  db2Exit1(": %d", batch_size);
   return batch_size;
 }
 
@@ -82,7 +79,7 @@ static int db2_get_batch_size_option(Relation rel) {
   ListCell*      lc         = NULL;
   int            batch_size = 0;
 
-  db2Entry(1,"> db2GetForeignModifyBatchSize.c::db2_get_batch_size_option");
+  db2Entry1();
   table  = GetForeignTable(relid);
   server = GetForeignServer(table->serverid);
 
@@ -125,7 +122,7 @@ static int db2_get_batch_size_option(Relation rel) {
   }
   /* Default: no batching */
   batch_size = (batch_size < 1) ? DEFAULT_BATCHSZ : batch_size; 
-  db2Exit(1,"< db2GetForeignModifyBatchSize.c::db2_get_batch_size_option : %d", batch_size);
+  db2Exit1(": %d", batch_size);
   return batch_size;
 }
 #endif

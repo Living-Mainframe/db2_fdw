@@ -12,9 +12,6 @@
 extern char*        db2strdup                 (const char* source);
 extern void*        db2alloc                  (const char* type, size_t size);
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 extern short        c2dbType                  (short fcType);
 extern void         appendAsType              (StringInfoData* dest, Oid type);
 extern List*        serializePlanData         (DB2FdwState* fdwState);
@@ -52,7 +49,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
   RTEPermissionInfo* perminfo     = NULL;
   #endif  /* PG_VERSION_NUM >= 160000 */
 
-  db2Entry(1,"> db2PlanForeignModify.c::db2PlanForeignModify");
+  db2Entry1();
   /* Get the updated columns and the user for permission checks.
    * We put that here at the beginning, since the way to do that changed considerably over the different PostgreSQL versions.
    */
@@ -224,7 +221,7 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
         appendStringInfo (&sql, "%s = ", fdwState->db2Table->cols[i]->colName);
         appendAsType (&sql, fdwState->db2Table->cols[i]->pgtype);
       }
-      db2Debug(2,"sql: '%s'",sql.data);
+      db2Debug2("sql: '%s'",sql.data);
       /* throw a meaningful error if nothing is updated */
       if (firstcol)
         ereport (ERROR
@@ -302,10 +299,10 @@ List* db2PlanForeignModify (PlannerInfo* root, ModifyTable* plan, Index resultRe
     }
   }
   fdwState->query = sql.data;
-  db2Debug(2,"fdwState->query: '%s'", fdwState->query);
+  db2Debug2("fdwState->query: '%s'", fdwState->query);
   /* return a serialized form of the plan state */
   result = serializePlanData (fdwState);
-  db2Exit(1,"< db2PlanForeignModify.c::db2PlanForeignModify");
+  db2Exit1(": %x", result);
   return result;
 }
 
@@ -316,7 +313,7 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
   int          i    = 0;
   DB2FdwState* copy = NULL;
 
-  db2Entry(4,"> db2PlanForeignModify.c::copyPlanData");
+  db2Entry4();
   copy                    = db2alloc("copy_fdw_state", sizeof (DB2FdwState));
   copy->dbserver          = db2strdup(orig->dbserver);
   copy->user              = db2strdup(orig->user);
@@ -358,7 +355,7 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
   copy->rowcount     = 0;
   copy->temp_cxt     = NULL;
   copy->order_clause = NULL;
-  db2Exit(4,"< db2PlanForeignModify.c::copyPlanData");
+  db2Exit4(": %x", copy);
   return copy;
 }
 
@@ -369,18 +366,18 @@ static DB2FdwState* copyPlanData (DB2FdwState* orig) {
 void addParam (ParamDesc **paramList, DB2Column* db2col, int colnum, int txts) {
   ParamDesc *param;
 
-  db2Entry(1,"> db2PlanForeignModify.c::addParam");
-  db2Debug(2,"pgtype: %d",db2col->pgtype);
-  db2Debug(2,"colType: %d",db2col->colType);
-  db2Debug(2,"colnum: %d",colnum);
-  db2Debug(2,"txts: %d",txts);
+  db2Entry1();
+  db2Debug2("pgtype: %d",db2col->pgtype);
+  db2Debug2("colType: %d",db2col->colType);
+  db2Debug2("colnum: %d",colnum);
+  db2Debug2("txts: %d",txts);
   param       = db2alloc("paramList->next",sizeof (ParamDesc));
   param->colName  = db2strdup(db2col->colName);
-  db2Debug(2,"param->colName: '%s'",param->colName);
+  db2Debug2("param->colName: '%s'",param->colName);
   param->colType  = db2col->colType;
-  db2Debug(2,"param->colType: '%d'",param->colType);
+  db2Debug2("param->colType: '%d'",param->colType);
   param->colSize  = db2col->colSize;
-  db2Debug(2,"param->colSize: '%d'",param->colSize);
+  db2Debug2("param->colSize: '%d'",param->colSize);
   param->type     = db2col->pgtype;
   switch (c2dbType(db2col->colType)) {
     case DB2_INTEGER:
@@ -401,20 +398,20 @@ void addParam (ParamDesc **paramList, DB2Column* db2col, int colnum, int txts) {
     default:
       param->bindType = BIND_STRING;
   }
-  db2Debug(2,"param->bindType: '%d'",param->bindType);
+  db2Debug2("param->bindType: '%d'",param->bindType);
   param->value    = NULL;
-  db2Debug(2,"param->value: %x",param->value);
+  db2Debug2("param->value: %x",param->value);
   param->val_size = db2col->val_size;
-  db2Debug(2,"param->val_size: %d",param->val_size);
+  db2Debug2("param->val_size: %d",param->val_size);
   param->node     = NULL;
-  db2Debug(2,"param->node: %x",param->node);
+  db2Debug2("param->node: %x",param->node);
   param->colnum   = colnum;
-  db2Debug(2,"param->colnum: %d",param->colnum);
+  db2Debug2("param->colnum: %d",param->colnum);
   param->txts     = txts;
-  db2Debug(2,"param->txts: %d",param->txts);
+  db2Debug2("param->txts: %d",param->txts);
   param->next     = *paramList;
   *paramList      = param;
-  db2Exit(1,"< db2PlanForeignModify.c::addParam");
+  db2Exit1();
 }
 
 /* checkDataType
@@ -422,23 +419,23 @@ void addParam (ParamDesc **paramList, DB2Column* db2col, int colnum, int txts) {
  */
 void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename, const char *colname) {
   short db2type = c2dbType(sqltype);
-  db2Entry(4,"> db2PlanForeignModify.c::checkDataType");
-  db2Debug(4,"checkDataType: %s.%s of sqltype: %d, db2type: %d, pgtype: %d",tablename,colname,sqltype, db2type, pgtype);
+  db2Entry4();
+  db2Debug4("checkDataType: %s.%s of sqltype: %d, db2type: %d, pgtype: %d",tablename,colname,sqltype, db2type, pgtype);
   /* the binary DB2 types can be converted to bytea */
   if (db2type == DB2_BLOB && pgtype == BYTEAOID) {
-    db2Debug(5,"DB2_BLOB can be converted into BYTEAOID");
+    db2Debug5("DB2_BLOB can be converted into BYTEAOID");
   } else if (db2type == DB2_XML && pgtype == XMLOID) {
-    db2Debug(5,"DB2_XML can be converted into XMLOID");
+    db2Debug5("DB2_XML can be converted into XMLOID");
   } else if (db2type != DB2_UNKNOWN_TYPE && db2type != DB2_BLOB && (pgtype == TEXTOID || pgtype == VARCHAROID || pgtype == BPCHAROID)) {
-    db2Debug(5,"DB2_UNKNONW && not DB2_BLOB can be converted into TEXTOID, VARCHAROID, BPCHAROID");
+    db2Debug5("DB2_UNKNONW && not DB2_BLOB can be converted into TEXTOID, VARCHAROID, BPCHAROID");
   } else if ((db2type == DB2_INTEGER || db2type == DB2_SMALLINT || db2type == DB2_BIGINT || db2type == DB2_FLOAT || db2type == DB2_DOUBLE || db2type == DB2_REAL || db2type == DB2_DECIMAL || db2type == DB2_DECFLOAT) && (pgtype == NUMERICOID || pgtype == FLOAT4OID || pgtype == FLOAT8OID)) {
-    db2Debug(5,"DB2_INTEGER,SMALLINT,BIGINT,FLOAT,DOUBLE,REAL,DECIMAL,DECFLOAT can be converted into NUMERICOID,FLOAT4OID,FLOAT8OID");
+    db2Debug5("DB2_INTEGER,SMALLINT,BIGINT,FLOAT,DOUBLE,REAL,DECIMAL,DECFLOAT can be converted into NUMERICOID,FLOAT4OID,FLOAT8OID");
   } else if ((db2type == DB2_INTEGER || db2type == DB2_SMALLINT || db2type == DB2_BIGINT || db2type == DB2_BOOLEAN) && scale <= 0 && (pgtype == INT2OID || pgtype == INT4OID || pgtype == INT8OID || pgtype == BOOLOID)) {
-    db2Debug(5,"DB2_INTEGER,SMALLINT,BIGINT,BOOLEAN can be converted into INT2OID, INT42OID, INT8OID,BOOLOID");
+    db2Debug5("DB2_INTEGER,SMALLINT,BIGINT,BOOLEAN can be converted into INT2OID, INT42OID, INT8OID,BOOLOID");
   } else if ((db2type == DB2_TYPE_DATE || db2type == DB2_TYPE_TIME || db2type == DB2_TYPE_TIMESTAMP || db2type == DB2_TYPE_TIMESTAMP_WITH_TIMEZONE) && (pgtype == DATEOID || pgtype == TIMESTAMPOID || pgtype == TIMESTAMPTZOID || pgtype == TIMEOID || pgtype == TIMETZOID)) {
-    db2Debug(5,"DB2_TYPE_DATE,TIME,TIMESTAMP,TIMESTAMP_WITH_TIMEZONE can be converted into DATEOID,TIMESTAMPOID,TIMESTAMPTZOID,TIMEOID,TIMETZOID");
+    db2Debug5("DB2_TYPE_DATE,TIME,TIMESTAMP,TIMESTAMP_WITH_TIMEZONE can be converted into DATEOID,TIMESTAMPOID,TIMESTAMPTZOID,TIMEOID,TIMETZOID");
   } else if ((db2type == DB2_VARCHAR || db2type == DB2_CLOB) && pgtype == JSONOID) {
-    db2Debug(5,"DB2_VARCHAR or DB2_CLOB can be converted into JSONOID");
+    db2Debug5("DB2_VARCHAR or DB2_CLOB can be converted into JSONOID");
   } else {
     /* nok - report an error */
     ereport ( ERROR
@@ -451,5 +448,5 @@ void checkDataType (short sqltype, int scale, Oid pgtype, const char *tablename,
               )
             );
   }
-  db2Exit(4,"< db2PlanForeignModify.c::checkDataType");
+  db2Exit4();
 }

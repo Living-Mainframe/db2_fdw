@@ -4,8 +4,6 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void         db2Entry                   (int level, const char* message, ...);
-extern void         db2Exit                    (int level, const char* message, ...);
 extern void         db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan);
 extern DB2FdwState* deserializePlanData        (List* list);
 
@@ -20,7 +18,7 @@ void db2BeginForeignModify (ModifyTableState* mtstate, ResultRelInfo* rinfo, Lis
   DB2FdwState* fdw_state = deserializePlanData (fdw_private);
   Plan        *subplan   = NULL;
 
-  db2Entry(1,"> db2BeginForeignModify.c::db2BeginForeignModify");
+  db2Entry1();
   #if PG_VERSION_NUM < 140000
   subplan   = mtstate->mt_plans[subplan_index]->plan;
   #else
@@ -28,5 +26,5 @@ void db2BeginForeignModify (ModifyTableState* mtstate, ResultRelInfo* rinfo, Lis
   #endif
 
   db2BeginForeignModifyCommon(mtstate, rinfo, fdw_state, subplan);
-  db2Exit(1,"< db2BeginForeignModify.c::db2BeginForeignModify");
+  db2Exit1();
 }

@@ -5,15 +5,13 @@
 #include <access/heapam.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
+
 /** external variables */
 extern regproc* output_funcs;
 
 /** external prototypes */
 extern void         db2CloseStatement    (DB2Session* session);
 extern void         db2free              (void* p);
-extern void         db2Entry             (int level, const char* message, ...);
-extern void         db2Exit              (int level, const char* message, ...);
-extern void         db2Debug             (int level, const char* message, ...);
 
 /** local prototypes */
 void                db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo);
@@ -21,12 +19,12 @@ void                db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rin
 void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
   DB2FdwState *fdw_state = NULL;
 
-  db2Entry(1,"> db2EndForeignModifyCommon.c::db2EndForeignModifyCommon");
-  db2Debug(2,"relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
+  db2Entry1();
+  db2Debug2("relid: %d", RelationGetRelid (rinfo->ri_RelationDesc));
 
   fdw_state = (DB2FdwState*) rinfo->ri_FdwState;
   if (fdw_state == NULL) {
-    db2Debug(2,"no fdw_state, nothing to do");
+    db2Debug2("no fdw_state, nothing to do");
     return;
   }
 
@@ -53,5 +51,5 @@ void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
  
   rinfo->ri_FdwState = NULL;
   db2free(fdw_state);
-  db2Exit(1,"< db2EndForeignModifyCommon.c::db2EndForeignModifyCommon");
+  db2Exit1();
 }

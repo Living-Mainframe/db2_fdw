@@ -88,9 +88,6 @@ typedef struct deparse_expr_cxt {
 
 /** external prototypes */
 extern short              c2dbType                  (short fcType);
-extern void               db2Entry                  (int level, const char* message, ...);
-extern void               db2Exit                   (int level, const char* message, ...);
-extern void               db2Debug                  (int level, const char* message, ...);
 extern void*              db2alloc                  (const char* type, size_t size);
 extern void*              db2strdup                 (const char* source);
 extern void               db2free                   (void* p);
@@ -187,7 +184,7 @@ static void         deparseReturningList      (StringInfo buf, RangeTblEntry *rt
 void classifyConditions(PlannerInfo* root, RelOptInfo* baserel, List* input_conds, List** remote_conds, List** local_conds) {
   ListCell* lc  = NULL;
 
-  db2Entry(1,"> db2_deparse.c::classifyConditions");
+  db2Entry1();
   *remote_conds = NIL;
   *local_conds  = NIL;
 
@@ -199,7 +196,7 @@ void classifyConditions(PlannerInfo* root, RelOptInfo* baserel, List* input_cond
     else
       *local_conds = lappend(*local_conds, ri);
   }
-  db2Exit(1,"< db2_deparse.c::classifyConditions");
+  db2Exit1();
 }
 
 /** Returns true if given expr is safe to evaluate on the foreign server.
@@ -210,7 +207,7 @@ bool is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expr) {
   DB2FdwState*     fpinfo  = (DB2FdwState*) (baserel->fdw_private);
   bool             fResult = false;
 
-  db2Entry(1,"> db2_deparse.c::is_foreign_expr");
+  db2Entry1();
   // Check that the expression consists of nodes that are safe to execute remotely.
   glob_cxt.root       = root;
   glob_cxt.foreignrel = baserel;
@@ -232,7 +229,7 @@ bool is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expr) {
       }
     }
   }
-  db2Exit(1,"< db2_deparse.c::is_foreign_expr : %s", (fResult) ? "true": "false");
+  db2Exit1(": %s", (fResult) ? "true": "false");
   /* OK to evaluate on the remote server */
   return fResult;
 }
@@ -256,7 +253,7 @@ bool is_foreign_expr(PlannerInfo *root, RelOptInfo *baserel, Expr *expr) {
 static bool foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, foreign_loc_cxt* outer_cxt, foreign_loc_cxt* case_arg_cxt) {
   bool  fResult = true;
 
-  db2Entry(1,"> db2_deparse.c::foreign_expr_walker");
+  db2Entry1();
   /* Need do nothing for empty subexpressions */
   if (node != NULL) {
     bool            check_type  = true;
@@ -765,7 +762,7 @@ static bool foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, foreign_
     }
   }
   /* It looks OK */
-  db2Exit(1,"< db2_deparse.c::foreign_expr_walker : %s", (fResult) ? "true" : "false");
+  db2Exit1(": %s", (fResult) ? "true" : "false");
   return fResult;
 }
 
@@ -778,10 +775,10 @@ static bool foreign_expr_walker(Node* node, foreign_glob_cxt* glob_cxt, foreign_
  */
 bool is_foreign_param(PlannerInfo* root, RelOptInfo* baserel, Expr* expr) {
   bool  fResult = false;
-  db2Entry(1,"> db2_deparse.c::is_foreign_param");
-  db2Debug(2,"expr: %x", expr);
+  db2Entry1();
+  db2Debug2("expr: %x", expr);
   if (expr != NULL) {
-    db2Debug(5,"((Node*)expr)->type: %d", nodeTag(expr));
+    db2Debug5("((Node*)expr)->type: %d", nodeTag(expr));
     switch (nodeTag(expr)) {
       case T_Var: {
           /* It would have to be sent unless it's a foreign Var */
@@ -800,7 +797,7 @@ bool is_foreign_param(PlannerInfo* root, RelOptInfo* baserel, Expr* expr) {
       break;
     }
   }
-  db2Exit(1,"< db2_deparse.c::is_foreign_param : %s", (fResult) ? "true" : "false");
+  db2Exit1(": %s", (fResult) ? "true" : "false");
   return fResult;
 }
 
@@ -812,7 +809,7 @@ bool is_foreign_pathkey(PlannerInfo* root, RelOptInfo* baserel, PathKey* pathkey
   DB2FdwState*      fpinfo     = (DB2FdwState*) baserel->fdw_private;
   bool              fResult    = false;
 
-  db2Entry(1,"> db2_deparse.c::is_foreign_pathkey");
+  db2Entry1();
   /* is_foreign_expr would detect volatile expressions as well, but checking ec_has_volatile here saves some cycles. */
   if (!pathkey_ec->ec_has_volatile) {
     /* can't push down the sort if the pathkey's opfamily is not shippable */
@@ -821,7 +818,7 @@ bool is_foreign_pathkey(PlannerInfo* root, RelOptInfo* baserel, PathKey* pathkey
       fResult = (find_em_for_rel(root, pathkey_ec, baserel) != NULL);
     }
   }
-  db2Exit(1,"< db2_deparse.c::is_foreign_pathkey : %s", (fResult) ? "true" : "false");
+  db2Exit1(": %s", (fResult) ? "true" : "false");
   return fResult;
 }
 
@@ -837,12 +834,12 @@ static char* deparse_type_name(Oid type_oid, int32 typemod) {
   bits16  flags   = FORMAT_TYPE_TYPEMOD_GIVEN;
   char*   result  = NULL;
 
-  db2Entry(1,"> db2_deparse.c::deparse_type_name");
+  db2Entry1();
   if (!is_builtin(type_oid))
     flags |= FORMAT_TYPE_FORCE_QUALIFY;
 
   result  = format_type_extended(type_oid, typemod, flags);
-  db2Exit(1,"< db2_deparse.c::deparse_type_name : %s", result);
+  db2Exit1(": %s", result);
   return result;
 }
 
@@ -850,9 +847,9 @@ static char* deparse_type_name(Oid type_oid, int32 typemod) {
  *   Append "s" to "dest", adding appropriate casts for datetime "type".
  */
 void appendAsType (StringInfoData* dest, Oid type) {
-  db2Entry(1,"> db2_deparse.c::appendAsType");
-  db2Debug(2,"dest->data: '%s'",dest->data);
-  db2Debug(2,"type: %d",type);
+  db2Entry1();
+  db2Debug2("dest->data: '%s'",dest->data);
+  db2Debug2("type: %d",type);
   switch (type) {
     case DATEOID:
       appendStringInfo (dest, "CAST (? AS DATE)");
@@ -873,8 +870,8 @@ void appendAsType (StringInfoData* dest, Oid type) {
       appendStringInfo (dest, "?");
     break;
   }
-  db2Debug(2,"dest->data: '%s'", dest->data);
-  db2Exit(1,"< db2_deparse.c::appendAsType");
+  db2Debug2("dest->data: '%s'", dest->data);
+  db2Exit1();
 }
 
 /** Deparse GROUP BY clause.
@@ -882,7 +879,7 @@ void appendAsType (StringInfoData* dest, Oid type) {
 static void appendGroupByClause(List* tlist, deparse_expr_cxt* context) {
   Query*      query = context->root->parse;
 
-  db2Entry(1,"> db2_deparse.c::appendGroupByClause");
+  db2Entry1();
   /* Nothing to be done, if there's no GROUP BY clause in the query. */
   if (query->groupClause) {
     StringInfo  buf   = context->buf;
@@ -904,9 +901,9 @@ static void appendGroupByClause(List* tlist, deparse_expr_cxt* context) {
       first = false;
       deparseSortGroupClause(grp->tleSortGroupRef, tlist, true, context);
     }
-    db2Debug(5,"clause: %s", buf->data);
+    db2Debug5("clause: %s", buf->data);
   }
-  db2Exit(1,"< db2_deparse.c::appendGroupByClause");
+  db2Exit1();
 }
 
 /** Deparse ORDER BY clause defined by the given pathkeys.
@@ -923,7 +920,7 @@ static void appendOrderByClause(List* pathkeys, bool has_final_sort, deparse_exp
   StringInfo  buf       = context->buf;
   bool        gotone    = false;
 
-  db2Entry(1,"> db2_deparse.c::appendOrderByClause");
+  db2Entry1();
   /* Make sure any constants in the exprs are printed portably */
   nestlevel = set_transmission_modes();
 
@@ -974,8 +971,8 @@ static void appendOrderByClause(List* pathkeys, bool has_final_sort, deparse_exp
     appendOrderBySuffix(oprid, exprType((Node *) em_expr), pathkey->pk_nulls_first, context);
   }
   reset_transmission_modes(nestlevel);
-  db2Debug(5,"clause: %s", context->buf->data);
-  db2Exit(1,"< db2_deparse.c::appendOrderByClause");
+  db2Debug5("clause: %s", context->buf->data);
+  db2Exit1();
 }
 
 /** Deparse LIMIT/OFFSET clause.
@@ -985,7 +982,7 @@ static void appendLimitClause(deparse_expr_cxt* context) {
   StringInfo    buf       = context->buf;
   int           nestlevel = 0;
 
-  db2Entry(1,"> db2_deparse.c::appendLimitClause");
+  db2Entry1();
   /* Make sure any constants in the exprs are printed portably */
   nestlevel = set_transmission_modes();
 
@@ -998,8 +995,8 @@ static void appendLimitClause(deparse_expr_cxt* context) {
     deparseExprInt((Expr*) root->parse->limitOffset, context);
   }
   reset_transmission_modes(nestlevel);
-  db2Debug(5,"  clause: %s", context->buf->data);
-  db2Exit(1,"< db2_deparse.c::appendLimitClause");
+  db2Debug5("  clause: %s", context->buf->data);
+  db2Exit1();
 }
 
 /** appendFunctionName
@@ -1010,7 +1007,7 @@ static void appendLimitClause(deparse_expr_cxt* context) {
 //  HeapTuple     proctup;
 //  Form_pg_proc  procform;
 //
-//  db2Entry(1,"> db2_deparse.c::appendFunctionName");
+//  db2Entry1();
 //  proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
 //  if (!HeapTupleIsValid(proctup))
 //    elog(ERROR, "cache lookup failed for function %u", funcid);
@@ -1023,7 +1020,7 @@ static void appendLimitClause(deparse_expr_cxt* context) {
 //  /* Always print the function name */
 //  appendStringInfoString(buf, quote_identifier(NameStr(procform->proname)));
 //  ReleaseSysCache(proctup);
-//  db2Exit(1,"< db2_deparse.c::appendFunctionName : %s", context->buf->data);
+//  db2Exit1(": %s", context->buf->data);
 //}
 
 /** Append the ASC, DESC, USING <OPERATOR> and NULLS FIRST / NULLS LAST parts of an ORDER BY clause.
@@ -1032,7 +1029,7 @@ static void appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first, d
   StringInfo      buf = context->buf;
   TypeCacheEntry* typentry;
 
-  db2Entry(1,"< db2_deparse.c::appendOrderBySuffix");
+  db2Entry1();
   /* See whether operator is default < or > for sort expr's datatype. */
   typentry = lookup_type_cache(sortcoltype, TYPECACHE_LT_OPR | TYPECACHE_GT_OPR);
 
@@ -1055,7 +1052,7 @@ static void appendOrderBySuffix(Oid sortop, Oid sortcoltype, bool nulls_first, d
   }
   appendStringInfo(buf, " NULLS %s", (nulls_first) ? "FIRST" : "LAST");
 
-  db2Exit(1,"< db2_deparse.c::appendOrderBySuffix : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* Print the representation of a parameter to be sent to the remote side.
@@ -1067,10 +1064,10 @@ static void printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod, d
   StringInfo  buf       = context->buf;
 //char*       ptypename = deparse_type_name(paramtype, paramtypmod);
 
-  db2Entry(1,"> db2_deparse.c::printRemoteParam");
+  db2Entry1();
 //  appendStringInfo(buf, "$%d::%s", paramindex, ptypename);
   appendStringInfo(buf, ":p%d", paramindex);
-  db2Exit(1,"< db2_deparse.c::printRemoteParam : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* Print the representation of a placeholder for a parameter that will be sent to the remote side at execution time.
@@ -1089,9 +1086,9 @@ static void printRemotePlaceholder(Oid paramtype, int32 paramtypmod, deparse_exp
   StringInfo  buf       = context->buf;
   char*       ptypename = deparse_type_name(paramtype, paramtypmod);
 
-  db2Entry(1,"> printRemotePlaceholder");
+  db2Entry1();
   appendStringInfo(buf, "((SELECT null::%s)::%s)", ptypename, ptypename);
-  db2Exit(1,"< printRemotePlaceholder : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /** Deparse conditions from the provided list and append them to buf.
@@ -1106,7 +1103,7 @@ static void appendConditions(List* exprs, deparse_expr_cxt* context) {
   bool        is_first    = true;
   StringInfo	buf         = context->buf;
 
-  db2Entry(1,"> appendConditions");
+  db2Entry1();
   /* Make sure any constants in the exprs are printed portably */
   nestlevel = set_transmission_modes();
 
@@ -1128,7 +1125,7 @@ static void appendConditions(List* exprs, deparse_expr_cxt* context) {
     is_first = false;
   }
   reset_transmission_modes(nestlevel);
-  db2Exit(1,"< appendConditions : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* Append WHERE clause, containing conditions from exprs and additional_conds, to context->buf.
@@ -1138,7 +1135,7 @@ static void appendWhereClause(List* exprs, List* additional_conds, deparse_expr_
   bool        need_and  = false;
   ListCell*   lc        = NULL;
 
-  db2Entry(1,"> appendWhereClause");
+  db2Entry1();
   if (exprs != NIL || additional_conds != NIL)
     appendStringInfoString(buf, " WHERE ");
 
@@ -1155,7 +1152,7 @@ static void appendWhereClause(List* exprs, List* additional_conds, deparse_expr_
     appendStringInfoString(buf, (char*) lfirst(lc));
     need_and = true;
   }
-  db2Exit(1,"< appendWhereClause : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /** Appends a sort or group clause.
@@ -1168,7 +1165,7 @@ static Node* deparseSortGroupClause(Index ref, List* tlist, bool force_colno, de
   TargetEntry*  tle   = get_sortgroupref_tle(ref, tlist);
   Expr*         expr  = tle->expr;
 
-  db2Entry(1,"> db2_deparse.c::deparseSortGroupClause");
+  db2Entry1();
   if (force_colno) {
     /* Use column-number form when requested by caller. */
     Assert(!tle->resjunk);
@@ -1184,8 +1181,8 @@ static Node* deparseSortGroupClause(Index ref, List* tlist, bool force_colno, de
     deparseExprInt(expr, context);
     appendStringInfoChar(buf, ')');
   }
-  db2Debug(5,"clause: %s", buf->data);
-  db2Exit(1,"< db2_deparse.c::deparseSortGroupClause : %x", expr);
+  db2Debug5("clause: %s", buf->data);
+  db2Exit1(": %x", expr);
   return (Node*)expr;
 }
 
@@ -1195,7 +1192,7 @@ static Node* deparseSortGroupClause(Index ref, List* tlist, bool force_colno, de
 static bool is_subquery_var(Var* node, RelOptInfo* foreignrel, int* relno, int* colno) {
   bool  fResult = false;
 
-  db2Entry(1,"> db2_deparse.c::is_subquery_var");
+  db2Entry1();
   /* Should only be called in these cases. */
   Assert(IS_SIMPLE_REL(foreignrel) || IS_JOIN_REL(foreignrel));
   /* If the given relation isn't a join relation, it doesn't have any lower subqueries, so the Var isn't a subquery output column. */
@@ -1226,7 +1223,7 @@ static bool is_subquery_var(Var* node, RelOptInfo* foreignrel, int* relno, int* 
       }
     }
   }
-  db2Exit(1,"< db2_deparse.c::is_subquery_var : %s", (fResult) ? "true": "false");
+  db2Exit1(": %s", (fResult) ? "true": "false");
   return fResult;
 }
 
@@ -1238,10 +1235,10 @@ static void get_relation_column_alias_ids(Var* node, RelOptInfo* foreignrel, int
   ListCell*     lc      = NULL;
   bool          fFound  = false;
 
-  db2Entry(1,"> db2_deparse.c::get_relation_column_alias_ids");
+  db2Entry1();
   /* Get the relation alias ID */
   *relno = fpinfo->relation_index;
-  db2Debug(5,"relno: %d", *relno);
+  db2Debug5("relno: %d", *relno);
 
   /* Get the column alias ID */
   foreach(lc, foreignrel->reltarget->exprs) {
@@ -1252,7 +1249,7 @@ static void get_relation_column_alias_ids(Var* node, RelOptInfo* foreignrel, int
      */
     if (IsA(tlvar, Var) && tlvar->varno == node->varno && tlvar->varattno == node->varattno) {
       *colno = i;
-      db2Debug(5,"colno: %d", *colno);
+      db2Debug5("colno: %d", *colno);
       fFound = true;
       break;
     }
@@ -1263,7 +1260,7 @@ static void get_relation_column_alias_ids(Var* node, RelOptInfo* foreignrel, int
     /* Shouldn't get here */
     elog(ERROR, "unexpected expression in subquery output");
   }
-  db2Exit(1,"< db2_deparse.c::get_relation_column_alias_ids");
+  db2Exit1();
 }
 
 /* Build the targetlist for given relation to be deparsed as SELECT clause.
@@ -1276,23 +1273,23 @@ List* build_tlist_to_deparse(RelOptInfo* foreignrel) {
   List*         tlist   = NIL;
   DB2FdwState*  fpinfo  = (DB2FdwState*) foreignrel->fdw_private;
 
-  db2Entry(1,"> db2_deparse.c::build_tlist_to_deparse");
+  db2Entry1();
   /* For an upper relation, we have already built the target list while checking shippability, so just return that. */
   if (IS_UPPER_REL(foreignrel)) {
     tlist = fpinfo->grouped_tlist;
-    db2Debug(2,"using fpinfo->grouped_tlist");
+    db2Debug2("using fpinfo->grouped_tlist");
   } else {
     ListCell* lc  = NULL;
 
     /* We require columns specified in foreignrel->reltarget->exprs and those required for evaluating the local conditions. */
-    db2Debug(2,"using foreignrel->reltarget->exprs");
+    db2Debug2("using foreignrel->reltarget->exprs");
     tlist = add_to_flat_tlist(tlist, pull_var_clause((Node*) foreignrel->reltarget->exprs, PVC_RECURSE_PLACEHOLDERS));
     foreach(lc, fpinfo->local_conds) {
       RestrictInfo* rinfo = lfirst_node(RestrictInfo, lc);
       tlist = add_to_flat_tlist(tlist, pull_var_clause((Node*) rinfo->clause, PVC_RECURSE_PLACEHOLDERS));
     }
   }
-  db2Exit(1,"< db2_deparse.c::build_tlist_to_deparse : %x", tlist);
+  db2Exit1(": %x", tlist);
   return tlist;
 }
 
@@ -1324,7 +1321,7 @@ void deparseSelectStmtForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* rel,
   DB2FdwState*      fpinfo  = (DB2FdwState*)rel->fdw_private;
   List*             quals   = NIL;
 
-  db2Entry(1,"> db2_deparse.c::deparseSelectStmtForRel");
+  db2Entry1();
   //We handle relations for foreign tables, joins between those and upper relations.
   Assert(IS_JOIN_REL(rel) || IS_SIMPLE_REL(rel) || IS_UPPER_REL(rel));
 
@@ -1372,7 +1369,7 @@ void deparseSelectStmtForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* rel,
 
   // Add any necessary FOR UPDATE/SHARE.
   deparseLockingClause(&context);
-  db2Exit(1,"< db2_deparse.c::deparseSelectStmtForRel: %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /*
@@ -1394,7 +1391,7 @@ static void deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_att
   PlannerInfo*        root        = context->root;
   DB2FdwState*        fpinfo      = (DB2FdwState*) foreignrel->fdw_private;
 
-  db2Entry(1,"> db2_deparse.c::deparseSelectSql");
+  db2Entry1();
   // Construct SELECT list
   appendStringInfoString(buf, "SELECT ");
 
@@ -1416,7 +1413,7 @@ static void deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_att
     deparseTargetList(buf, rte, foreignrel->relid, rel, false, fpinfo->attrs_used, false, retrieved_attrs);
     table_close(rel, NoLock);
   }
-  db2Exit(1,"< db2_deparse.c::deparseSelectSql : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /*
@@ -1431,7 +1428,7 @@ static void deparseFromExpr(List *quals, deparse_expr_cxt *context) {
   RelOptInfo* scanrel           = context->scanrel;
   List*       additional_conds  = NIL;
 
-  db2Entry(1,"> db2_deparse.c::deparseFromExpr");
+  db2Entry1();
   /* For upper relations, scanrel must be either a joinrel or a baserel */
   Assert(!IS_UPPER_REL(context->foreignrel) || IS_JOIN_REL(scanrel) || IS_SIMPLE_REL(scanrel));
 
@@ -1441,7 +1438,7 @@ static void deparseFromExpr(List *quals, deparse_expr_cxt *context) {
   appendWhereClause(quals, additional_conds, context);
   if (additional_conds != NIL)
     list_free_deep(additional_conds);
-  db2Exit(1,"< db2_deparse.c::deparseFromExpr : %s",buf->data);
+  db2Exit1(": %s",buf->data);
 }
 
 /*
@@ -1463,7 +1460,7 @@ static void deparseFromExpr(List *quals, deparse_expr_cxt *context) {
 static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo* foreignrel, bool use_alias, Index ignore_rel, List** ignore_conds, List** additional_conds, List** params_list) {
   DB2FdwState* fpinfo = (DB2FdwState*) foreignrel->fdw_private;
 
-  db2Entry(1,"> db2_deparse.c::deparseFromExprForRel");
+  db2Entry1();
   if (IS_JOIN_REL(foreignrel)) {
     StringInfoData  join_sql_o;
     StringInfoData  join_sql_i;
@@ -1509,7 +1506,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
           Assert(*additional_conds == NIL);
           *additional_conds = additional_conds_o;
         }
-        db2Exit(1,"< db2_deparse.c::deparseFromExprForRel");
+        db2Exit1();
         return;
       }
     }
@@ -1555,7 +1552,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
           Assert(*additional_conds == NIL);
           *additional_conds = additional_conds_i;
         }
-        db2Exit(1,"< db2_deparse.c::deparseFromExprForRel");
+        db2Exit1();
         return;
       }
     }
@@ -1608,7 +1605,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
       appendStringInfo(buf, " %s%d", REL_ALIAS_PREFIX, foreignrel->relid);
     table_close(rel, NoLock);
   }
-  db2Exit(1,"< db2_deparse.c::deparseFromExprForRel");
+  db2Exit1();
 }
 
 /* Append FROM clause entry for the given relation into buf.
@@ -1617,7 +1614,7 @@ static void deparseFromExprForRel(StringInfo buf, PlannerInfo* root, RelOptInfo*
 static void deparseRangeTblRef(StringInfo buf, PlannerInfo *root, RelOptInfo *foreignrel, bool make_subquery, Index ignore_rel, List **ignore_conds, List **additional_conds, List **params_list) {
   DB2FdwState* fpinfo = (DB2FdwState*) foreignrel->fdw_private;
 
-  db2Entry(1,"> db2_deparse.c::deparseRangeTblRef");
+  db2Entry1();
   /* Should only be called in these cases. */
   Assert(IS_SIMPLE_REL(foreignrel) || IS_JOIN_REL(foreignrel));
   Assert(fpinfo->local_conds == NIL);
@@ -1658,7 +1655,7 @@ static void deparseRangeTblRef(StringInfo buf, PlannerInfo *root, RelOptInfo *fo
   } else {
     deparseFromExprForRel(buf, root, foreignrel, true, ignore_rel, ignore_conds, additional_conds, params_list);
   }
-  db2Exit(1,"< db2_deparse.c::deparseRangeTblRef : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /** deparseWhereConditions
@@ -1674,7 +1671,7 @@ char* deparseWhereConditions (PlannerInfo* root, RelOptInfo * rel) {
   char*          keyword = "WHERE";
   StringInfoData where_clause;
 
-  db2Entry(1,"> deparseWhereCondition");
+  db2Entry1();
   initStringInfo (&where_clause);
   foreach (cell, conditions) {
     /* check if the condition can be pushed down */
@@ -1690,7 +1687,7 @@ char* deparseWhereConditions (PlannerInfo* root, RelOptInfo * rel) {
       fdwState->local_conds = lappend (fdwState->local_conds, ((RestrictInfo*) lfirst (cell))->clause);
     }
   }
-  db2Exit(1,"< deparseWhereCondition : %s",where_clause.data);
+  db2Exit1(": %s",where_clause.data);
   return where_clause.data;
 }
 
@@ -1698,7 +1695,7 @@ char* deparseWhereConditions (PlannerInfo* root, RelOptInfo * rel) {
 void deparseTruncateSql(StringInfo buf, List* rels, DropBehavior behavior, bool restart_seqs) {
   ListCell* cell  = NULL;
 
-  db2Entry(1,"> db2_deparse.c::deparseTruncateSql");
+  db2Entry1();
   appendStringInfoString(buf, "TRUNCATE ");
   foreach(cell, rels) {
     Relation	rel = lfirst(cell);
@@ -1712,7 +1709,7 @@ void deparseTruncateSql(StringInfo buf, List* rels, DropBehavior behavior, bool 
     appendStringInfoString(buf, " RESTRICT");
   else if (behavior == DROP_CASCADE)
     appendStringInfoString(buf, " CASCADE");
-  db2Entry(1,"> db2_deparse.c::deparseTruncateSql : %s",buf->data);
+  db2Exit1(": %s",buf->data);
 }
 
 /* Construct name to use for given column, and emit it into buf.
@@ -1721,7 +1718,7 @@ void deparseTruncateSql(StringInfo buf, List* rels, DropBehavior behavior, bool 
  * If qualify_col is true, qualify column name with the alias of relation.
  */
 static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEntry *rte, bool qualify_col) {
-  db2Entry(1,"> db2_deparse.c::deparseColumnRef");
+  db2Entry1();
   /* We support fetching the remote side's CTID and OID. */
   if (varattno == SelfItemPointerAttributeNumber) {
     if (qualify_col)
@@ -1805,7 +1802,7 @@ static void deparseColumnRef(StringInfo buf, int varno, int varattno, RangeTblEn
 
     appendStringInfoString(buf, quote_identifier(str_toupper (colname, strlen (colname), DEFAULT_COLLATION_OID)));
   }
-  db2Exit(1,"< db2_deparse.c::deparseColumnRef : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* Append remote name of specified foreign table to buf.
@@ -1818,7 +1815,7 @@ static void deparseRelation(StringInfo buf, Relation rel) {
   const char*   relname = NULL;
   ListCell*     lc      = NULL;
 
-  db2Entry(1,"> db2_deparse.c::deparseRelation");
+  db2Entry1();
   /* obtain additional catalog information. */
   table = GetForeignTable(RelationGetRelid(rel));
 
@@ -1841,15 +1838,15 @@ static void deparseRelation(StringInfo buf, Relation rel) {
     relname = RelationGetRelationName(rel);
 
   appendStringInfo(buf, "%s.%s", quote_identifier(nspname), quote_identifier(relname));
-  db2Debug(5,"relation: %s",buf->data);
-  db2Exit(1,"< db2_deparse.c::deparseRelation");
+  db2Debug5("relation: %s",buf->data);
+  db2Exit1();
 }
 
 /* Append a SQL string literal representing "val" to buf. */
 void deparseStringLiteral(StringInfo buf, const char* val) {
   const char* valptr = NULL;
 
-  db2Entry(1,"> db2_deparse.c::deparseStringLiteral");
+  db2Entry1();
   /* Rather than making assumptions about the remote server's value of standard_conforming_strings, always use E'foo' syntax if there are any
    * backslashes.
    * This will fail on remote servers before 8.1, but those are long out of support.
@@ -1867,8 +1864,8 @@ void deparseStringLiteral(StringInfo buf, const char* val) {
     appendStringInfoChar(buf, ch);
   }
   appendStringInfoChar(buf, '\'');
-  db2Debug(5,"literal: %s",buf->data);
-  db2Exit(1,"< db2_deparse.c::deparseStringLiteral");
+  db2Debug5("literal: %s",buf->data);
+  db2Exit1();
 }
 
 /** deparseExpr
@@ -1879,7 +1876,7 @@ void deparseStringLiteral(StringInfo buf, const char* val) {
  */
 char* deparseExpr (PlannerInfo* root, RelOptInfo* rel, Expr* expr, List** params) {
   char* retValue = NULL;
-  db2Entry(1,"> db2_deparse.c::deparseExpr");
+  db2Entry1();
   if (expr != NULL) {
     deparse_expr_cxt* ctx = db2alloc("deparseExpr.context", sizeof(deparse_expr_cxt));
     StringInfoData    buf;
@@ -1896,15 +1893,15 @@ char* deparseExpr (PlannerInfo* root, RelOptInfo* rel, Expr* expr, List** params
     db2free(ctx->buf->data);
     db2free(ctx);
   }
-  db2Exit(1,"< db2_deparse.c::deparseExpr: %s", retValue);
+  db2Exit1(": %s", retValue);
   return retValue;
 }
 
 static void deparseExprInt           (Expr*              expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseExprInt");
-  db2Debug(2,"expr: %x",expr);
+  db2Entry1();
+  db2Debug2("expr: %x",expr);
   if (expr != NULL) {
-    db2Debug(2,"expr->type: %d",expr->type);
+    db2Debug2("expr->type: %d",expr->type);
     switch (expr->type) {
       case T_Const: {
         deparseConstExpr((Const*)expr, ctx);
@@ -1977,16 +1974,16 @@ static void deparseExprInt           (Expr*              expr, deparse_expr_cxt*
       break;
       default: {
         /* we cannot translate this to DB2 */
-        db2Debug(2,"expression cannot be translated to DB2");
+        db2Debug2("expression cannot be translated to DB2");
       }
       break;
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseExpr : %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseConstExpr         (Const*             expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseConstExpr");
+  db2Entry1();
   if (expr->constisnull) {
     /* only translate NULLs of a type DB2 can handle */
     if (canHandleType (expr->consttype)) {
@@ -1999,17 +1996,17 @@ static void deparseConstExpr         (Const*             expr, deparse_expr_cxt*
       appendStringInfo (ctx->buf, "%s", c);
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseConstExpr");
+  db2Exit1();
 }
 
 static void deparseParamExpr         (Param*             expr, deparse_expr_cxt* ctx) {
   ListCell* cell  = NULL;
   char      parname[10];
 
-  db2Entry(1,"> db2_deparse.c::deparseParamExpr");
+  db2Entry1();
   /* don't try to handle interval parameters */
   if (!canHandleType (expr->paramtype) || expr->paramtype == INTERVALOID) {
-    db2Debug(2,"!canHhandleType(expr->paramtype %d) || rxpr->paramtype == INTERVALOID)", expr->paramtype);
+    db2Debug2("!canHhandleType(expr->paramtype %d) || rxpr->paramtype == INTERVALOID)", expr->paramtype);
   } else {
     /* find the index in the parameter list */
     int index = 0;
@@ -2027,13 +2024,13 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
     snprintf (parname, 10, ":p%d", index);
     appendAsType (ctx->buf, expr->paramtype);
   }
-  db2Exit(1,"< db2_deparse.c::deparseParamExpr");
+  db2Exit1();
 }
 
 //static void deparseVarExpr           (Var*               expr, deparse_expr_cxt* ctx) {
 //  const DB2Table*  var_table = NULL;  /* db2Table that belongs to a Var */
 //
-//  db2Entry(1,"> db2_deparse.c::deparseVarExpr");
+//  db2Entry1();
 //  /* check if the variable belongs to one of our foreign tables */
 //  if (IS_SIMPLE_REL (ctx->foreignrel)) {
 //    if (expr->varno == ctx->foreignrel->relid && expr->varlevelsup == 0)
@@ -2051,13 +2048,13 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
 //  if (var_table) {
 //    /* the variable belongs to a foreign table, replace it with the name */
 //    /* we cannot handle system columns */
-//    db2Debug(2,"varattno: %d",expr->varattno);
+//    db2Debug2("varattno: %d",expr->varattno);
 //    if (expr->varattno > 0) {
 //      /** Allow boolean columns here.
 //       * They will be rendered as ("COL" <> 0).
 //       */
 //      if (!(canHandleType (expr->vartype) || expr->vartype == BOOLOID)) {
-//        db2Debug(2,"!(canHandleType (vartype %d) || vartype == BOOLOID",expr->vartype);
+//        db2Debug2("!(canHandleType (vartype %d) || vartype == BOOLOID",expr->vartype);
 //      } else {
 //        /* get var_table column index corresponding to this column (-1 if none) */
 //        int index = var_table->ncols - 1;
@@ -2073,9 +2070,9 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
 //           * in PostgreSQL because functions and operators won't work the same.
 //           */
 //          short db2type = c2dbType(var_table->cols[index]->colType);
-//          db2Debug(2,"db2type: %d", db2type);
+//          db2Debug2("db2type: %d", db2type);
 //          if ((expr->vartype == TEXTOID || expr->vartype == BPCHAROID || expr->vartype == VARCHAROID)  && db2type != DB2_VARCHAR && db2type != DB2_CHAR) {
-//            db2Debug(2,"vartype: %d", expr->vartype);
+//            db2Debug2("vartype: %d", expr->vartype);
 //          } else {
 //            /* work around the lack of booleans in DB2 */
 //            if (expr->vartype == BOOLOID) {
@@ -2092,7 +2089,7 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
 //      }
 //    }
 //  }
-//  db2Exit(1,"< db2_deparse.c::deparseVarExpr");
+//  db2Exit1();
 //}
 
 /* Deparse given Var node into context->buf.
@@ -2109,7 +2106,7 @@ static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
   bool    qualify_col = (bms_membership(relids) == BMS_MULTIPLE);
   bool    is_query_var = false;
 
-  db2Entry(1,"> db2_deparse.c::deparseVar");
+  db2Entry1();
   /* If the Var belongs to the foreign relation that is deparsed as a subquery, use the relation and column alias to the Var provided by the
    * subquery, instead of the remote name.
    */
@@ -2118,8 +2115,8 @@ static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
     return;
   }
   is_query_var = bms_is_member(expr->varno, ctx->root->all_query_rels);
-  db2Debug(2,"bms_is_member(%d,%d): %s",expr->varno, ctx->root->all_query_rels, is_query_var ? "true":"false");
-  db2Debug(2,"expr->varlevelsup: %d",expr->varlevelsup);
+  db2Debug2("bms_is_member(%d,%d): %s",expr->varno, ctx->root->all_query_rels, is_query_var ? "true":"false");
+  db2Debug2("expr->varlevelsup: %d",expr->varlevelsup);
   if (is_query_var && expr->varlevelsup == 0) {
     deparseColumnRef(ctx->buf, expr->varno, expr->varattno, planner_rt_fetch(expr->varno, ctx->root), qualify_col);
   } else {
@@ -2144,7 +2141,7 @@ static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
       printRemotePlaceholder(expr->vartype, expr->vartypmod, ctx);
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseVar : %s",ctx->buf->data);
+  db2Exit1(": %s",ctx->buf->data);
 }
 
 static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt* ctx) {
@@ -2155,7 +2152,7 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
   Oid       schema      = 0;
   HeapTuple tuple       ;
 
-  db2Entry(1,"> db2_deparse.c::deparseOpExpr");
+  db2Entry1();
   /* get operator name, kind, argument type and schema */
   tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (expr->opno));
   if (!HeapTupleIsValid (tuple)) {
@@ -2169,16 +2166,16 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
   ReleaseSysCache (tuple);
   /* ignore operators in other than the pg_catalog schema */
   if (schema != PG_CATALOG_NAMESPACE) {
-    db2Debug(2,"schema != PG_CATALOG_NAMESPACE");
+    db2Debug2("schema != PG_CATALOG_NAMESPACE");
   } else {
     if (!canHandleType (rightargtype)) {
-      db2Debug(2,"!canHandleType rightargtype(%d)", rightargtype);
+      db2Debug2("!canHandleType rightargtype(%d)", rightargtype);
     } else {
       /** Don't translate operations on two intervals.
      * INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND don't mix well.
      */
       if (leftargtype == INTERVALOID && rightargtype == INTERVALOID) {
-        db2Debug(2,"leftargtype == INTERVALOID && rightargtype == INTERVALOID");
+        db2Debug2("leftargtype == INTERVALOID && rightargtype == INTERVALOID");
       } else {
         /* the operators that we can translate */
         if ((strcmp (opername, ">")    == 0 && rightargtype != TEXTOID && rightargtype != BPCHAROID    && rightargtype != NAMEOID && rightargtype != CHAROID)
@@ -2193,14 +2190,14 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
           char* left = NULL;
 
           left = deparseExpr (ctx->root, ctx->foreignrel, linitial(expr->args), ctx->params_list);
-          db2Debug(2,"left: %s", left);
+          db2Debug2("left: %s", left);
           if (left != NULL) {
             if (oprkind == 'b') {
               /* binary operator */
               char* right = NULL;
 
               right = deparseExpr (ctx->root, ctx->foreignrel, lsecond(expr->args), ctx->params_list);
-              db2Debug(2,"right: %s", right);
+              db2Debug2("right: %s", right);
               if (right != NULL) {
                 if (strcmp (opername, "~~") == 0) {
                   appendStringInfo (ctx->buf, "(%s LIKE %s ESCAPE '\\')", left, right);
@@ -2237,13 +2234,13 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
           }
         } else {
           /* cannot translate this operator */
-          db2Debug(2,"cannot translate this opername: %s", opername);
+          db2Debug2("cannot translate this opername: %s", opername);
         }
       }
     }
   }
   db2free (opername);
-  db2Exit(1,"< db2_deparse.c::deparseOpExpr");
+  db2Exit1();
 }
 
 static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt* ctx) {
@@ -2252,7 +2249,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
   Oid                schema;
   HeapTuple          tuple;
 
-  db2Entry(1,"> db2_deparse.c::deparseScalarArrayOpExpr");
+  db2Entry1();
   tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum (expr->opno));
   if (!HeapTupleIsValid (tuple)) {
     elog (ERROR, "cache lookup failed for operator %u", expr->opno);
@@ -2269,14 +2266,14 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
   ReleaseSysCache (tuple);
   /* ignore operators in other than the pg_catalog schema */
   if (schema != PG_CATALOG_NAMESPACE) {
-    db2Debug(2,"schema != PG_CATALOG_NAMESPACE");
+    db2Debug2("schema != PG_CATALOG_NAMESPACE");
   } else {
     /* don't try to push down anything but IN and NOT IN expressions */
     if ((strcmp (opername, "=") != 0 || !expr->useOr) && (strcmp (opername, "<>") != 0 || expr->useOr)) {
-      db2Debug(2,"don't try to push down anything but IN and NOT IN expressions");
+      db2Debug2("don't try to push down anything but IN and NOT IN expressions");
     } else {
       if (!canHandleType (leftargtype)) {
-        db2Debug(2,"cannot Handle Type leftargtype (%d)", leftargtype);
+        db2Debug2("cannot Handle Type leftargtype (%d)", leftargtype);
       } else {
         char* left  = NULL;
         char* right = NULL;
@@ -2312,7 +2309,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
                     c = "NULL";
                   } else {
                     c = datumToString (datum, leftargtype);
-                    db2Debug(2,"c: %s",c);
+                    db2Debug2("c: %s",c);
                     if (c == NULL) {
                       array_free_iterator (iterator);
                       bResult = false;
@@ -2324,7 +2321,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
                   first_arg = false;
                 }
                 array_free_iterator (iterator);
-                db2Debug(2,"first_arg: %s", first_arg ? "true":"false");
+                db2Debug2("first_arg: %s", first_arg ? "true":"false");
                 if (first_arg) {
                   // don't push down empty arrays
                   // since the semantics for NOT x = ANY(<empty array>) differ
@@ -2342,7 +2339,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
               ArrayCoerceExpr* arraycoerce = (ArrayCoerceExpr *) rightexpr;
               /* if the conversion requires more than binary coercion, don't push it down */
               if (arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType) {
-                db2Debug(2,"arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType");
+                db2Debug2("arraycoerce->elemexpr && arraycoerce->elemexpr->type != T_RelabelType");
                 bResult = false;
                 break;
               }
@@ -2371,7 +2368,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
                 appendStringInfo(&buf,"%s%s",(first_arg) ? "": ", ",element);
                 first_arg = false;
               }
-              db2Debug(2,"first_arg: %s", first_arg ? "true" : "false");
+              db2Debug2("first_arg: %s", first_arg ? "true" : "false");
               if (first_arg) {
                 /* don't push down empty arrays, since the semantics for NOT x = ANY(<empty array>) differ */
                 db2free(buf.data);
@@ -2383,7 +2380,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
             }
             break;
             default: {
-              db2Debug(2,"rightexpr->type(%d) default ",rightexpr->type);
+              db2Debug2("rightexpr->type(%d) default ",rightexpr->type);
               bResult = false;
             }
             break;
@@ -2398,14 +2395,14 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
       }
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseScalarArrayOpExpr");
+  db2Exit1();
 }
 
 static void deparseDistinctExpr      (DistinctExpr*      expr, deparse_expr_cxt* ctx) {
   Oid       rightargtype = 0;
   HeapTuple tuple;
 
-  db2Entry(1,"> db2_deparse.c::deparseDistinctExpr");
+  db2Entry1();
   tuple = SearchSysCache1 (OPEROID, ObjectIdGetDatum ((expr)->opno));
   if (!HeapTupleIsValid (tuple)) {
     elog (ERROR, "cache lookup failed for operator %u", (expr)->opno);
@@ -2413,7 +2410,7 @@ static void deparseDistinctExpr      (DistinctExpr*      expr, deparse_expr_cxt*
   rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
   ReleaseSysCache (tuple);
   if (!canHandleType (rightargtype)) {
-    db2Debug(2,"cannot Handle Type rightargtype (%d)",rightargtype);
+    db2Debug2("cannot Handle Type rightargtype (%d)",rightargtype);
   } else {
     char* left  = NULL;
 
@@ -2429,7 +2426,7 @@ static void deparseDistinctExpr      (DistinctExpr*      expr, deparse_expr_cxt*
     }
     db2free(left);
   }
-  db2Exit(1,"< db2_deparse.c::deparseDistinctExpr");
+  db2Exit1();
 }
 
 /** Deparse IS [NOT] NULL expression.
@@ -2437,7 +2434,7 @@ static void deparseDistinctExpr      (DistinctExpr*      expr, deparse_expr_cxt*
 static void deparseNullTest          (NullTest*          expr, deparse_expr_cxt* ctx) {
   StringInfo	buf = ctx->buf;
 
-  db2Entry(1,"> db2_deparse.c::deparseNullTest");
+  db2Entry1();
   appendStringInfoChar(buf, '(');
   deparseExprInt (expr->arg, ctx);
 
@@ -2457,14 +2454,14 @@ static void deparseNullTest          (NullTest*          expr, deparse_expr_cxt*
     else
       appendStringInfoString(buf, " IS DISTINCT FROM NULL)");
   }
-  db2Exit(1,"< db2_deparse.c::deparseNullTest : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 static void deparseNullIfExpr        (NullIfExpr*        expr, deparse_expr_cxt* ctx) {
   Oid       rightargtype = 0;
   HeapTuple tuple;
 
-  db2Entry(1,"> db2_deparse.c::deparseNullIfExpr");
+  db2Entry1();
   tuple        = SearchSysCache1 (OPEROID, ObjectIdGetDatum ((expr)->opno));
   if (!HeapTupleIsValid (tuple)) {
     elog (ERROR, "cache lookup failed for operator %u", (expr)->opno);
@@ -2472,7 +2469,7 @@ static void deparseNullIfExpr        (NullIfExpr*        expr, deparse_expr_cxt*
   rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
   ReleaseSysCache (tuple);
   if (!canHandleType (rightargtype)) {
-    db2Debug(2,"cannot Handle Type rightargtype (%d)",rightargtype);
+    db2Debug2("cannot Handle Type rightargtype (%d)",rightargtype);
   } else {
     char* left = NULL;
     left = deparseExpr (ctx->root, ctx->foreignrel, linitial((expr)->args), ctx->params_list);
@@ -2488,7 +2485,7 @@ static void deparseNullIfExpr        (NullIfExpr*        expr, deparse_expr_cxt*
     }
     db2free(left);
   }
-  db2Exit(1,"< db2_deparse.c::deparseNullIfExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseBoolExpr          (BoolExpr*          expr, deparse_expr_cxt* ctx) {
@@ -2496,7 +2493,7 @@ static void deparseBoolExpr          (BoolExpr*          expr, deparse_expr_cxt*
   char*             arg  = NULL;
   StringInfoData    buf;
 
-  db2Entry(1,"> db2_deparse.c::deparseBoolExpr");
+  db2Entry1();
   initStringInfo(&buf);
   arg = deparseExpr (ctx->root, ctx->foreignrel, linitial(expr->args), ctx->params_list);
   if (arg != NULL) {
@@ -2518,13 +2515,13 @@ static void deparseBoolExpr          (BoolExpr*          expr, deparse_expr_cxt*
   }
   db2free(buf.data);
   db2free(arg);
-  db2Exit(1,"< db2_deparse.c::deparseBoolExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseCaseExpr");
+  db2Entry1();
   if (!canHandleType (expr->casetype)) {
-    db2Debug(2,"cannot Handle Type caseexpr->casetype (%d)", expr->casetype);
+    db2Debug2("cannot Handle Type caseexpr->casetype (%d)", expr->casetype);
   } else {
     StringInfoData buf;
     bool           bBreak    = false;
@@ -2537,7 +2534,7 @@ static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt*
     if (expr->arg != NULL) {
       /* for the form "CASE arg WHEN ...", add first expression */
       arg = deparseExpr (ctx->root, ctx->foreignrel, expr->arg, ctx->params_list);
-      db2Debug(2,"CASE %s WHEN ...", arg);
+      db2Debug2("CASE %s WHEN ...", arg);
       if (arg == NULL) {
         appendStringInfo (&buf, " %s", arg);
       } else {
@@ -2556,7 +2553,7 @@ static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt*
           /* for CASE arg WHEN ..., use only the right branch of the equality */
           arg = deparseExpr (ctx->root, ctx->foreignrel, lsecond (((OpExpr*) whenclause->expr)->args), ctx->params_list);
         }
-        db2Debug(2,"WHEN %s ", arg);
+        db2Debug2("WHEN %s ", arg);
         if (arg != NULL) {
           appendStringInfo (&buf, " WHEN %s", arg);
         } else {
@@ -2564,7 +2561,7 @@ static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt*
           break;
         }    /* THEN */
         arg = deparseExpr (ctx->root, ctx->foreignrel, whenclause->result, ctx->params_list);
-        db2Debug(2," THEN %s ", arg);
+        db2Debug2(" THEN %s ", arg);
         if (arg != NULL) {
           appendStringInfo (&buf, " THEN %s", arg);
         } else {
@@ -2576,7 +2573,7 @@ static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt*
         /* append ELSE clause if appropriate */
         if (expr->defresult != NULL) {
           arg = deparseExpr (ctx->root, ctx->foreignrel, expr->defresult, ctx->params_list);
-          db2Debug(2,"  ELSE %s", arg);
+          db2Debug2("  ELSE %s", arg);
           if (arg != NULL) {
             appendStringInfo (&buf, " ELSE %s", arg);
           } else {
@@ -2592,13 +2589,13 @@ static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt*
     }
     db2free(buf.data);
   }
-  db2Exit(1,"< db2_deparse.c::deparseCaseExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseCoalesceExpr      (CoalesceExpr*      expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseCoalesceExpr");
+  db2Entry1();
   if (!canHandleType (expr->coalescetype)) {
-    db2Debug(2,"cannot Handle Type coalesceexpr->coalescetype (%d)", expr->coalescetype);
+    db2Debug2("cannot Handle Type coalesceexpr->coalescetype (%d)", expr->coalescetype);
   } else {
     StringInfoData result;
     char*          arg       = NULL;
@@ -2609,7 +2606,7 @@ static void deparseCoalesceExpr      (CoalesceExpr*      expr, deparse_expr_cxt*
     appendStringInfo (&result, "COALESCE(");
     foreach (cell, expr->args) {
       arg = deparseExpr (ctx->root, ctx->foreignrel, (Expr*)lfirst(cell),ctx->params_list);
-      db2Debug(2,"arg: %s", arg);
+      db2Debug2("arg: %s", arg);
       if (arg != NULL) {
         appendStringInfo(&result, ((first_arg) ? "%s" : ", %s"), arg);
         first_arg = false;
@@ -2622,16 +2619,16 @@ static void deparseCoalesceExpr      (CoalesceExpr*      expr, deparse_expr_cxt*
     }
     db2free(result.data);
   }
-  db2Exit(1,"< db2_deparse.c::deparseCoalesceExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseFuncExpr");
+  db2Entry1();
   if (!canHandleType (expr->funcresulttype)) {
-    db2Debug(2,"cannot handle funct->funcresulttype: %d",expr->funcresulttype);
+    db2Debug2("cannot handle funct->funcresulttype: %d",expr->funcresulttype);
   } else if (expr->funcformat == COERCE_IMPLICIT_CAST) {
       /* do nothing for implicit casts */
-      db2Debug(2,"COERCE_IMPLICIT_CAST == expr->funcformat(%d)",expr->funcformat);
+      db2Debug2("COERCE_IMPLICIT_CAST == expr->funcformat(%d)",expr->funcformat);
       deparseExprInt (linitial(expr->args), ctx);
   } else {
     Oid       schema;
@@ -2644,13 +2641,13 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
       elog (ERROR, "cache lookup failed for function %u", expr->funcid);
     }
     opername = db2strdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data);
-    db2Debug(2,"opername: %s",opername);
+    db2Debug2("opername: %s",opername);
     schema = ((Form_pg_proc) GETSTRUCT (tuple))->pronamespace;
-    db2Debug(2,"schema: %d",schema);
+    db2Debug2("schema: %d",schema);
     ReleaseSysCache (tuple);
     /* ignore functions in other than the pg_catalog schema */
     if (schema != PG_CATALOG_NAMESPACE) {
-      db2Debug(2,"T_FuncExpr: schema(%d) != PG_CATALOG_NAMESPACE", schema);
+      db2Debug2("T_FuncExpr: schema(%d) != PG_CATALOG_NAMESPACE", schema);
     } else {
       /* the "normal" functions that we can translate */
       if (strcmp (opername, "abs")          == 0 || strcmp (opername, "acos")         == 0 || strcmp (opername, "asin")             == 0
@@ -2696,7 +2693,7 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
             db2free(arg);
           } else {
             ok = false;
-            db2Debug(2,"T_FuncExpr: function %s that we cannot render for DB2", opername);
+            db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
             break;
           }
         }
@@ -2712,7 +2709,7 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
         /* special case: EXTRACT */
         left = deparseExpr (ctx->root, ctx->foreignrel, linitial (expr->args), ctx->params_list);
         if (left == NULL) {
-          db2Debug(2,"T_FuncExpr: function %s that we cannot render for DB2", opername);
+          db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
         } else {
           /* can only handle these fields in DB2 */
           if (strcmp (left, "'year'")          == 0 || strcmp (left, "'month'")           == 0
@@ -2725,13 +2722,13 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
             left[strlen (left) - 1] = '\0';
             right = deparseExpr (ctx->root, ctx->foreignrel, lsecond (expr->args), ctx->params_list);
             if (right == NULL) {
-              db2Debug(2,"T_FuncExpr: function %s that we cannot render for DB2", opername);
+              db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
             } else {
               appendStringInfo (ctx->buf, "EXTRACT(%s FROM %s)", left + 1, right);
             }
             db2free(right);
           } else {
-            db2Debug(2,"T_FuncExpr: function %s that we cannot render for DB2", opername);
+            db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
           }
         }
         db2free (left);
@@ -2740,28 +2737,28 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
         appendStringInfo (ctx->buf, "(CAST (?/*:now*/ AS TIMESTAMP))");
       } else {
         /* function that we cannot render for DB2 */
-        db2Debug(2,"T_FuncExpr: function %s that we cannot render for DB2", opername);
+        db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
       }
     }
     db2free (opername);
   }
-  db2Exit(1,"< db2_deparse.c::deparseFuncExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseCoerceViaIOExpr   (CoerceViaIO*       expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseCoerceViaIOExpr");
+  db2Entry1();
   /* We will only handle casts of 'now'.   */
   /* only casts to these types are handled */
   if (expr->resulttype != DATEOID && expr->resulttype != TIMESTAMPOID && expr->resulttype != TIMESTAMPTZOID) {
-    db2Debug(2,"only casts to DATEOID, TIMESTAMPOID and TIMESTAMPTZOID are handled");
+    db2Debug2("only casts to DATEOID, TIMESTAMPOID and TIMESTAMPTZOID are handled");
   } else if (expr->arg->type != T_Const) {
   /* the argument must be a Const */
-    db2Debug(2,"T_CoerceViaIO: the argument must be a Const");
+    db2Debug2("T_CoerceViaIO: the argument must be a Const");
   } else {
     Const* constant = (Const *) expr->arg;
     if (constant->constisnull || (constant->consttype != CSTRINGOID && constant->consttype != TEXTOID)) {
     /* the argument must be a not-NULL text constant */
-      db2Debug(2,"T_CoerceViaIO: the argument must be a not-NULL text constant");
+      db2Debug2("T_CoerceViaIO: the argument must be a not-NULL text constant");
     } else {
       /* get the type's output function */
       HeapTuple tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (constant->consttype));
@@ -2773,7 +2770,7 @@ static void deparseCoerceViaIOExpr   (CoerceViaIO*       expr, deparse_expr_cxt*
       ReleaseSysCache (tuple);
       /* the value must be "now" */
       if (strcmp (DatumGetCString (OidFunctionCall1 (typoutput, constant->constvalue)), "now") != 0) {
-        db2Debug(2,"value must be 'now'");
+        db2Debug2("value must be 'now'");
       } else {
         switch (expr->resulttype) {
           case DATEOID:
@@ -2795,11 +2792,11 @@ static void deparseCoerceViaIOExpr   (CoerceViaIO*       expr, deparse_expr_cxt*
       }
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseCoerceViaIOExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseSQLValueFuncExpr  (SQLValueFunction*  expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseSQLValueFuncExpr");
+  db2Entry1();
   switch (expr->op) {
     case SVFOP_CURRENT_DATE:
       appendStringInfo(ctx->buf, "TRUNC(CAST (CAST(?/*:now*/ AS TIMESTAMP) AS DATE))");
@@ -2818,16 +2815,16 @@ static void deparseSQLValueFuncExpr  (SQLValueFunction*  expr, deparse_expr_cxt*
     break;
     default:
       /* don't push down other functions */
-      db2Debug(2,"op %d cannot be translated to DB2", expr->op);
+      db2Debug2("op %d cannot be translated to DB2", expr->op);
     break;
   }
-  db2Exit(1,"< db2_deparse.c::deparseSQLValueFuncExpr: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 static void deparseAggref            (Aggref*            expr, deparse_expr_cxt* ctx) {
-  db2Entry(1,"> db2_deparse.c::deparseAggref");
+  db2Entry1();
   if (expr == NULL) {
-    db2Debug(2,"expr is NULL");
+    db2Debug2("expr is NULL");
   } else {
     /* Resolve aggregate function name (OID -> pg_proc.proname). */
     HeapTuple tuple   = SearchSysCache1(PROCOID, ObjectIdGetDatum(expr->aggfnoid));
@@ -2849,12 +2846,12 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
       }
       ReleaseSysCache(tuple);
     }
-    db2Debug(2,"aggref->aggfnoid=%u name=%s%s%s", expr->aggfnoid, nspname ? nspname : "", nspname ? "." : "", aggname ? aggname : "<unknown>");
+    db2Debug2("aggref->aggfnoid=%u name=%s%s%s", expr->aggfnoid, nspname ? nspname : "", nspname ? "." : "", aggname ? aggname : "<unknown>");
     /* We only support deparsing simple, standard aggregates for now.
      * (This can be expanded to ordered-set / FILTER / WITHIN GROUP later.)
      */
     if (expr->aggorder != NIL) {
-      db2Debug(2,"aggregate ORDER BY not supported for pushdown");
+      db2Debug2("aggregate ORDER BY not supported for pushdown");
     } else if (aggname != NULL) {
       const char*    db2func  = NULL;
       bool           distinct = (expr->aggdistinct != NIL);
@@ -2867,7 +2864,7 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
       else if (strcmp(aggname, "max") == 0) db2func = "MAX";
       else {
         /* Unknown aggregate name: we can still report it (above), but don't emit SQL. */
-        db2Debug(2,"aggregate '%s' not supported for DB2 deparse", aggname);
+        db2Debug2("aggregate '%s' not supported for DB2 deparse", aggname);
       } 
       if (db2func != NULL) {
         StringInfoData    result;
@@ -2919,14 +2916,14 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
         if (ok) {
           appendStringInfo(ctx->buf, "%s)",result.data);
         } else {
-          db2Debug(2,"parsed aggref so far: %s", result.data);
-          db2Debug(2,"could not deparse aggregate args");
+          db2Debug2("parsed aggref so far: %s", result.data);
+          db2Debug2("could not deparse aggregate args");
         }
         db2free(result.data);
       }
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseAggref: %s", ctx->buf->data);
+  db2Exit1(": %s", ctx->buf->data);
 }
 
 /** datumToString
@@ -2939,7 +2936,7 @@ static char* datumToString (Datum datum, Oid type) {
   HeapTuple      tuple;
   char*          str;
   char*          p;
-  db2Entry(1,"> db2_deparse.c::datumToString");
+  db2Entry1();
   /* get the type's output function */
   tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (type));
   if (!HeapTupleIsValid (tuple)) {
@@ -3019,7 +3016,7 @@ static char* datumToString (Datum datum, Oid type) {
     default:
       return NULL;
   }
-  db2Exit(1,"< db2_deparse.c::datumToString - returns: '%s'", result.data);
+  db2Exit1(": %s", result.data);
   return result.data;
 }
 
@@ -3029,7 +3026,7 @@ static char* datumToString (Datum datum, Oid type) {
 char* deparseDate (Datum datum) {
   struct pg_tm   datetime_tm;
   StringInfoData s;
-  db2Entry(1,"> db2_deparse.c::deparseDate");
+  db2Entry1();
   if (DATE_NOT_FINITE (DatumGetDateADT (datum)))
     ereport (ERROR, (errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE), errmsg ("infinite date value cannot be stored in DB2")));
 
@@ -3041,7 +3038,7 @@ char* deparseDate (Datum datum) {
 
   initStringInfo (&s);
   appendStringInfo (&s, "%04d-%02d-%02d 00:00:00", datetime_tm.tm_year > 0 ? datetime_tm.tm_year : -datetime_tm.tm_year + 1, datetime_tm.tm_mon, datetime_tm.tm_mday);
-  db2Exit(1,"< db2_deparse.c::deparseDate - returns: '%s'", s.data);
+  db2Exit1(": %s", s.data);
   return s.data;
 }
 
@@ -3053,7 +3050,7 @@ char* deparseTimestamp (Datum datum, bool hasTimezone) {
   int32          tzoffset;
   fsec_t         datetime_fsec;
   StringInfoData s;
-  db2Entry(1,"> db2_deparse.c::deparseTimestamp");
+  db2Entry1();
   /* this is sloppy, but DatumGetTimestampTz and DatumGetTimestamp are the same */
   if (TIMESTAMP_NOT_FINITE (DatumGetTimestampTz (datum)))
     ereport (ERROR, (errcode (ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE), errmsg ("infinite timestamp value cannot be stored in DB2")));
@@ -3077,7 +3074,7 @@ char* deparseTimestamp (Datum datum, bool hasTimezone) {
       datetime_tm.tm_year > 0 ? datetime_tm.tm_year : -datetime_tm.tm_year + 1,
       datetime_tm.tm_mon, datetime_tm.tm_mday, datetime_tm.tm_hour,
       datetime_tm.tm_min, datetime_tm.tm_sec, (int32) datetime_fsec);
-  db2Exit(1,"< db2_deparse.c::deparseTimestamp - returns: '%s'", s.data);
+  db2Exit1(": '%s'", s.data);
   return s.data;
 }
 
@@ -3099,7 +3096,7 @@ static void deparseConst(Const *node, deparse_expr_cxt *context, int showtype) {
   bool        isstring      = false;
   bool        needlabel;
 
-  db2Entry(1,"> db2_deparse.c::deparseConst");
+  db2Entry1();
   if (node->constisnull) {
     appendStringInfoString(buf, "NULL");
     if (showtype >= 0)
@@ -3150,7 +3147,7 @@ static void deparseConst(Const *node, deparse_expr_cxt *context, int showtype) {
   }
   pfree(extval);
   if (showtype == -1) {
-    db2Exit(1,"< db2_deparse.c::deparseConst");
+    db2Exit1();
     return;           /* never print type label */
   }
   /* For showtype == 0, append ::typename unless the constant will be implicitly typed as the right type when it is read in.
@@ -3176,7 +3173,7 @@ static void deparseConst(Const *node, deparse_expr_cxt *context, int showtype) {
   }
   if (needlabel || showtype > 0)
     appendStringInfo(buf, "::%s", deparse_type_name(node->consttype, node->consttypmod));
-  db2Exit(1,"< db2_deparse.c::deparseConst");
+  db2Exit1();
 }
 
 /** Print the name of an operator.
@@ -3184,7 +3181,7 @@ static void deparseConst(Const *node, deparse_expr_cxt *context, int showtype) {
 static void deparseOperatorName(StringInfo buf, Form_pg_operator opform) {
   char* opname = NULL;
 
-  db2Entry(1,"> db2_deparse.c::deparseOperatorName");
+  db2Entry1();
   /* opname is not a SQL identifier, so we should not quote it. */
   opname = NameStr(opform->oprname);
 
@@ -3199,7 +3196,7 @@ static void deparseOperatorName(StringInfo buf, Form_pg_operator opform) {
     /* Just print operator name. */
     appendStringInfoString(buf, opname);
   }
-  db2Exit(1,"< db2_deparse.c::deparseOperatorName");
+  db2Exit1();
 }
 
 /** deparsedeparseInterval
@@ -3216,7 +3213,7 @@ static char* deparseInterval (Datum datum) {
   char*          sign;
   int            idx = 0;
 
-  db2Entry(1,"> db2_deparse.c::deparseInterval");
+  db2Entry1();
   #if PG_VERSION_NUM >= 150000
   interval2itm (*DatumGetIntervalP (datum), &tm);
   #else
@@ -3282,7 +3279,7 @@ static char* deparseInterval (Datum datum) {
 //  #else
 //  appendStringInfo (&s, "INTERVAL '%s%d %02d:%02d:%02d.%06d' DAY(9) TO SECOND(6)", sign, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, fsec);
 //  #endif
-  db2Exit(1,"< db2_deparse.c::deparseInterval - returns: '%s'",s.data);
+  db2Exit1(": '%s'",s.data);
   return s.data;
 }
 
@@ -3295,7 +3292,7 @@ static void deparseLockingClause(deparse_expr_cxt *context) {
   DB2FdwState*  fpinfo  = (DB2FdwState*) rel->fdw_private;
   int           relid   = -1;
 
-  db2Entry(1,"> db2_deparse.c::deparseLockingClause");
+  db2Entry1();
   while ((relid = bms_next_member(rel->relids, relid)) >= 0) {
     /* Ignore relation if it appears in a lower subquery.  Locking clause for such a relation is included in the subquery if necessary. */
     if (bms_is_member(relid, fpinfo->lower_subquery_rels))
@@ -3345,14 +3342,14 @@ static void deparseLockingClause(deparse_expr_cxt *context) {
       }
     }
   }
-  db2Exit(1,"< db2_deparse.c::deparseLockingClause");
+  db2Exit1();
 }
 
 /** Output join name for given join type 
  */
 char* get_jointype_name (JoinType jointype) {
   char* type = NULL;
-  db2Entry(1,"> get_jointype_name");
+  db2Entry1();
   switch (jointype) {
     case JOIN_INNER:
       type = "INNER";
@@ -3371,8 +3368,7 @@ char* get_jointype_name (JoinType jointype) {
       elog (ERROR, "unsupported join type %d", jointype);
     break;
   }
-  db2Debug(2,"type: '%s'",type);
-  db2Exit(1,"< get_jointype_name");
+  db2Exit1(": %s", type);
   return type;
 }
 
@@ -3387,7 +3383,7 @@ static void deparseTargetList(StringInfo buf, RangeTblEntry *rte, Index rtindex,
   bool      first;
   int       i;
 
-  db2Entry(1,"> db2_deparse.c::deparseTargetList");
+  db2Entry1();
   *retrieved_attrs = NIL;
 
   /* If there's a whole-row reference, we'll need all the columns. */
@@ -3426,7 +3422,7 @@ static void deparseTargetList(StringInfo buf, RangeTblEntry *rte, Index rtindex,
   /* Don't generate bad syntax if no undropped columns */
   if (first && !is_returning)
     appendStringInfoString(buf, "NULL");
-  db2Exit(1,"< db2_deparse.c::deparseTargetList : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /** Deparse given targetlist and append it to context->buf.
@@ -3442,7 +3438,7 @@ static void deparseExplicitTargetList(List* tlist, bool is_returning, List** ret
   StringInfo  buf = context->buf;
   int         i   = 0;
 
-  db2Entry(1,"> db2_deparse.c::deparseExplicitTargetList");
+  db2Entry1();
   *retrieved_attrs = NIL;
 
   foreach(lc, tlist) {
@@ -3461,7 +3457,7 @@ static void deparseExplicitTargetList(List* tlist, bool is_returning, List** ret
 
   if (i == 0 && !is_returning)
     appendStringInfoString(buf, "NULL");
-  db2Exit(1,"< db2_deparse.c::deparseExplicitTargetList : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* Emit expressions specified in the given relation's reltarget.
@@ -3472,7 +3468,7 @@ static void deparseSubqueryTargetList(deparse_expr_cxt* context) {
   bool        first = true;
   ListCell*   lc;
 
-  db2Entry(1,"> db2_deparse.c::deparseSubqueryTargetList");
+  db2Entry1();
   /* Should only be called in these cases. */
   Assert(IS_SIMPLE_REL(context->foreignrel) || IS_JOIN_REL(context->foreignrel));
   foreach(lc, context->foreignrel->reltarget->exprs) {
@@ -3485,7 +3481,7 @@ static void deparseSubqueryTargetList(deparse_expr_cxt* context) {
   /* Don't generate bad syntax if no expressions */
   if (first)
     appendStringInfoString(context->buf, "NULL");
-  db2Exit(1,"< db2_deparse.c::deparseSubqueryTargetList : %s", context->buf->data);
+  db2Exit1(": %s", context->buf->data);
 }
 
 /* Given an EquivalenceClass and a foreign relation, find an EC member that can be used to sort the relation remotely according to a pathkey using this EC.
@@ -3500,7 +3496,7 @@ EquivalenceMember* find_em_for_rel(PlannerInfo* root, EquivalenceClass* ec, RelO
   EquivalenceMemberIterator it;
   EquivalenceMember*        em = NULL;
 
-  db2Entry(1,"> db2_deparse.c::find_em_for_rel");
+  db2Entry1();
   setup_eclass_member_iterator(&it, ec, rel->relids);
   while ((em = eclass_member_iterator_next(&it)) != NULL) {
     /* Note we require !bms_is_empty, else we'd accept constant expressions which are not suitable for the purpose. */
@@ -3510,7 +3506,7 @@ EquivalenceMember* find_em_for_rel(PlannerInfo* root, EquivalenceClass* ec, RelO
     &&  is_foreign_expr(root, rel, em->em_expr))
     break;
   }
-  db2Exit(1,"< db2_deparse.c::find_em_for_rel : %x",em);
+  db2Exit1(": %x",em);
   return em;
 }
 
@@ -3526,7 +3522,7 @@ EquivalenceMember* find_em_for_rel_target(PlannerInfo* root, EquivalenceClass* e
   ListCell*   lc1;
   int         i = 0;
 
-  db2Entry(1,"> db2_deparse.c::find_em_for_rel_target");
+  db2Entry1();
   foreach(lc1, target->exprs) {
     Expr*       expr  = (Expr *) lfirst(lc1);
     Index       sgref = get_pathtarget_sortgroupref(target, i);
@@ -3566,13 +3562,13 @@ EquivalenceMember* find_em_for_rel_target(PlannerInfo* root, EquivalenceClass* e
 
       /* Check that expression (including relabels!) is shippable */
       if (is_foreign_expr(root, rel, em->em_expr)) {
-        db2Exit(1,"< db2_deparse.c::find_em_for_rel_target : %x", em);
+        db2Exit1(": %x", em);
         return em;
       }
     }
     i++;
   }
-  db2Exit(1,"< db2_deparse.c::find_em_for_rel_target : %x", NULL);
+  db2Exit1(": %x", NULL);
   return NULL;
 }
 
@@ -3597,7 +3593,7 @@ void deparseDirectUpdateSql(StringInfo buf, PlannerInfo *root, Index rtindex, Re
   ListCell*         lc2               = NULL;
   List*             additional_conds  = NIL;
 
-  db2Entry(1,"> db2_deparse.c::deparseDirectUpdateSql");
+  db2Entry1();
   /* Set up context struct for recursion */
   context.root        = root;
   context.foreignrel  = foreignrel;
@@ -3650,7 +3646,7 @@ void deparseDirectUpdateSql(StringInfo buf, PlannerInfo *root, Index rtindex, Re
     deparseExplicitTargetList(returningList, true, retrieved_attrs, &context);
   else
     deparseReturningList(buf, rte, rtindex, rel, false, NIL, returningList, retrieved_attrs);
-  db2Exit(1,"< db2_deparse.c::deparseDirectUpdateSql : %s",buf->data);
+  db2Exit1(": %s",buf->data);
 }
 
 /*
@@ -3659,7 +3655,7 @@ void deparseDirectUpdateSql(StringInfo buf, PlannerInfo *root, Index rtindex, Re
 static void deparseReturningList(StringInfo buf, RangeTblEntry *rte, Index rtindex, Relation rel, bool trig_after_row, List *withCheckOptionList, List *returningList, List **retrieved_attrs) {
   Bitmapset  *attrs_used = NULL;
 
-  db2Entry(1,"> db2_deparse.c::deparseReturningList");
+  db2Entry1();
   if (trig_after_row) {
     /* whole-row reference acquires all non-system columns */
     attrs_used = bms_make_singleton(0 - FirstLowInvalidHeapAttributeNumber);
@@ -3683,21 +3679,21 @@ static void deparseReturningList(StringInfo buf, RangeTblEntry *rte, Index rtind
     deparseTargetList(buf, rte, rtindex, rel, true, attrs_used, false, retrieved_attrs);
   else
     *retrieved_attrs = NIL;
-  db2Exit(1,"< db2_deparse.c::deparseReturningList : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* deparse remote DELETE statement
  * The statement text is appended to buf, and we also create an integer List of the columns being retrieved by RETURNING (if any), which is returned to *retrieved_attrs.
  */
 void deparseDeleteSql(StringInfo buf, RangeTblEntry *rte, Index rtindex, Relation rel, List *returningList, List **retrieved_attrs) {
-  db2Entry(1,"> db2_deparse.c::deparseDeleteSql");
+  db2Entry1();
 
   appendStringInfoString(buf, "DELETE FROM ");
   deparseRelation(buf, rel);
   appendStringInfoString(buf, " WHERE ctid = $1");
   deparseReturningList(buf, rte, rtindex, rel, rel->trigdesc && rel->trigdesc->trig_delete_after_row, NIL, returningList, retrieved_attrs);
 
-  db2Exit(1,"> db2_deparse.c::deparseDeleteSql : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }
 
 /* deparse remote DELETE statement
@@ -3714,7 +3710,7 @@ void deparseDirectDeleteSql(StringInfo buf, PlannerInfo *root, Index rtindex, Re
   deparse_expr_cxt context;
   List	   *additional_conds = NIL;
 
-  db2Entry(1,"> db2_deparse.c::deparseDirectDeleteSql");
+  db2Entry1();
   /* Set up context struct for recursion */
   context.root = root;
   context.foreignrel = foreignrel;
@@ -3745,5 +3741,5 @@ void deparseDirectDeleteSql(StringInfo buf, PlannerInfo *root, Index rtindex, Re
     deparseExplicitTargetList(returningList, true, retrieved_attrs, &context);
   else
     deparseReturningList(buf, planner_rt_fetch(rtindex, root), rtindex, rel, false, NIL, returningList, retrieved_attrs);
-  db2Exit(1,"< db2_deparse.c::deparseDirectDeleteSql : %s", buf->data);
+  db2Exit1(": %s", buf->data);
 }

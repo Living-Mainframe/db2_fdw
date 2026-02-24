@@ -15,9 +15,6 @@ extern int          err_code;              /* error code, set by db2CheckErr()  
 /** external prototypes */
 extern void*        db2alloc             (const char* type, size_t size);
 extern void         db2free              (void* p);
-extern void         db2Entry             (int level, const char* message, ...);
-extern void         db2Exit              (int level, const char* message, ...);
-extern void         db2Debug             (int level, const char* message, ...);
 extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void         db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLSMALLINT  param2c              (SQLSMALLINT fcType);
@@ -28,11 +25,11 @@ extern void         db2BindParameter     (DB2Session* session, ParamDesc* param,
 /** internal prototypes */
 int                 db2ExecuteQuery      (DB2Session* session, ParamDesc* paramList);
 
-/** db2ExecuteQuery
- *   Execute a prepared statement and fetches the first result row.
- *   The parameters ("bind variables") are filled from paramList.
- *   Returns the count of processed rows.
- *   This can be called several times for a prepared SQL statement.
+/* db2ExecuteQuery
+ * Execute a prepared statement and fetches the first result row.
+ * The parameters ("bind variables") are filled from paramList.
+ * Returns the count of processed rows.
+ * This can be called several times for a prepared SQL statement.
  */
 int db2ExecuteQuery (DB2Session* session, ParamDesc* paramList) {
   SQLLEN*     indicators   = NULL;
@@ -43,11 +40,11 @@ int db2ExecuteQuery (DB2Session* session, ParamDesc* paramList) {
   int         rowcount     = 0;
   int         param_count  = 0;
   
-  db2Entry(1,"> db2ExecuteQuery.c::db2ExecureQuery");
+  db2Entry1();
   for (param = paramList; param != NULL; param = param->next) {
     ++param_count;
   }
-  db2Debug(2,"paramcount: %d",param_count);
+  db2Debug2("paramcount: %d",param_count);
   /* allocate a temporary array of indicators */
   indicators = db2alloc ("indicators", param_count * sizeof (SQLLEN));
 
@@ -58,13 +55,13 @@ int db2ExecuteQuery (DB2Session* session, ParamDesc* paramList) {
     db2BindParameter(session, param, &indicators[param_count], param_count, param_count);
   }
   /* execute the query and get the first result row */
-  db2Debug(2,"session->stmtp->hsql: %d",session->stmtp->hsql);
+  db2Debug2("session->stmtp->hsql: %d",session->stmtp->hsql);
   rc = SQLGetCursorName(session->stmtp->hsql, cname, (SQLSMALLINT)sizeof(cname), &outlen); 
   rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS) {
     db2Error_d(FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLGetCusorName failed to obtain cursor name", db2Message);
   }
-  db2Debug(2,"cursor name: '%s'", cname);
+  db2Debug2("cursor name: '%s'", cname);
   rc = SQLExecute (session->stmtp->hsql);
   rc = db2CheckErr(rc, session->stmtp->hsql, session->stmtp->type, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS && rc != SQL_NO_DATA) {
@@ -73,7 +70,7 @@ int db2ExecuteQuery (DB2Session* session, ParamDesc* paramList) {
   }
   db2free(indicators);
   if (rc == SQL_NO_DATA) {
-    db2Debug(3,"SQL_NO_DATA");
+    db2Debug3("SQL_NO_DATA");
   } else {
     SQLINTEGER  rowcount_val = 0;
 
@@ -83,9 +80,9 @@ int db2ExecuteQuery (DB2Session* session, ParamDesc* paramList) {
     if (rc != SQL_SUCCESS) {
       db2Error_d ( FDW_UNABLE_TO_CREATE_EXECUTION, "error executing query: SQLRowCount failed to get number of affected rows", db2Message);
     }
-    db2Debug(2,"rowcount_val: %lld", rowcount_val);
+    db2Debug2("rowcount_val: %lld", rowcount_val);
     rowcount = (int) rowcount_val;
   }
-  db2Exit(1,"< db2ExecuteQuery.c::db2ExecureQuery : %d",rowcount);
+  db2Exit1(": %d",rowcount);
   return rowcount;
 }

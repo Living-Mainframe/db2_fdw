@@ -3,9 +3,6 @@
 #include "DB2FdwDirectModifyState.h"
 
 /** external prototypes */
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 
 /** local prototypes */
 TupleTableSlot* db2IterateDirectModify(ForeignScanState *node);
@@ -26,7 +23,7 @@ TupleTableSlot* db2IterateDirectModify(ForeignScanState *node) {
   List*           param_exps    = dmstate->param_exprs;
   
   // call db2ExecForeignDirectUpdate() similar to db2ExecForeignInsert()
-  db2Entry(1,"> db2IterateDirectModify.c::db2IterateDirectModify");
-  db2Exit(1,"> db2IterateDirectModify.c::db2IterateDirectModify : %x", slot);
+  db2Entry1();
+  db2Exit1(": %x", slot);
   return slot;
 }

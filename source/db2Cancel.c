@@ -8,8 +8,6 @@
 extern DB2EnvEntry* rootenvEntry;          /* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void      db2Entry             (int level, const char* message, ...);
-extern void      db2Exit              (int level, const char* message, ...);
 
 /** local prototypes */
 void             db2Cancel            (void);
@@ -22,7 +20,7 @@ void db2Cancel (void) {
   DB2ConnEntry* connp  = NULL;
   HdlEntry*     entryp = NULL;
 
-  db2Entry(1,"> db2Cancel.c::db2Cancel");
+  db2Entry1();
   /* send a cancel request for all servers ignoring errors */
   for (envp = rootenvEntry; envp != NULL; envp = envp->right) {
     for (connp = envp->connlist; connp != NULL; connp = connp->right) {
@@ -33,5 +31,5 @@ void db2Cancel (void) {
       }
     }
   }
-  db2Exit(1,"< db2Cancel.c::db2Cancel");
+  db2Exit1();
 }

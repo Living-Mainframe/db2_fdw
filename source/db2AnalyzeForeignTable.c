@@ -16,9 +16,6 @@ extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 extern short        c2dbType                  (short fcType);
 extern void         convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
-extern void         db2Debug                  (int level, const char* message, ...);
 extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
@@ -27,11 +24,11 @@ static int  acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* row
 
 /* db2AnalyzeForeignTable */
 bool db2AnalyzeForeignTable (Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages) {
-  db2Entry(1,"> db2AnalyzeForeignTable.c::db2AnalyzeForeignTable");
+  db2Entry1();
   *func = acquireSampleRowsFunc;
   /* use positive page count as a sign that the table has been ANALYZEd */
   *totalpages = 42;
-  db2Exit(1,"< db2AnalyzeForeignTable.c::db2AnalyzeForeignTable : true");
+  db2Exit1(": true");
   return true;
 }
 
@@ -53,8 +50,8 @@ static int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows
   MemoryContext     old_cxt;
   MemoryContext     tmp_cxt;
 
-  db2Entry(1,"> db2AnalyzeForeignTable.c::acquireSampleRowsFunc");
-  db2Debug(2,"db2_fdw: analyze foreign table %d", RelationGetRelid (relation));
+  db2Entry1();
+  db2Debug2("db2_fdw: analyze foreign table %d", RelationGetRelid (relation));
 
   *totalrows = 0;
 
@@ -97,9 +94,9 @@ static int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows
     appendStringInfo (&query, " SAMPLE BLOCK (%f)", sample_percent);
 
   fdw_state->query = query.data;
-  db2Debug(2,"fdw_state->query: '%s'", fdw_state->query);
+  db2Debug2("fdw_state->query: '%s'", fdw_state->query);
 
-  db2Debug(3,"loop through query results");
+  db2Debug3("loop through query results");
   /* loop through query results */
   fdw_state->rowcount = -1;
   while (db2IsStatementOpen (fdw_state->session) ? db2FetchNext (fdw_state->session) : (db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->resultList, fdw_state->prefetch, fdw_state->fetch_size), db2ExecuteQuery (fdw_state->session, fdw_state->paramList))) {
@@ -148,7 +145,7 @@ static int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows
   /* report report */
   ereport (elevel, (errmsg ("\"%s\": table contains %lu rows; %d rows in sample", RelationGetRelationName (relation), fdw_state->rowcount, collected_rows-1)));
 
-  db2Exit(1,"< db2AnalyzeForeignTable.c::acquireSampleRowsFunc");
+  db2Exit1();
   return collected_rows;
 }
 

@@ -196,4 +196,40 @@ typedef enum { CASE_KEEP, CASE_LOWER, CASE_SMART } fold_t;
 #define serializeInt(x)                makeConst(INT4OID, -1, InvalidOid, 4, Int32GetDatum((int32)(x)), false, true)
 #define serializeOid(x)                makeConst(OIDOID, -1, InvalidOid, 4, ObjectIdGetDatum(x), false, true)
 
+extern void db2EntryExit(int level, int entry, const char* message, ...);
+extern void db2Debug    (int level, const char* message, ...);
+
+#define db2Entry1(fmt, ...) \
+    db2EntryExit(1, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Entry2(fmt, ...) \
+    db2EntryExit(2, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Entry3(fmt, ...) \
+    db2EntryExit(3, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Entry4(fmt, ...) \
+    db2EntryExit(4, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Entry5(fmt, ...) \
+    db2EntryExit(5, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
+#define db2Exit1(fmt, ...) \
+    db2EntryExit(1, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Exit2(fmt, ...) \
+    db2EntryExit(2, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Exit3(fmt, ...) \
+    db2EntryExit(3, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Exit4(fmt, ...) \
+    db2EntryExit(4, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Exit5(fmt, ...) \
+    db2EntryExit(5, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
+#define db2Debug1(fmt, ...) \
+    db2Debug(1, "1 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Debug2(fmt, ...) \
+    db2Debug(2, "2 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Debug3(fmt, ...) \
+    db2Debug(3, "3 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Debug4(fmt, ...) \
+    db2Debug(4, "4 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define db2Debug5(fmt, ...) \
+    db2Debug(5, "5 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
 #endif

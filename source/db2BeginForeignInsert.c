@@ -13,9 +13,6 @@
 extern DB2FdwState* db2GetFdwState             (Oid foreigntableid, double* sample_percent, bool describe);
 extern void         addParam                   (ParamDesc** paramList, DB2Column* db2col, int colnum, int txts);
 extern void         checkDataType              (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
-extern void         db2Entry                   (int level, const char* message, ...);
-extern void         db2Exit                    (int level, const char* message, ...);
-extern void         db2Debug                   (int level, const char* message, ...);
 extern void         appendAsType               (StringInfoData* dest, Oid type);
 extern void         db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan);
 
@@ -27,11 +24,11 @@ void db2BeginForeignInsert(ModifyTableState* mtstate, ResultRelInfo* rinfo) {
   Relation     rel       = rinfo->ri_RelationDesc;
   DB2FdwState* fdw_state = NULL;
 
-  db2Entry(1," db2BeginForeignInsert.c::db2BeginForeignInsert");
+  db2Entry1();
   fdw_state = db2BuildInsertFdwState(rel);
   /* subplan is irrelevant for pure INSERT/COPY */
   db2BeginForeignModifyCommon(mtstate, rinfo, fdw_state, NULL);
-  db2Exit(1,"< db2BeginForeignInsert.c::db2BeginForeignInsert");
+  db2Exit1();
 }
 
 DB2FdwState* db2BuildInsertFdwState(Relation rel) {
@@ -40,7 +37,7 @@ DB2FdwState* db2BuildInsertFdwState(Relation rel) {
   int             i;
   bool            firstcol;
 
-  db2Entry(1," db2BeginForeignInsert.c::db2BuildInsertFdwState");
+  db2Entry1();
   /* Same logic as CMD_INSERT branch of db2PlanForeignModify: */
   fdwState = db2GetFdwState(RelationGetRelid(rel), NULL, true);
   initStringInfo(&sql);
@@ -73,6 +70,6 @@ DB2FdwState* db2BuildInsertFdwState(Relation rel) {
   appendStringInfo(&sql, ")");
   fdwState->query = sql.data;
   db2Debug(2,"fdwState->query: '%s'",sql.data);
-  db2Exit(1,"< db2BeginForeignInsert.c::db2BuildInsertFdwState - returns fdwState: %x",fdwState);
+  db2Exit1(": %x",fdwState);
   return fdwState;
 }

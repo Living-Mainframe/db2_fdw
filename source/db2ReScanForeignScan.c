@@ -7,8 +7,6 @@
 
 /** external prototypes */
 extern void         db2CloseStatement         (DB2Session* session);
-extern void         db2Entry                  (int level, const char* message, ...);
-extern void         db2Exit                   (int level, const char* message, ...);
 
 /** local prototypes */
 void db2ReScanForeignScan(ForeignScanState* node);
@@ -20,10 +18,10 @@ void db2ReScanForeignScan(ForeignScanState* node);
 void db2ReScanForeignScan (ForeignScanState* node) {
   DB2FdwState* fdw_state = (DB2FdwState*) node->fdw_state;
  
-  db2Entry(1,"> db2ReScanForeignScan.c::db2ReScanForeignScan");
+  db2Entry1();
   /* close open DB2 statement if there is one */
   db2CloseStatement(fdw_state->session);
   /* reset row count to zero */
   fdw_state->rowcount = 0;
-  db2Exit(1,"< db2ReScanForeignScan.c::db2ReScanForeignScan");
+  db2Exit1();
 }
