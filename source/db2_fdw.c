@@ -14,15 +14,12 @@
 #include <commands/explain_state.h>
 #include <commands/explain_format.h>
 #endif
-#include <foreign/fdwapi.h>
-#include <foreign/foreign.h>
 #include <miscadmin.h>
 #include <storage/ipc.h>
 #include <utils/builtins.h>
 #include <utils/array.h>
 #include <utils/guc.h>
 #include <utils/syscache.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include "db2_fdw.h"
@@ -170,10 +167,10 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
   fdwroutine->BeginForeignInsert        = db2BeginForeignInsert;
   fdwroutine->EndForeignInsert          = db2EndForeignInsert;
 
-//  fdwroutine->PlanDirectModify          = db2PlanDirectModify;
-//	fdwroutine->BeginDirectModify         = db2BeginDirectModify;
-//	fdwroutine->IterateDirectModify       = db2IterateDirectModify;
-//	fdwroutine->EndDirectModify           = db2EndDirectModify;
+  fdwroutine->PlanDirectModify          = db2PlanDirectModify;
+  fdwroutine->BeginDirectModify         = db2BeginDirectModify;
+  fdwroutine->IterateDirectModify       = db2IterateDirectModify;
+  fdwroutine->EndDirectModify           = db2EndDirectModify;
 
   #if PG_VERSION_NUM >= 140000
   fdwroutine->ExecForeignTruncate       = db2ExecForeignTruncate;

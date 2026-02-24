@@ -1,7 +1,6 @@
 #include <postgres.h>
 #include <commands/explain.h>
 #include <nodes/nodeFuncs.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include <access/xact.h>
@@ -12,24 +11,23 @@
 extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern void*        db2alloc                  (const char* type, size_t size);
 extern DB2FdwState* deserializePlanData       (List* list);
-extern void         db2Debug1                 (const char* message, ...);
-extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Entry                  (int level, const char* message, ...);
+extern void         db2Exit                   (int level, const char* message, ...);
+extern void         db2Debug                  (int level, const char* message, ...);
 
 /** local prototypes */
         void  db2BeginForeignScan (ForeignScanState* node, int eflags);
 static  void  addExprParams       (ForeignScanState* node);
 
-/** db2BeginForeignScan
- *   Recover ("deserialize") connection information, remote query,
- *   DB2 table description and parameter list from the plan's
- *   "fdw_private" field.
- *   Reestablish a connection to DB2.
+/* db2BeginForeignScan
+ * Recover ("deserialize") connection information, remote query, DB2 table description and parameter list from the plan's "fdw_private" field.
+ * Reestablish a connection to DB2.
  */
 void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   ForeignScan* fsplan      = (ForeignScan*) node->ss.ps.plan;
   DB2FdwState* fdw_state   = NULL;
 
-  db2Debug1("> db2BeginForeignScan");
+  db2Entry(1,"> db2BeginForeignScan.c::db2BeginForeignScan");
   /* deserialize private plan data */
   fdw_state       = deserializePlanData(fsplan->fdw_private);
   node->fdw_state = (void *) fdw_state;
@@ -50,9 +48,9 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
   }
 
   if (node->ss.ss_currentRelation)
-    elog (DEBUG3, "  begin foreign table scan on relid: %d", RelationGetRelid (node->ss.ss_currentRelation));
+    db2Debug(3,"begin foreign table scan on relid: %d", RelationGetRelid (node->ss.ss_currentRelation));
   else
-    elog (DEBUG3, "  begin foreign join");
+    db2Debug(3,"begin foreign join");
 
   /* connect to DB2 database */
   fdw_state->session = db2GetSession (fdw_state->dbserver
@@ -65,7 +63,7 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
 
   /* initialize row count to zero */
   fdw_state->rowcount = 0;
-  db2Debug1("< db2BeginForeignScan");
+  db2Exit(1,"< db2BeginForeignScan.c::db2BeginForeignScan");
 }
 
 static void addExprParams(ForeignScanState* node){
@@ -75,10 +73,10 @@ static void addExprParams(ForeignScanState* node){
   ParamDesc*   paramDesc   = NULL;
   ListCell*    cell        = NULL;
 
-  db2Debug1("> addExprParams");
+  db2Entry(1,"> db2BeginForeignScan.c::addExprParams");
   /* create an ExprState tree for the parameter expressions */
   exec_exprs = (List*) ExecInitExprList (fsplan->fdw_exprs, (PlanState*) node);
-  db2Debug2("  exec_expr: %x[%d]",exec_exprs, list_length(exec_exprs));
+  db2Debug(2,"exec_expr: %x[%d]",exec_exprs, list_length(exec_exprs));
   /* create the list of parameters */
   foreach (cell, exec_exprs) {
     ExprState* expr = (ExprState*) lfirst (cell);
@@ -109,8 +107,8 @@ static void addExprParams(ForeignScanState* node){
     paramDesc->colnum    = -1;
     paramDesc->txts      = 0;
     paramDesc->next      = fdw_state->paramList;
-    db2Debug2("  paramDesc->colnum: %d  ",paramDesc->colnum);
+    db2Debug(2,"paramDesc->colnum: %d  ",paramDesc->colnum);
     fdw_state->paramList = paramDesc;
   }
-  db2Debug1("< addExprParams");
+  db2Exit(1,"< db2BeginForeignScan.c::addExprParams");
 }

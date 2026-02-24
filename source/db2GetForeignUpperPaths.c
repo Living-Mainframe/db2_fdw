@@ -18,9 +18,9 @@
 #include "DB2FdwPathExtraData.h"
 
 /** external prototypes */
-extern void               db2Debug1                 (const char* message, ...);
-extern void               db2Debug2                 (const char* message, ...);
-extern void               db2Debug3                 (const char* message, ...);
+extern void               db2Entry                  (int level, const char* message, ...);
+extern void               db2Exit                   (int level, const char* message, ...);
+extern void               db2Debug                  (int level, const char* message, ...);
 extern void*              db2alloc                  (const char* type, size_t size);
 extern char*              db2strdup                 (const char* source);
 extern void*              db2free                   (void* p);
@@ -50,98 +50,98 @@ static bool         foreign_grouping_ok       (PlannerInfo* root, RelOptInfo* gr
 static void         merge_fdw_options         (DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, const DB2FdwState* fpinfo_i);
 
 void db2GetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage, RelOptInfo *input_rel, RelOptInfo *output_rel, void *extra) {
-  db2Debug1("> %s::db2GetForeignUpperPaths",__FILE__);
+  db2Entry(1,"> db2GetForeignUpperPaths.c::db2GetForeignUpperPaths");
   if (root != NULL && root->parse != NULL && input_rel->fdw_private != NULL && output_rel->fdw_private == NULL) {
     Query*       query   = root->parse;
-    db2Debug3("  query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
-    db2Debug3("  query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
-    db2Debug3("  query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
-    db2Debug3("  query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
-    db2Debug3("  query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
+    db2Debug(3,"query->hasAggs        : %s", query->hasAggs         ? "true" : "false");
+    db2Debug(3,"query->hasWindowFuncs : %s", query->hasWindowFuncs  ? "true" : "false");
+    db2Debug(3,"query->hasDistinctOn  : %s", query->hasDistinctOn   ? "true" : "false");
+    db2Debug(3,"query->hasTargetSRFs  : %s", query->hasTargetSRFs   ? "true" : "false");
+    db2Debug(3,"query->hasForUpdate   : %s", query->hasForUpdate    ? "true" : "false");
     #if PG_VERSION_NUM >= 180000
-    db2Debug3("  query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
+    db2Debug(3,"query->hasGroupRTE    : %s", query->hasGroupRTE     ? "true" : "false");
     #endif
-    db2Debug3("  query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
-    db2Debug3("  query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
-    db2Debug3("  query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
-    db2Debug3("  query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
+    db2Debug(3,"query->hasModifyingCTE: %s", query->hasModifyingCTE ? "true" : "false");
+    db2Debug(3,"query->hasRecursive   : %s", query->hasRecursive    ? "true" : "false");
+    db2Debug(3,"query->hasSubLinks    : %s", query->hasSubLinks     ? "true" : "false");
+    db2Debug(3,"query->hasRowSecurity : %s", query->hasRowSecurity  ? "true" : "false");
 
 //  if (db2_is_shippable(root, stage, input_rel, output_rel)) {
       db2CloneFdwStateUpper(root, input_rel, output_rel);
 
       switch (stage) {
         case UPPERREL_SETOP:              // UNION/INTERSECT/EXCEPT
-          db2Debug2("  stage: %d - UPPERREL_SETOP", stage);
+          db2Debug(2,"stage: %d - UPPERREL_SETOP", stage);
         break;
         case UPPERREL_PARTIAL_GROUP_AGG:  // partial grouping/aggregation
-          db2Debug2("  stage: %d - UPPERREL_PARTIAL_GROUP_AGG", stage);
-          db2Debug2("  query->hasAggs: %d", query->hasAggs);
-          db2Debug2("  query->groupClause: %x", query->groupClause);
+          db2Debug(2,"stage: %d - UPPERREL_PARTIAL_GROUP_AGG", stage);
+          db2Debug(2,"query->hasAggs: %d", query->hasAggs);
+          db2Debug(2,"query->groupClause: %x", query->groupClause);
           if (query->hasAggs || query->groupClause != NIL) {
             add_foreign_grouping_paths(root, input_rel, output_rel, (GroupPathExtraData*) extra);
           }
         break;
         case UPPERREL_GROUP_AGG: {        // grouping/aggregation
-          db2Debug2("  stage: %d - UPPERREL_GROUP_AGG", stage);
-          db2Debug2("  query->hasAggs: %d", query->hasAggs);
-          db2Debug2("  query->groupClause: %x", query->groupClause);
+          db2Debug(2,"stage: %d - UPPERREL_GROUP_AGG", stage);
+          db2Debug(2,"query->hasAggs: %d", query->hasAggs);
+          db2Debug(2,"query->groupClause: %x", query->groupClause);
           if (query->hasAggs || query->groupClause != NIL) {
             add_foreign_grouping_paths(root, input_rel, output_rel, (GroupPathExtraData*) extra);
           }
         }
         break;
         case UPPERREL_WINDOW: {           // window functions
-          db2Debug2("  stage: %d - UPPERREL_WINDOW", stage);
-          db2Debug2("  query->hasWindowFuncs: %d", query->hasWindowFuncs);
+          db2Debug(2,"stage: %d - UPPERREL_WINDOW", stage);
+          db2Debug(2,"query->hasWindowFuncs: %d", query->hasWindowFuncs);
           if (query->hasWindowFuncs) {
-            db2Debug2("  window function push down not yet implemented");
+            db2Debug(2,"window function push down not yet implemented");
           }
         }
         break;
         #if PG_VERSION_NUM >= 150000
         case UPPERREL_PARTIAL_DISTINCT: { // partial "SELECT DISTINCT"
-          db2Debug2("  stage: %d - UPPERREL_PARTIAL_DISTINCT", stage);
-          db2Debug2("  query->hasDistinctOn: %d", query->hasDistinctOn);
+          db2Debug(2,"stage: %d - UPPERREL_PARTIAL_DISTINCT", stage);
+          db2Debug(2,"query->hasDistinctOn: %d", query->hasDistinctOn);
           if (query->hasDistinctOn) {
-            db2Debug2("  distinct function push down not yet implemented");
+            db2Debug(2,"distinct function push down not yet implemented");
           }
         }
         break;
         #endif
         case UPPERREL_DISTINCT: {         // "SELECT DISTINCT"
-          db2Debug2("  stage: %d - UPPERREL_DISTINCT", stage);
-          db2Debug2("  query->hasDistinctOn: %d", query->hasDistinctOn);
+          db2Debug(2,"stage: %d - UPPERREL_DISTINCT", stage);
+          db2Debug(2,"query->hasDistinctOn: %d", query->hasDistinctOn);
           if (query->hasDistinctOn) {
-            db2Debug2("  distinct function push down not yet implemented");
+            db2Debug(2,"distinct function push down not yet implemented");
           }
         }
         break;
         case UPPERREL_ORDERED:            // ORDER BY
-          db2Debug2("  stage: %d - UPPERREL_ORDERED", stage);
-          db2Debug2("  query->setOperations: %x", query->setOperations);
+          db2Debug(2,"stage: %d - UPPERREL_ORDERED", stage);
+          db2Debug(2,"query->setOperations: %x", query->setOperations);
           if (query->setOperations != NULL) {
             add_foreign_ordered_paths(root, input_rel, output_rel);
           }
         break;
         case UPPERREL_FINAL:              // any remaining top-level actions
-          db2Debug2("  stage: %d - UPPERREL_FINAL", stage);
+          db2Debug(2,"stage: %d - UPPERREL_FINAL", stage);
           add_foreign_final_paths(root, input_rel, output_rel, (FinalPathExtraData*) extra);
         break;
         default:                          // unknown stage type
-          db2Debug2("  stage: %d - unknown", stage);
+          db2Debug(2,"stage: %d - unknown", stage);
         break;
       }
 //    } else {
-//      db2Debug2("  stage and or functions are not shippable to DB2");
+//      db2Debug(2,"stage and or functions are not shippable to DB2");
 //    }
   } else {
-    db2Debug2("  skipping this call");
-    db2Debug2("  root: %x", root);
-    db2Debug2("  root->parse: %x", root->parse);
-    db2Debug2("  input_rel->fdw_private: %x", input_rel->fdw_private);
-    db2Debug2("  output_rel->fdw_private: %x", output_rel->fdw_private);
+    db2Debug(2,"skipping this call");
+    db2Debug(2,"root: %x", root);
+    db2Debug(2,"root->parse: %x", root->parse);
+    db2Debug(2,"input_rel->fdw_private: %x", input_rel->fdw_private);
+    db2Debug(2,"output_rel->fdw_private: %x", output_rel->fdw_private);
   }
-  db2Debug1("< %s::db2GetForeignUpperPaths",__FILE__);
+  db2Exit(1,"< db2GetForeignUpperPaths.c::db2GetForeignUpperPaths");
 }
 
 /** db2CloneFdwStateUpper
@@ -155,7 +155,7 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
   DB2FdwState* fdw_in = (DB2FdwState*)input_rel->fdw_private;
   DB2FdwState* copy   = NULL;
 
-  db2Debug1("> %s::db2CloneFdwStateUpper", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::db2CloneFdwStateUpper");
   if (fdw_in != NULL) {
     copy = (DB2FdwState*) db2alloc("fdw_state_upper", sizeof(DB2FdwState));
 
@@ -197,14 +197,14 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
     copy->paramList    = NULL;
   }
   output_rel->fdw_private = copy;
-  db2Debug1("< %s::db2CloneFdwStateUpper", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::db2CloneFdwStateUpper");
 }
 
 static DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
   DB2Table* dst = NULL;
   int i;
 
-  db2Debug1("> %s::db2CloneDb2TableForPlan", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::db2CloneDb2TableForPlan");
   if (src != NULL) {
     dst = (DB2Table*) db2alloc("db2_table_clone", sizeof(DB2Table));
 
@@ -223,14 +223,14 @@ static DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
       dst->cols = NULL;
     }
   }
-  db2Debug1("< %s::db2CloneDb2TableForPlan : %x", __FILE__, dst);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::db2CloneDb2TableForPlan : %x", dst);
   return dst;
 }
 
 static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
   DB2Column* dst = NULL;
 
-  db2Debug1("> %s::db2CloneDb2ColumnForPlan", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::db2CloneDb2ColumnForPlan");
   if (src != NULL) {
     dst = (DB2Column*) db2alloc("db2_column_clone", sizeof(DB2Column));
     /* start with a struct copy, then fix up pointer members */
@@ -239,116 +239,13 @@ static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
     dst->colName = src->colName ? db2strdup(src->colName) : NULL;
     dst->pgname  = src->pgname  ? db2strdup(src->pgname)  : NULL;
   }
-  db2Debug1("< %s::db2CloneDb2ColumnForPlan : %x", __FILE__, dst);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::db2CloneDb2ColumnForPlan : %x", dst);
   return dst;
 }
 
-//static bool db2_is_shippable(PlannerInfo* root, UpperRelationKind stage, RelOptInfo* input_rel, RelOptInfo* output_rel) {
-//  bool         fResult = false;
-//  DB2FdwState* fdw_in  = (DB2FdwState*)input_rel->fdw_private;
-//
-//  db2Debug1("> %s::db2_is_shippable", __FILE__);
-//  if (root == NULL || root->parse == NULL || input_rel == NULL || output_rel == NULL || fdw_in == NULL) {
-//    db2Debug2("  missing context; not shippable");
-//    fResult = false;
-//  } else {
-//    Query* query = query = root->parse;
-//    /* Conservatively reject query shapes we don't yet know how to translate.
-//     * (This can be relaxed as we add DB2 SQL support.)
-//     */
-//    if (query->hasSubLinks || query->hasWindowFuncs || query->hasDistinctOn || query->hasTargetSRFs || query->hasForUpdate || query->hasModifyingCTE || query->hasRecursive || query->hasRowSecurity) {
-//      db2Debug2("  query has unsupported features; not shippable");
-//      fResult = false;
-//    } else {
-//      switch (stage) {
-//        case UPPERREL_PARTIAL_GROUP_AGG:
-//        case UPPERREL_GROUP_AGG: {
-//          ListCell* lc = NULL;
-//
-//          fResult = true;
-//          /* 1) GROUP BY expressions must be deparsable. */
-//          foreach (lc, query->groupClause) {
-//            SortGroupClause* grp = (SortGroupClause*) lfirst(lc);
-//            TargetEntry*     tle = get_sortgroupclause_tle(grp, query->targetList);
-//            if (tle == NULL || tle->expr == NULL) {
-//              db2Debug2("  missing GROUP BY target entry; not shippable");
-//              fResult = false;
-//              break;
-//            } 
-//            if (!db2_is_shippable_expr(root, input_rel, (Expr*) tle->expr, "GROUP BY")) {
-//              fResult = false;
-//              break;
-//            }
-//          }
-//
-//          if (fResult) {
-//            /* 2) HAVING clause must be deparsable (if present). */
-//            if (query->havingQual != NULL) {
-//              if (!db2_is_shippable_expr(root, input_rel, (Expr*) query->havingQual, "HAVING")) {
-//                fResult = false;
-//              }
-//            }
-//          }
-//
-//          if (fResult) {
-//            /* 3) Output target expressions must be deparsable too. */
-//            foreach (lc, output_rel->reltarget->exprs) {
-//              Expr* expr = (Expr*) lfirst(lc);
-//              if (!db2_is_shippable_expr(root, input_rel, expr, "SELECT")) {
-//                fResult = false;
-//                break;
-//              }
-//            }
-//          }
-//        }
-//        break;
-//        default: {
-//          db2Debug2("  stage %d not supported; not shippable", stage);
-//          fResult = false;
-//        }
-//        break;
-//      }
-//    }
-//  }
-//  db2Debug1("< %s::db2_is_shippable : %s", __FILE__, fResult ? "true" : "false");
-//  return fResult;
-//}
-
-
-//static bool db2_is_shippable_expr(PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, const char* label) {
-//  bool         fResult  = false;
-//  DB2FdwState* fdw_in   = (DB2FdwState*)foreignrel->fdw_private;
-//
-//  db2Debug1("> %s::db2_is_shippable_expr", __FILE__);
-//  if (expr == NULL) {
-//    fResult = true;
-//  } else if (fdw_in == NULL) {
-//    fResult = false;
-//  } else if (contain_agg_clause((Node*) expr)) {
-//    List* params   = NIL;
-//    char* deparsed = NULL;
-//    deparsed = deparseExpr(root, foreignrel, expr, &params);
-//    db2Debug2("  deparsed: %s", deparsed);
-//    fResult = (deparsed != NULL);
-//    db2free(deparsed);
-//  } else if (contain_window_function((Node*) expr)) {
-//    db2Debug2("  %s contains window function; not shippable", label ? label : "expr");
-//    fResult = false;
-//  } else {
-//    List* params   = NIL;
-//    char* deparsed = NULL;
-//    deparsed = deparseExpr(root, foreignrel, expr, &params);
-//    db2Debug2("  deparsed: %s", deparsed);
-//    fResult = (deparsed != NULL);
-//    db2free(deparsed);
-//  }
-//  db2Debug1("> %s::db2_is_shippable_expr : %s", __FILE__, fResult ? "true" : "false");
-//  return fResult;
-//}
-
-/** add_foreign_grouping_paths
- *  Add foreign path for grouping and/or aggregation.
- *  Given input_rel represents the underlying scan.  The paths are added to the given grouped_rel.
+/* add_foreign_grouping_paths
+ * Add foreign path for grouping and/or aggregation.
+ * Given input_rel represents the underlying scan.  The paths are added to the given grouped_rel.
  */
 static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel, RelOptInfo *grouped_rel, GroupPathExtraData *extra) {
   Query*       parse   = root->parse;
@@ -361,70 +258,70 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
   Cost         startup_cost;
   Cost         total_cost;
 
-  db2Debug1("> %s::add_foreign_grouping_paths", __FILE__);
-
+  db2Entry(4,"> db2GetForeignUpperPaths.c:::add_foreign_grouping_paths");
   /* Nothing to be done, if there is no grouping or aggregation required. */
-  if (!parse->groupClause && !parse->groupingSets && !parse->hasAggs &&	!root->hasHavingQual)
-    return;
+  if (!parse->groupClause && !parse->groupingSets && !parse->hasAggs &&	!root->hasHavingQual) {
+    db2Debug(5,"Nothing to be done, if there is no grouping or aggregation required");
+  } else {
+    Assert(extra->patype == PARTITIONWISE_AGGREGATE_NONE || extra->patype == PARTITIONWISE_AGGREGATE_FULL);
+    /* save the input_rel as outerrel in fpinfo */
+    fpinfo->outerrel = input_rel;
 
-  Assert(extra->patype == PARTITIONWISE_AGGREGATE_NONE || extra->patype == PARTITIONWISE_AGGREGATE_FULL);
-  /* save the input_rel as outerrel in fpinfo */
-  fpinfo->outerrel = input_rel;
+    // All of this is redundant since fpinfo is 1:1 clone of ifpinfo
+    // Copy foreign table, foreign server, user mapping, FDW options etc. details from the input relation's fpinfo.
+    fpinfo->ftable    = ifpinfo->ftable;
+    fpinfo->fserver   = ifpinfo->fserver;
+    fpinfo->fuser     = ifpinfo->fuser;
+    //fpinfo->db2Table = db2CloneDb2TableForPlan(ifpinfo->db2Table);
+    //fpinfo->dbserver = db2strdup(ifpinfo->dbserver);
+    //fpinfo->user     = db2strdup(ifpinfo->user);
+    merge_fdw_options(fpinfo, ifpinfo, NULL);
 
-// All of this is redundant since fpinfo is 1:1 clone of ifpinfo
-// Copy foreign table, foreign server, user mapping, FDW options etc. details from the input relation's fpinfo.
-  fpinfo->ftable    = ifpinfo->ftable;
-  fpinfo->fserver   = ifpinfo->fserver;
-  fpinfo->fuser     = ifpinfo->fuser;
-//  fpinfo->db2Table = db2CloneDb2TableForPlan(ifpinfo->db2Table);
-//  fpinfo->dbserver = db2strdup(ifpinfo->dbserver);
-//  fpinfo->user     = db2strdup(ifpinfo->user);
-  merge_fdw_options(fpinfo, ifpinfo, NULL);
+    /* Assess if it is safe to push down aggregation and grouping.
+     * Use HAVING qual from extra. In case of child partition, it will have translated Vars.
+     */
+    if (!foreign_grouping_ok(root, grouped_rel, extra->havingQual)) {
+      db2Exit(5,"foreigm grouping is not ok");
+    } else {
+      /* Compute the selectivity and cost of the local_conds, so we don't have to do it over again for each path.
+      * (Currently we create just a single path here, but in future it would be possible that we build more paths
+      * such as pre-sorted paths as in postgresGetForeignPaths and postgresGetForeignJoinPaths.)
+      * The best we can do for these conditions is to estimate selectivity on the basis of local statistics.
+      */
+      fpinfo->local_conds_sel = clauselist_selectivity(root, fpinfo->local_conds, 0, JOIN_INNER, NULL);
+      cost_qual_eval(&fpinfo->local_conds_cost, fpinfo->local_conds, root);
 
-  /** Assess if it is safe to push down aggregation and grouping.
-   *
-   * Use HAVING qual from extra. In case of child partition, it will have translated Vars.
-   */
-  if (!foreign_grouping_ok(root, grouped_rel, extra->havingQual))
-    return;
-  /** Compute the selectivity and cost of the local_conds, so we don't have
-   * to do it over again for each path.  (Currently we create just a single
-   * path here, but in future it would be possible that we build more paths
-   * such as pre-sorted paths as in postgresGetForeignPaths and
-   * postgresGetForeignJoinPaths.)  The best we can do for these conditions
-   * is to estimate selectivity on the basis of local statistics.
-   */
-  fpinfo->local_conds_sel = clauselist_selectivity(root, fpinfo->local_conds, 0, JOIN_INNER, NULL);
-  cost_qual_eval(&fpinfo->local_conds_cost, fpinfo->local_conds, root);
-
-  /* Estimate the cost of push down */
-  estimate_path_cost_size(root, grouped_rel, NIL, NIL, NULL, &rows, &width, &disabled_nodes, &startup_cost, &total_cost);
-  /* Now update this information in the fpinfo */
-  fpinfo->rows           = rows;
-  fpinfo->width          = width;
-  fpinfo->disabled_nodes = disabled_nodes;
-  fpinfo->startup_cost   = startup_cost;
-  fpinfo->total_cost     = total_cost;
-    /* Create and add foreign path to the grouping relation. */
-  grouppath = create_foreign_upper_path( root
-                                       , grouped_rel
-                                       , grouped_rel->reltarget
-                                       , rows
-                                       , disabled_nodes
-                                       , startup_cost
-                                       , total_cost
-                                       , NIL                    /* no pathkeys */
-                                       , NULL
-                                       , NIL                    /* no fdw_restrictinfo list */
-                                       , NIL);                  /* no fdw_private */
-  /* Add generated path into grouped_rel by add_path(). */
-  add_path(grouped_rel, (Path*) grouppath);
-  db2Debug1("< %s::add_foreign_grouping_paths", __FILE__);
+      /* Estimate the cost of push down */
+      estimate_path_cost_size(root, grouped_rel, NIL, NIL, NULL, &rows, &width, &disabled_nodes, &startup_cost, &total_cost);
+      /* Now update this information in the fpinfo */
+      fpinfo->rows           = rows;
+      fpinfo->width          = width;
+      fpinfo->disabled_nodes = disabled_nodes;
+      fpinfo->startup_cost   = startup_cost;
+      fpinfo->total_cost     = total_cost;
+        /* Create and add foreign path to the grouping relation. */
+      grouppath = create_foreign_upper_path( root
+                                          , grouped_rel
+                                          , grouped_rel->reltarget
+                                          , rows
+                                          , disabled_nodes
+                                          , startup_cost
+                                          , total_cost
+                                          , NIL                    /* no pathkeys */
+                                          , NULL
+                                          , NIL                    /* no fdw_restrictinfo list */
+                                          , NIL);                  /* no fdw_private */
+      /* Add generated path into grouped_rel by add_path(). */
+      add_path(grouped_rel, (Path*) grouppath);
+    }
+  }
+  db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_grouping_paths");
 }
 
-/** add_foreign_ordered_paths
- *  Add foreign paths for performing the final sort remotely.
- * Given input_rel contains the source-data Paths.  The paths are added to the given ordered_rel.
+/* add_foreign_ordered_paths
+ * Add foreign paths for performing the final sort remotely.
+ * Given input_rel contains the source-data Paths.
+ * The paths are added to the given ordered_rel.
  */
 static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, RelOptInfo *ordered_rel) {
   Query*               parse   = root->parse;
@@ -440,93 +337,101 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
   ForeignPath*         ordered_path;
   ListCell*            lc;
 
-  db2Debug1("> %s::add_foreign_ordered_paths", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
 
   // Shouldn't get here unless the query has ORDER BY
   Assert(parse->sortClause);
 
   // We don't support cases where there are any SRFs in the targetlist
-  if (parse->hasTargetSRFs)
-    return;
-  // Save the input_rel as outerrel in fpinfo
-  fpinfo->outerrel = input_rel;
+  if (parse->hasTargetSRFs) {
+    db2Debug(5,"no support where there are any SRFs in the targetlist");
+  } else {
+    bool isSafe = true;
 
-  // Copy foreign table, foreign server, user mapping, FDW options etc. details from the input relation's fpinfo.
-  fpinfo->ftable  = ifpinfo->ftable;
-  fpinfo->fserver = ifpinfo->fserver;
-  fpinfo->fuser   = ifpinfo->fuser;
-  merge_fdw_options(fpinfo, ifpinfo, NULL);
+    // Save the input_rel as outerrel in fpinfo
+    fpinfo->outerrel = input_rel;
 
-  /** If the input_rel is a base or join relation, we would already have
-   * considered pushing down the final sort to the remote server when
-   * creating pre-sorted foreign paths for that relation, because the
-   * query_pathkeys is set to the root->sort_pathkeys in that case (see
-   * standard_qp_callback()).
-   */
-  if (input_rel->reloptkind == RELOPT_BASEREL || input_rel->reloptkind == RELOPT_JOINREL) {
-    Assert(root->query_pathkeys == root->sort_pathkeys);
-    /* Safe to push down if the query_pathkeys is safe to push down */
-    fpinfo->pushdown_safe = ifpinfo->qp_is_pushdown_safe;
-    return;
+    // Copy foreign table, foreign server, user mapping, FDW options etc. details from the input relation's fpinfo.
+    fpinfo->ftable  = ifpinfo->ftable;
+    fpinfo->fserver = ifpinfo->fserver;
+    fpinfo->fuser   = ifpinfo->fuser;
+    merge_fdw_options(fpinfo, ifpinfo, NULL);
+
+    /* If the input_rel is a base or join relation, we would already have considered pushing down the final sort to the remote server when
+     * creating pre-sorted foreign paths for that relation, because the query_pathkeys is set to the root->sort_pathkeys in that case (see
+     * standard_qp_callback()).
+     */
+    if (input_rel->reloptkind == RELOPT_BASEREL || input_rel->reloptkind == RELOPT_JOINREL) {
+      Assert(root->query_pathkeys == root->sort_pathkeys);
+      /* Safe to push down if the query_pathkeys is safe to push down */
+      fpinfo->pushdown_safe = ifpinfo->qp_is_pushdown_safe;
+      db2Debug(5,"query_pathkeys is safe to push down");
+    } else {
+      // The input_rel should be a grouping relation
+      Assert(input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_GROUP_AGG);
+      /* We try to create a path below by extending a simple foreign path for the underlying grouping relation to perform the final sort remotely,
+      * which is stored into the fdw_private list of the resulting path.
+      */
+      foreach(lc, root->sort_pathkeys) {
+        PathKey*          pathkey     = (PathKey*) lfirst(lc);
+        EquivalenceClass* pathkey_ec  = pathkey->pk_eclass;
+        /* is_foreign_expr would detect volatile expressions as well, but checking ec_has_volatile here saves some cycles. */
+        if (pathkey_ec->ec_has_volatile) {
+          db2Debug(5,"ec_has_volatile is true");
+          isSafe = false;
+          break;
+        }
+        /* Can't push down the sort if pathkey's opfamily is not shippable. */
+        if (!is_shippable(pathkey->pk_opfamily, OperatorFamilyRelationId, fpinfo)) {
+          db2Debug(5,"pathkey's opfamily is not shippable");
+          isSafe = false;
+          break;
+        }
+        /* The EC must contain a shippable EM that is computed in input_rel's reltarget, else we can't push down the sort. */
+        if (find_em_for_rel_target(root, pathkey_ec, input_rel) == NULL) {
+          db2Debug(5,"non shippable EM that is computed in input_rel's reltarget");
+          isSafe = false;
+          break;
+        }
+      }
+      if (isSafe) {
+        /* Safe to push down */
+        fpinfo->pushdown_safe = true;
+        /* Construct PgFdwPathExtraData */
+        fpextra = palloc0_object(DB2FdwPathExtraData);
+        fpextra->target = root->upper_targets[UPPERREL_ORDERED];
+        fpextra->has_final_sort = true;
+        /* Estimate the costs of performing the final sort remotely */
+        estimate_path_cost_size(root, input_rel, NIL, root->sort_pathkeys, fpextra, &rows, &width, &disabled_nodes,	&startup_cost, &total_cost);
+        /*
+        * Build the fdw_private list that will be used by postgresGetForeignPlan.
+        * Items in the list must match order in enum FdwPathPrivateIndex.
+        */
+        fdw_private = list_make2(makeBoolean(true), makeBoolean(false));
+        /* Create foreign ordering path */
+        ordered_path = create_foreign_upper_path( root
+                                                , input_rel
+                                                , root->upper_targets[UPPERREL_ORDERED]
+                                                , rows
+                                                , disabled_nodes
+                                                , startup_cost
+                                                , total_cost
+                                                , root->sort_pathkeys
+                                                , NULL                   /* no extra plan */
+                                                , NIL                    /* no fdw_restrictinfo list */
+                                                , fdw_private);
+        /* and add it to the ordered_rel */
+        add_path(ordered_rel, (Path *) ordered_path);
+      }
+    }
   }
-  // The input_rel should be a grouping relation
-  Assert(input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_GROUP_AGG);
-  /** We try to create a path below by extending a simple foreign path for
-   * the underlying grouping relation to perform the final sort remotely,
-   * which is stored into the fdw_private list of the resulting path.
-   */
-  // Assess if it is safe to push down the final sort
-  foreach(lc, root->sort_pathkeys) {
-    PathKey    *pathkey = (PathKey *) lfirst(lc);
-    EquivalenceClass *pathkey_ec = pathkey->pk_eclass;
-    /** is_foreign_expr would detect volatile expressions as well, but
-     * checking ec_has_volatile here saves some cycles.
-     */
-    if (pathkey_ec->ec_has_volatile)
-      return;
-    /** Can't push down the sort if pathkey's opfamily is not shippable.
-     */
-    if (!is_shippable(pathkey->pk_opfamily, OperatorFamilyRelationId, fpinfo))
-      return;
-    /** The EC must contain a shippable EM that is computed in input_rel's
-     * reltarget, else we can't push down the sort.
-     */
-    if (find_em_for_rel_target(root, pathkey_ec, input_rel) == NULL)
-      return;
-  }
-  /* Safe to push down */
-  fpinfo->pushdown_safe = true;
-  /* Construct PgFdwPathExtraData */
-  fpextra = palloc0_object(DB2FdwPathExtraData);
-  fpextra->target = root->upper_targets[UPPERREL_ORDERED];
-  fpextra->has_final_sort = true;
-  /* Estimate the costs of performing the final sort remotely */
-  estimate_path_cost_size(root, input_rel, NIL, root->sort_pathkeys, fpextra, &rows, &width, &disabled_nodes,	&startup_cost, &total_cost);
-  /*
-   * Build the fdw_private list that will be used by postgresGetForeignPlan.
-   * Items in the list must match order in enum FdwPathPrivateIndex.
-   */
-  fdw_private = list_make2(makeBoolean(true), makeBoolean(false));
-  /* Create foreign ordering path */
-  ordered_path = create_foreign_upper_path( root
-                                          , input_rel
-                                          , root->upper_targets[UPPERREL_ORDERED]
-                                          , rows
-                                          , disabled_nodes
-                                          , startup_cost
-                                          , total_cost
-                                          , root->sort_pathkeys
-                                          , NULL                   /* no extra plan */
-                                          , NIL                    /* no fdw_restrictinfo list */
-                                          , fdw_private);
-  /* and add it to the ordered_rel */
-  add_path(ordered_rel, (Path *) ordered_path);
-  db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
 }
 
-/** add_foreign_final_paths
- *  Add foreign paths for performing the final processing remotely.
- *  Given input_rel contains the source-data Paths.  The paths are added to the given final_rel.
+/* add_foreign_final_paths
+ * Add foreign paths for performing the final processing remotely.
+ * Given input_rel contains the source-data Paths.
+ * The paths are added to the given final_rel.
  */
 static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, RelOptInfo *final_rel, FinalPathExtraData *extra) {
   Query*               parse                    = root->parse;
@@ -544,19 +449,28 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   List*                fdw_private              = NIL;
   ForeignPath*         final_path               = NULL;
 
-  db2Debug1("> %s::add_foreign_ordered_paths", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
 
   /** Currently, we only support this for SELECT commands */
-  if (parse->commandType != CMD_SELECT)
+  if (parse->commandType != CMD_SELECT) {
+    db2Debug(5,"only support SELECT command");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
+  }
 
   // No work if there is no FOR UPDATE/SHARE clause and if there is no need to add a LIMIT node
-  if (!parse->rowMarks && !extra->limit_needed)
+  if (!parse->rowMarks && !extra->limit_needed) {
+    db2Debug(5,"no FOR UPDATE/SHARE clause and no need to add a LIMIT node");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
+  }
 
   // We don't support cases where there are any SRFs in the targetlist
-  if (parse->hasTargetSRFs)
+  if (parse->hasTargetSRFs) {
+    db2Debug(5,"no support for any SRFs in the targetlist");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
+  }
 
   /* Save the input_rel as outerrel in fpinfo */
   fpinfo->outerrel = input_rel;
@@ -567,31 +481,25 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   fpinfo->fuser   = ifpinfo->fuser;
   merge_fdw_options(fpinfo, ifpinfo, NULL);
 
-  /** If there is no need to add a LIMIT node, there might be a ForeignPath
-   * in the input_rel's pathlist that implements all behavior of the query.
-   * Note: we would already have accounted for the query's FOR UPDATE/SHARE
-   * (if any) before we get here.
+  /* If there is no need to add a LIMIT node, there might be a ForeignPath in the input_rel's pathlist that implements all behavior of the query.
+   * Note: we would already have accounted for the query's FOR UPDATE/SHARE (if any) before we get here.
    */
   if (!extra->limit_needed) {
     ListCell   *lc;
 
     Assert(parse->rowMarks);
 
-    /** Grouping and aggregation are not supported with FOR UPDATE/SHARE,
-     *  so the input_rel should be a base, join, or ordered relation; and
-     *  if it's an ordered relation, its input relation should be a base or
-     *  join relation.
+    /* Grouping and aggregation are not supported with FOR UPDATE/SHARE, so the input_rel should be a base, join, or ordered relation; and
+     * if it's an ordered relation, its input relation should be a base or join relation.
      */
     Assert(input_rel->reloptkind == RELOPT_BASEREL || input_rel->reloptkind == RELOPT_JOINREL  || (input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_ORDERED && (ifpinfo->outerrel->reloptkind == RELOPT_BASEREL || ifpinfo->outerrel->reloptkind == RELOPT_JOINREL)));
 
     foreach(lc, input_rel->pathlist) {
       Path* path = (Path*) lfirst(lc);
 
-      /** apply_scanjoin_target_to_paths() uses create_projection_path()
-       * to adjust each of its input paths if needed, whereas
-       * create_ordered_paths() uses apply_projection_to_path() to do
-       * that.  So the former might have put a ProjectionPath on top of
-       * the ForeignPath; look through ProjectionPath and see if the
+      /* apply_scanjoin_target_to_paths() uses create_projection_path() to adjust each of its input paths if needed, whereas
+       * create_ordered_paths() uses apply_projection_to_path() to do that.
+       * So the former might have put a ProjectionPath on top of the ForeignPath; look through ProjectionPath and see if the
        * path underneath it is ForeignPath.
        */
       if (IsA(path, ForeignPath) || (IsA(path, ProjectionPath) && IsA(((ProjectionPath *) path)->subpath, ForeignPath))) {
@@ -613,8 +521,8 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
         /* Safe to push down */
         fpinfo->pushdown_safe = true;
-
-        db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
+        db2Debug(5,"created foreign final path; this gets rid of a no-longer-needed outer plan (if any), which makes the EXPLAIN output look cleaner");
+        db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
         return;
       }
     }
@@ -622,14 +530,15 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
     /* If we get here it means no ForeignPaths; since we would already have considered pushing down all operations for the query to the
      * remote server, give up on it.
      */
-    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
+    db2Debug(5,"no ForeignPaths; since we would already have considered pushing down all operations for the query to the remote server, give up on it");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
   }
 
   Assert(extra->limit_needed);
 
   // If the input_rel is an ordered relation, replace the input_rel with its input relation
- if (input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_ORDERED) {
+  if (input_rel->reloptkind == RELOPT_UPPER_REL && ifpinfo->stage == UPPERREL_ORDERED) {
     input_rel = ifpinfo->outerrel;
     ifpinfo = (DB2FdwState*) input_rel->fdw_private;
     has_final_sort = true;
@@ -648,23 +557,27 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
   /* If the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down. */
   if (ifpinfo->local_conds) {
-    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
+    db2Debug(5,"the underlying relation has any local conditions, the LIMIT/OFFSET cannot be pushed down");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
   }
 
-  /* If the query has FETCH FIRST .. WITH TIES, 1) it must have ORDER BY as well, which is used to determine which additional rows tie for the last
-   * place in the result set, and 2) ORDER BY must already have been determined to be safe to push down before we get here.
+  /* If the query has FETCH FIRST .. WITH TIES, 
+   * 1) it must have ORDER BY as well, which is used to determine which additional rows tie for the last place in the result set, and 
+   * 2) ORDER BY must already have been determined to be safe to push down before we get here.
    * So in that case the FETCH clause is safe to push down with ORDER BY if the remote server is v13 or later, but if not, the remote query will fail
    * entirely for lack of support for it.
    * Since we do not currently have a way to do a remote-version check (without accessing the remote server), disable pushing the FETCH clause for now.
    */
   if (parse->limitOption == LIMIT_OPTION_WITH_TIES) {
-    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
+    db2Debug(5,"the query has FETCH FIRST .. WITH TIES without ORDER BY");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
   }
   /* Also, the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote. */
   if (!is_foreign_expr(root, input_rel, (Expr *) parse->limitOffset) || !is_foreign_expr(root, input_rel, (Expr *) parse->limitCount)) {
-    db2Debug1("< %s::add_foreign_ordered_paths", __FILE__);
+    db2Debug(5,"the LIMIT/OFFSET cannot be pushed down, if their expressions are not safe to remote");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
     return;
   }
 
@@ -711,12 +624,12 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
 
   /* and add it to the final_rel */
   add_path(final_rel, (Path*) final_path);
-  db2Debug1(" %s::add_foreign_ordered_paths", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::add_foreign_ordered_paths");
 }
 
 /* Adjust the cost estimates of a foreign grouping path to include the cost of generating properly-sorted output. */
 static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys, double retrieved_rows, double width, double limit_tuples, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_run_cost) {
-  db2Debug1("> %s::adjust_foreign_grouping_path_cost", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::adjust_foreign_grouping_path_cost");
   /* If the GROUP BY clause isn't sort-able, the plan chosen by the remote side is unlikely to generate properly-sorted output, so it would need
    * an explicit sort; adjust the given costs with cost_sort().
    * Likewise, if the GROUP BY clause is sort-able but isn't a superset of the given pathkeys, adjust the costs with that function.
@@ -736,13 +649,11 @@ static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys,
     *p_startup_cost *= sort_multiplier;
     *p_run_cost     *= sort_multiplier;
   }
-  db2Debug1("< %s::adjust_foreign_grouping_path_cost", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::adjust_foreign_grouping_path_cost");
 }
 
-/*
- * Assess whether the aggregation, grouping and having operations can be pushed
- * down to the foreign server.  As a side effect, save information we obtain in
- * this function to PgFdwRelationInfo of the input relation.
+/* Assess whether the aggregation, grouping and having operations can be pushed down to the foreign server.
+ * As a side effect, save information we obtain in this function to PgFdwRelationInfo of the input relation.
  */
 static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node* havingQual) {
   Query*       query           = root->parse;
@@ -753,38 +664,35 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
   int          i               = 0;
   List*        tlist           = NIL;
 
-  db2Debug1("> %s::foreign_grouping_ok", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::foreign_grouping_ok");
   /* We currently don't support pushing Grouping Sets. */
-  if (query->groupingSets)
+  if (query->groupingSets) {
+    db2Debug(5,"no support pushing Grouping Sets");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok");
     return false;
+  }
 
   /* Get the fpinfo of the underlying scan relation. */
   ofpinfo = (DB2FdwState*) fpinfo->outerrel->fdw_private;
 
-  /** If underlying scan relation has any local conditions, those conditions
-   * are required to be applied before performing aggregation.  Hence the
-   * aggregate cannot be pushed down.
+  /* If underlying scan relation has any local conditions, those conditions are required to be applied before performing aggregation.
+   * Hence the aggregate cannot be pushed down.
    */
   if (ofpinfo->local_conds) {
-    db2Debug2("  foreign_grouping_ok: local_conds found");
-    db2Debug1("< %s::foreign_grouping_ok", __FILE__);
+    db2Debug(5,"foreign_grouping_ok: local_conds found");
+    db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
     return false;
   }
 
-  /** Examine grouping expressions, as well as other expressions we'd need to
-   * compute, and check whether they are safe to push down to the foreign
-   * server.  All GROUP BY expressions will be part of the grouping target
-   * and thus there is no need to search for them separately.  Add grouping
-   * expressions into target list which will be passed to foreign server.
+  /* Examine grouping expressions, as well as other expressions we'd need to compute, and check whether they are safe to push down to the foreign server.
+   * All GROUP BY expressions will be part of the grouping target and thus there is no need to search for them separately.
+   * Add grouping expressions into target list which will be passed to foreign server.
    *
-   * A tricky fine point is that we must not put any expression into the
-   * target list that is just a foreign param (that is, something that
-   * deparse.c would conclude has to be sent to the foreign server).  If we
-   * do, the expression will also appear in the fdw_exprs list of the plan
-   * node, and setrefs.c will get confused and decide that the fdw_exprs
-   * entry is actually a reference to the fdw_scan_tlist entry, resulting in
-   * a broken plan.  Somewhat oddly, it's OK if the expression contains such
-   * a node, as long as it's not at top level; then no match is possible.
+   * A tricky fine point is that we must not put any expression into the target list that is just a foreign param
+   * (that is, something that deparse.c would conclude has to be sent to the foreign server).
+   * If we do, the expression will also appear in the fdw_exprs list of the plan node, and setrefs.c will get confused and decide that the fdw_exprs
+   * entry is actually a reference to the fdw_scan_tlist entry, resulting in a broken plan.
+   * Somewhat oddly, it's OK if the expression contains such a node, as long as it's not at top level; then no match is possible.
    */
   i = 0;
   foreach(lc, grouping_target->exprs) {
@@ -792,44 +700,37 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
     Index     sgref = get_pathtarget_sortgroupref(grouping_target, i);
     ListCell* l;
 
-    /** Check whether this expression is part of GROUP BY clause.  Note we
-     * check the whole GROUP BY clause not just processed_groupClause,
-     * because we will ship all of it, cf. appendGroupByClause.
+    /* Check whether this expression is part of GROUP BY clause.
+     * Note we check the whole GROUP BY clause not just processed_groupClause, because we will ship all of it, cf. appendGroupByClause.
      */
     if (sgref && get_sortgroupref_clause_noerr(sgref, query->groupClause)) {
       TargetEntry *tle;
 
-      /** If any GROUP BY expression is not shippable, then we cannot
-       * push down aggregation to the foreign server.
-       */
+      /* If any GROUP BY expression is not shippable, then we cannot push down aggregation to the foreign server. */
       if (!is_foreign_expr(root, grouped_rel, expr)) {
-        db2Debug2("  foreign_grouping_ok: non-foreign expr found");
-        db2Debug1("< %s::foreign_grouping_ok", __FILE__);
+        db2Debug(5,"foreign_grouping_ok: non-foreign expr found");
+        db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
         return false;
       }
 
-      /** If it would be a foreign param, we can't put it into the tlist,
-       * so we have to fail.
-       */
+      /* If it would be a foreign param, we can't put it into the tlist, so we have to fail. */
       if (is_foreign_param(root, grouped_rel, expr)) {
-        db2Debug2("  foreign_grouping_ok: foreign param found");
-        db2Debug1("< %s::foreign_grouping_ok", __FILE__);
+        db2Debug(5,"foreign_grouping_ok: foreign param found");
+        db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
         return false;
       }
 
-      /** Pushable, so add to tlist.  We need to create a TLE for this
-       * expression and apply the sortgroupref to it.  We cannot use
-       * add_to_flat_tlist() here because that avoids making duplicate
-       * entries in the tlist.  If there are duplicate entries with
-       * distinct sortgrouprefs, we have to duplicate that situation in
-       * the output tlist.
+      /* Pushable, so add to tlist.
+       * We need to create a TLE for this expression and apply the sortgroupref to it.
+       * We cannot use add_to_flat_tlist() here because that avoids making duplicate entries in the tlist.
+       * If there are duplicate entries with distinct sortgrouprefs, we have to duplicate that situation in the output tlist.
        */
       tle = makeTargetEntry(expr, list_length(tlist) + 1, NULL, false);
       tle->ressortgroupref = sgref;
       tlist = lappend(tlist, tle);
     } else {
-      /** Non-grouping expression we need to compute.  Can we ship it
-       * as-is to the foreign server?
+      /* Non-grouping expression we need to compute.
+       * Can we ship it as-is to the foreign server?
        */
       if (is_foreign_expr(root, grouped_rel, expr) && !is_foreign_param(root, grouped_rel, expr)) {
         /* Yes, so add to tlist as-is; OK to suppress duplicates */
@@ -838,25 +739,19 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
         /* Not pushable as a whole; extract its Vars and aggregates */
         List* aggvars = pull_var_clause((Node*) expr, PVC_INCLUDE_AGGREGATES);
 
-        /** If any aggregate expression is not shippable, then we
-         * cannot push down aggregation to the foreign server.  (We
-         * don't have to check is_foreign_param, since that certainly
-         * won't return true for any such expression.)
+        /* If any aggregate expression is not shippable, then we cannot push down aggregation to the foreign server.
+         * (We don't have to check is_foreign_param, since that certainly won't return true for any such expression.)
          */
         if (!is_foreign_expr(root, grouped_rel, (Expr *) aggvars)) {
-          db2Debug2("  foreign_grouping_ok: non-foreign aggvar found");
-          db2Debug1("< %s::foreign_grouping_ok", __FILE__);
+          db2Debug(5,"foreign_grouping_ok: non-foreign aggvar found");
+          db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : false");
           return false;
         }
 
-        /** Add aggregates, if any, into the targetlist.  Plain Vars
-         * outside an aggregate can be ignored, because they should be
-         * either same as some GROUP BY column or part of some GROUP
-         * BY expression.  In either case, they are already part of
-         * the targetlist and thus no need to add them again.  In fact
-         * including plain Vars in the tlist when they do not match a
-         * GROUP BY column would cause the foreign server to complain
-         * that the shipped query is invalid.
+        /* Add aggregates, if any, into the targetlist.
+         * Plain Vars outside an aggregate can be ignored, because they should be either same as some GROUP BY column or part of some GROUP BY expression.
+         * In either case, they are already part of the targetlist and thus no need to add them again.
+         * In fact including plain Vars in the tlist when they do not match a GROUP BY column would cause the foreign server to complain that the shipped query is invalid.
          */
         foreach(l, aggvars) {
           Expr* aggref = (Expr *) lfirst(l);
@@ -869,17 +764,13 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
     i++;
   }
 
-  /** Classify the pushable and non-pushable HAVING clauses and save them in
-   * remote_conds and local_conds of the grouped rel's fpinfo.
-   */
+  /* Classify the pushable and non-pushable HAVING clauses and save them in remote_conds and local_conds of the grouped rel's fpinfo. */
   if (havingQual) {
     foreach(lc, (List *) havingQual) {
       Expr	   *expr = (Expr *) lfirst(lc);
       RestrictInfo *rinfo;
 
-      /** Currently, the core code doesn't wrap havingQuals in
-       * RestrictInfos, so we must make our own.
-       */
+      /* Currently, the core code doesn't wrap havingQuals in RestrictInfos, so we must make our own. */
       Assert(!IsA(expr, RestrictInfo));
       rinfo = make_restrictinfo(root, expr, true, false, false, false, root->qual_security_level, grouped_rel->relids, NULL, NULL);
       if (is_foreign_expr(root, grouped_rel, expr))
@@ -889,9 +780,7 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
     }
   }
 
-  /** If there are any local conditions, pull Vars and aggregates from it and
-   * check whether they are safe to pushdown or not.
-   */
+  /* If there are any local conditions, pull Vars and aggregates from it and check whether they are safe to pushdown or not. */
   if (fpinfo->local_conds) {
     List* aggvars = NIL;
 
@@ -904,11 +793,9 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
     foreach(lc, aggvars) {
       Expr	   *expr = (Expr *) lfirst(lc);
 
-      /** If aggregates within local conditions are not safe to push
-       * down, then we cannot push down the query.  Vars are already
-       * part of GROUP BY clause which are checked above, so no need to
-       * access them again here.  Again, we need not check
-       * is_foreign_param for a foreign aggregate.
+      /* If aggregates within local conditions are not safe to push down, then we cannot push down the query.
+       * Vars are already part of GROUP BY clause which are checked above, so no need to access them again here.
+       * Again, we need not check is_foreign_param for a foreign aggregate.
        */
       if (IsA(expr, Aggref)) {
         if (!is_foreign_expr(root, grouped_rel, expr))
@@ -925,36 +812,30 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
   /* Safe to pushdown */
   fpinfo->pushdown_safe = true;
 
-  /** Set # of retrieved rows and cached relation costs to some negative
-   * value, so that we can detect when they are set to some sensible values,
+  /* Set # of retrieved rows and cached relation costs to some negative value, so that we can detect when they are set to some sensible values,
    * during one (usually the first) of the calls to estimate_path_cost_size.
    */
   fpinfo->retrieved_rows = -1;
   fpinfo->rel_startup_cost = -1;
   fpinfo->rel_total_cost = -1;
 
-  /** Set the string describing this grouped relation to be used in EXPLAIN
-   * output of corresponding ForeignScan.  Note that the decoration we add
-   * to the base relation name mustn't include any digits, or it'll confuse
-   * postgresExplainForeignScan.
+  /* Set the string describing this grouped relation to be used in EXPLAIN output of corresponding ForeignScan.
+   * Note that the decoration we add to the base relation name mustn't include any digits, or it'll confuse postgresExplainForeignScan.
    */
   fpinfo->relation_name = psprintf("Aggregate on (%s)", ofpinfo->relation_name);
-  db2Debug1("< %s::foreign_grouping_ok", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::foreign_grouping_ok : true");
   return true;
 }
 
-/** estimate_path_cost_size
- *		Get cost and size estimates for a foreign scan on given foreign relation
- *		either a base relation or a join between foreign relations or an upper
- *		relation containing foreign relations.
+/* estimate_path_cost_size
+ * Get cost and size estimates for a foreign scan on given foreign relation either a base relation or a join between foreign relations or an upper
+ * relation containing foreign relations.
  *
- * param_join_conds are the parameterization clauses with outer relations.
- * pathkeys specify the expected sort order if any for given path being costed.
- * fpextra specifies additional post-scan/join-processing steps such as the
- * final sort and the LIMIT restriction.
+ * param_join_conds  are the parameterization clauses with outer relations.
+ * pathkeys          specify the expected sort order if any for given path being costed.
+ * fpextra           specifies additional post-scan/join-processing steps such as the final sort and the LIMIT restriction.
  *
- * The function returns the cost and size estimates in p_rows, p_width,
- * p_disabled_nodes, p_startup_cost and p_total_cost variables.
+ * The function returns the cost and size estimates in p_rows, p_width, p_disabled_nodes, p_startup_cost and p_total_cost variables.
  */
 void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* param_join_conds, List* pathkeys, DB2FdwPathExtraData* fpextra, double* p_rows, int* p_width, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_total_cost) {
   DB2FdwState*  fpinfo          = (DB2FdwState*) foreignrel->fdw_private;
@@ -965,13 +846,13 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   Cost          startup_cost;
   Cost          total_cost;
 
-  db2Debug1("> %s::estimate_path_cost_size", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::estimate_path_cost_size");
   /* Make sure the core code has set up the relation's reltarget */
   Assert(foreignrel->reltarget);
 
   /* If the table or the server is configured to use remote estimates, connect to the foreign server and execute EXPLAIN to estimate the
-   * number of rows selected by the restriction+join clauses.  Otherwise, estimate rows using whatever statistics we have locally, in a way
-   * similar to ordinary tables.
+   * number of rows selected by the restriction+join clauses.
+   * Otherwise, estimate rows using whatever statistics we have locally, in a way similar to ordinary tables.
    */
   if (fpinfo->use_remote_estimate) {
     List*           remote_param_join_conds;
@@ -1042,12 +923,9 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
 
     /* We don't support join conditions in this mode (hence, no parameterized paths can be made). */
     Assert(param_join_conds == NIL);
-    /*
-     * We will come here again and again with different set of pathkeys or
-     * additional post-scan/join-processing steps that caller wants to
-     * cost.  We don't need to calculate the cost/size estimates for the
-     * underlying scan, join, or grouping each time.  Instead, use those
-     * estimates if we have cached them already.
+    /* We will come here again and again with different set of pathkeys or additional post-scan/join-processing steps that caller wants to
+     * cost.  We don't need to calculate the cost/size estimates for the underlying scan, join, or grouping each time.
+     * Instead, use those estimates if we have cached them already.
      */
     if (fpinfo->rel_startup_cost >= 0 && fpinfo->rel_total_cost >= 0) {
       Assert(fpinfo->retrieved_rows >= 0);
@@ -1172,52 +1050,46 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
         rows = retrieved_rows = numGroups;
       }
 
-			/* Use width estimate made by the core code. */
-			width = foreignrel->reltarget->width;
+      /* Use width estimate made by the core code. */
+      width = foreignrel->reltarget->width;
 
-			/*-----
-			 * Startup cost includes:
-			 *	  1. Startup cost for underneath input relation, adjusted for
-			 *	     tlist replacement by apply_scanjoin_target_to_paths()
-			 *	  2. Cost of performing aggregation, per cost_agg()
-			 *-----
-			 */
-			startup_cost = ofpinfo->rel_startup_cost;
-			startup_cost += outerrel->reltarget->cost.startup;
-			startup_cost += aggcosts.transCost.startup;
-			startup_cost += aggcosts.transCost.per_tuple * input_rows;
-			startup_cost += aggcosts.finalCost.startup;
-			startup_cost += (cpu_operator_cost * numGroupCols) * input_rows;
+      /* Startup cost includes:
+       *  1. Startup cost for underneath input relation, adjusted for tlist replacement by apply_scanjoin_target_to_paths()
+       *  2. Cost of performing aggregation, per cost_agg()
+       */
+      startup_cost = ofpinfo->rel_startup_cost;
+      startup_cost += outerrel->reltarget->cost.startup;
+      startup_cost += aggcosts.transCost.startup;
+      startup_cost += aggcosts.transCost.per_tuple * input_rows;
+      startup_cost += aggcosts.finalCost.startup;
+      startup_cost += (cpu_operator_cost * numGroupCols) * input_rows;
 
-			/*-----
-			 * Run time cost includes:
-			 *	  1. Run time cost of underneath input relation, adjusted for
-			 *	     tlist replacement by apply_scanjoin_target_to_paths()
-			 *	  2. Run time cost of performing aggregation, per cost_agg()
-			 *-----
-			 */
-			run_cost = ofpinfo->rel_total_cost - ofpinfo->rel_startup_cost;
-			run_cost += outerrel->reltarget->cost.per_tuple * input_rows;
-			run_cost += aggcosts.finalCost.per_tuple * numGroups;
-			run_cost += cpu_tuple_cost * numGroups;
+      /* Run time cost includes:
+       *  1. Run time cost of underneath input relation, adjusted for tlist replacement by apply_scanjoin_target_to_paths()
+       *  2. Run time cost of performing aggregation, per cost_agg()
+       */
+      run_cost = ofpinfo->rel_total_cost - ofpinfo->rel_startup_cost;
+      run_cost += outerrel->reltarget->cost.per_tuple * input_rows;
+      run_cost += aggcosts.finalCost.per_tuple * numGroups;
+      run_cost += cpu_tuple_cost * numGroups;
 
-			/* Account for the eval cost of HAVING quals, if any */
-			if (root->hasHavingQual)
-			{
-				QualCost	remote_cost;
+      /* Account for the eval cost of HAVING quals, if any */
+      if (root->hasHavingQual)
+      {
+        QualCost	remote_cost;
 
-				/* Add in the eval cost of the remotely-checked quals */
-				cost_qual_eval(&remote_cost, fpinfo->remote_conds, root);
-				startup_cost += remote_cost.startup;
-				run_cost += remote_cost.per_tuple * numGroups;
-				/* Add in the eval cost of the locally-checked quals */
-				startup_cost += fpinfo->local_conds_cost.startup;
-				run_cost += fpinfo->local_conds_cost.per_tuple * retrieved_rows;
-			}
+        /* Add in the eval cost of the remotely-checked quals */
+        cost_qual_eval(&remote_cost, fpinfo->remote_conds, root);
+        startup_cost += remote_cost.startup;
+        run_cost += remote_cost.per_tuple * numGroups;
+        /* Add in the eval cost of the locally-checked quals */
+        startup_cost += fpinfo->local_conds_cost.startup;
+        run_cost += fpinfo->local_conds_cost.per_tuple * retrieved_rows;
+      }
 
-			/* Add in tlist eval cost for each output row */
-			startup_cost += foreignrel->reltarget->cost.startup;
-			run_cost += foreignrel->reltarget->cost.per_tuple * rows;
+      /* Add in tlist eval cost for each output row */
+      startup_cost += foreignrel->reltarget->cost.startup;
+      run_cost += foreignrel->reltarget->cost.per_tuple * rows;
     } else {
       Cost    cpu_per_tuple;
 
@@ -1229,9 +1101,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
       retrieved_rows = clamp_row_est(rows / fpinfo->local_conds_sel);
       retrieved_rows = Min(retrieved_rows, foreignrel->tuples);
 
-      /* Cost as though this were a seqscan, which is pessimistic.  We effectively imagine the local_conds are being evaluated
-       * remotely, too.
-       */
+      /* Cost as though this were a seqscan, which is pessimistic.  We effectively imagine the local_conds are being evaluated remotely, too. */
       startup_cost = 0;
       run_cost     = 0;
       run_cost    += seq_page_cost * foreignrel->pages;
@@ -1245,10 +1115,11 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
       run_cost += foreignrel->reltarget->cost.per_tuple * rows;
     }
 
-    /* Without remote estimates, we have no real way to estimate the cost of generating sorted output.  It could be free if the query plan
-     * the remote side would have chosen generates properly-sorted output anyway, but in most cases it will cost something.  Estimate a value
-     * high enough that we won't pick the sorted path when the ordering isn't locally useful, but low enough that we'll err on the side of
-     * pushing down the ORDER BY clause when it's useful to do so.
+    /* Without remote estimates, we have no real way to estimate the cost of generating sorted output.
+     * It could be free if the query plan the remote side would have chosen generates properly-sorted output anyway, but in most cases it 
+     * will cost something.
+     * Estimate a value high enough that we won't pick the sorted path when the ordering isn't locally useful, but low enough that we'll 
+     * err on the side of pushing down the ORDER BY clause when it's useful to do so.
      */
     if (pathkeys != NIL) {
       if (IS_UPPER_REL(foreignrel)) {
@@ -1291,15 +1162,16 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   }
 
   /* Cache the retrieved rows and cost estimates for scans, joins, or groupings without any parameterization, pathkeys, or additional
-   * post-scan/join-processing steps, before adding the costs for transferring data from the foreign server.  These estimates are useful
-   * for costing remote joins involving this relation or costing other remote operations on this relation such as remote sorts and remote
-   * LIMIT restrictions, when the costs can not be obtained from the foreign server.  This function will be called at least once for every foreign
-   * relation without any parameterization, pathkeys, or additional post-scan/join-processing steps.
+   * post-scan/join-processing steps, before adding the costs for transferring data from the foreign server.
+   * These estimates are useful for costing remote joins involving this relation or costing other remote operations on this relation such as remote
+   * sorts and remote LIMIT restrictions, when the costs can not be obtained from the foreign server.
+   * This function will be called at least once for every foreign relation without any parameterization, pathkeys, or additional 
+   * post-scan/join-processing steps.
    */
   if (pathkeys == NIL && param_join_conds == NIL && fpextra == NULL) {
-    fpinfo->retrieved_rows = retrieved_rows;
-    fpinfo->rel_startup_cost = startup_cost;
-    fpinfo->rel_total_cost = total_cost;
+    fpinfo->retrieved_rows    = retrieved_rows;
+    fpinfo->rel_startup_cost  = startup_cost;
+    fpinfo->rel_total_cost    = total_cost;
   }
 
   /* Add some additional cost factors to account for connection overhead (fdw_startup_cost), transferring data across the network
@@ -1328,18 +1200,16 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
   *p_disabled_nodes = disabled_nodes;
   *p_startup_cost   = startup_cost;
   *p_total_cost     = total_cost;
-  db2Debug1("< %s::estimate_path_cost_size", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::estimate_path_cost_size");
 }
 
-/** Merge FDW options from input relations into a new set of options for a join or an upper rel.
+/* Merge FDW options from input relations into a new set of options for a join or an upper rel.
  *
- * For a join relation, FDW-specific information about the inner and outer
- * relations is provided using fpinfo_i and fpinfo_o.  For an upper relation,
- * fpinfo_o provides the information for the input relation; fpinfo_i is
- * expected to NULL.
+ * For a join relation, FDW-specific information about the inner and outer relations is provided using fpinfo_i and fpinfo_o.
+ * For an upper relation, fpinfo_o provides the information for the input relation; fpinfo_i is expected to NULL.
  */
 static void merge_fdw_options(DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, const DB2FdwState* fpinfo_i) {
-  db2Debug1("> %s::merge_fdw_options", __FILE__);
+  db2Entry(4,"> db2GetForeignUpperPaths.c::merge_fdw_options");
   /* We must always have fpinfo_o. */
   Assert(fpinfo_o);
 
@@ -1358,22 +1228,20 @@ static void merge_fdw_options(DB2FdwState* fpinfo, const DB2FdwState* fpinfo_o, 
 
   /* Merge the table level options from either side of the join. */
   if (fpinfo_i) {
-    /* We'll prefer to use remote estimates for this join if any table from either side of the join is using remote estimates.  This is
-     * most likely going to be preferred since they're already willing to pay the price of a round trip to get the remote EXPLAIN.  In any
-     * case it's not entirely clear how we might otherwise handle this best.
+    /* We'll prefer to use remote estimates for this join if any table from either side of the join is using remote estimates.
+     * This is most likely going to be preferred since they're already willing to pay the price of a round trip to get the remote EXPLAIN.
+     * In any case it's not entirely clear how we might otherwise handle this best.
      */
     fpinfo->use_remote_estimate = fpinfo_o->use_remote_estimate || fpinfo_i->use_remote_estimate;
 
-  	/* Set fetch size to maximum of the joining sides, since we are expecting the rows returned by the join to be proportional to the
-     * relation sizes.
-     */
+    /* Set fetch size to maximum of the joining sides, since we are expecting the rows returned by the join to be proportional to the relation sizes. */
     fpinfo->fetch_size = Max(fpinfo_o->fetch_size, fpinfo_i->fetch_size);
 
-    /* We'll prefer to consider this join async-capable if any table from either side of the join is considered async-capable.  This would be
-     * reasonable because in that case the foreign server would have its own resources to scan that table asynchronously, and the join could
-     * also be computed asynchronously using the resources.
+    /* We'll prefer to consider this join async-capable if any table from either side of the join is considered async-capable.
+     * This would be reasonable because in that case the foreign server would have its own resources to scan that table asynchronously, 
+     * and the join could also be computed asynchronously using the resources.
      */
     fpinfo->async_capable = fpinfo_o->async_capable || fpinfo_i->async_capable;
   }
-  db2Debug1("< %s::merge_fdw_options", __FILE__);
+  db2Exit(4,"< db2GetForeignUpperPaths.c::merge_fdw_options");
 }

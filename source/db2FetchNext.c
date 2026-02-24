@@ -9,7 +9,8 @@ extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 extern int          err_code;              /* error code, set by db2CheckErr()                              */
 
 /** external prototypes */
-extern void      db2Debug1            (const char* message, ...);
+extern void      db2Entry             (int level, const char* message, ...);
+extern void      db2Exit              (int level, const char* message, ...);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -17,12 +18,12 @@ extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSM
 /** local prototypes */
 int db2FetchNext (DB2Session* session);
 
-/** db2FetchNext
- *   Fetch the next result row, return 1 if there is one, else 0.
+/* db2FetchNext
+ * Fetch the next result row, return 1 if there is one, else 0.
  */
 int db2FetchNext (DB2Session* session) {
   SQLRETURN rc = 0;
-  db2Debug1("> db2FetchNext");
+  db2Entry(1,"> db2FetchNext.c::db2FetchNext");
   /* make sure there is a statement handle stored in "session" */
   if (session->stmtp == NULL) {
     db2Error (FDW_ERROR, "db2FetchNext internal error: statement handle is NULL");
@@ -33,6 +34,6 @@ int db2FetchNext (DB2Session* session) {
   if (rc != SQL_SUCCESS && rc != SQL_NO_DATA) {
     db2Error_d (err_code == 8177 ? FDW_SERIALIZATION_FAILURE : FDW_UNABLE_TO_CREATE_EXECUTION, "error fetching result: SQLFetchScroll failed to fetch next result row", db2Message);
   }
-  db2Debug1("< db2FetchNext - returns: %d",(rc == SQL_SUCCESS));
+  db2Exit(1,"< db2FetchNext.c::db2FetchNext : %d",(rc == SQL_SUCCESS));
   return (rc == SQL_SUCCESS);
 }

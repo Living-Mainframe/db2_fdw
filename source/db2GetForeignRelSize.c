@@ -3,7 +3,6 @@
 #include <access/heapam.h>
 #include <commands/defrem.h>
 #include <commands/extension.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/cost.h>
 #include <optimizer/optimizer.h>
 #include <utils/guc.h>
@@ -14,7 +13,9 @@
 
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
-extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Entry                  (int level, const char* message, ...);
+extern void         db2Exit                   (int level, const char* message, ...);
+extern void         db2Debug                  (int level, const char* message, ...);
 extern char*        deparseWhereConditions    (PlannerInfo* root, RelOptInfo* baserel);
 extern void         db2free                   (void* p);
 extern void         classifyConditions        (PlannerInfo* root, RelOptInfo* baserel, List* input_conds, List** remote_conds, List** local_conds);
@@ -37,14 +38,14 @@ static List*  ExtractExtensionList  (const char* extensionsString, bool warnOnMi
 void db2GetForeignRelSize (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid) {
   DB2FdwState* fdwState = NULL;
 
-  db2Debug1("> db2GetForeignRelSize");
+  db2Entry(1,"> db2GetForeignRelSize.c::db2GetForeignRelSize");
   /* get connection options, connect and get the remote table description */
   fdwState = db2GetFdwState(foreigntableid, NULL, true);
   /* store the state so that the other planning functions can use it */
   baserel->fdw_private = (void*) fdwState;
   db2PopulateFdwStateOld(root, baserel,foreigntableid);
   db2PopulateFdwStateNew(root, baserel,foreigntableid);
-  db2Debug1("< db2GetForeignRelSize");
+  db2Exit(1,"< db2GetForeignRelSize.c::db2GetForeignRelSize");
 }
 
 static void db2PopulateFdwStateOld(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid){
@@ -52,6 +53,7 @@ static void db2PopulateFdwStateOld(PlannerInfo* root, RelOptInfo* baserel, Oid f
   int          i        = 0;
   double       ntuples  = -1;
 
+  db2Entry(1,"> db2GetForeignRelSize.c::db2PopulateFdwStateOld");
   /** Store the table OID in each table column.
    * This is redundant for base relations, but join relations will
    * have columns from different tables, and we have to keep track of them.
@@ -85,13 +87,14 @@ static void db2PopulateFdwStateOld(PlannerInfo* root, RelOptInfo* baserel, Oid f
   }
   /* estimate total cost as startup cost + 10 * (returned rows) */
   fdwState->total_cost = fdwState->startup_cost + baserel->rows * 10.0;
-
+  db2Exit(1,"< db2GetForeignRelSize.c::db2PopulateFdwStateOld");
 }
 
 static void db2PopulateFdwStateNew(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid){
   DB2FdwState* fpinfo = (DB2FdwState*)baserel->fdw_private;
   ListCell*     lc    = NULL;
 
+  db2Entry(1,"> db2GetForeignRelSize.c::db2PopulateFdwStateNew");
   /* Base foreign tables need to be pushed down always. */
   fpinfo->pushdown_safe = true;
 
@@ -195,6 +198,7 @@ static void db2PopulateFdwStateNew(PlannerInfo* root, RelOptInfo* baserel, Oid f
   fpinfo->hidden_subquery_rels    = NULL;
   /* Set the relation index. */
   fpinfo->relation_index          = baserel->relid;
+  db2Exit(1,"< db2GetForeignRelSize.c::db2PopulateFdwStateNew");
 }
 
 /* Parse options from foreign server and apply them to fpinfo.
@@ -203,6 +207,7 @@ static void db2PopulateFdwStateNew(PlannerInfo* root, RelOptInfo* baserel, Oid f
 static void apply_server_options(DB2FdwState* fpinfo) {
   ListCell* lc;
 
+  db2Entry(4,"> db2GetForeignRelSize.c::apply_server_options");
   foreach(lc, fpinfo->fserver->options) {
     DefElem*  def = (DefElem*) lfirst(lc);
 
@@ -219,6 +224,7 @@ static void apply_server_options(DB2FdwState* fpinfo) {
     else if (strcmp(def->defname, "async_capable") == 0)
       fpinfo->async_capable = defGetBoolean(def);
   }
+  db2Exit(4,"< db2GetForeignRelSize.c::apply_server_options");
 }
 
 /* Parse options from foreign table and apply them to fpinfo.
@@ -227,6 +233,7 @@ static void apply_server_options(DB2FdwState* fpinfo) {
 static void apply_table_options(DB2FdwState* fpinfo) {
   ListCell* lc;
 
+  db2Entry(4,"> db2GetForeignRelSize.c::apply_table_options");
   foreach(lc, fpinfo->ftable->options) {
     DefElem*  def = (DefElem*) lfirst(lc);
 
@@ -237,6 +244,7 @@ static void apply_table_options(DB2FdwState* fpinfo) {
     else if (strcmp(def->defname, "async_capable") == 0)
       fpinfo->async_capable = defGetBoolean(def);
   }
+  db2Exit(4,"< db2GetForeignRelSize.c::apply_table_options");
 }
 
 /* Parse a comma-separated string and return a List of the OIDs of the extensions named in the string.  If any names in the list cannot be
@@ -247,6 +255,7 @@ static List * ExtractExtensionList(const char *extensionsString, bool warnOnMiss
   List*     extlist       = NIL;
   ListCell* lc            = NULL;
 
+  db2Entry(4,"> db2GetForeignRelSize.c::ExtractExtensionList");
   /* SplitIdentifierString scribbles on its input, so pstrdup first */
   if (!SplitIdentifierString(pstrdup(extensionsString), ',', &extlist)) {
     /* syntax error in name list */
@@ -264,5 +273,6 @@ static List * ExtractExtensionList(const char *extensionsString, bool warnOnMiss
     }
   }
   list_free(extlist);
+  db2Exit(4,"< db2GetForeignRelSize.c::ExtractExtensionList : %x", extensionOids);
   return extensionOids;
 }

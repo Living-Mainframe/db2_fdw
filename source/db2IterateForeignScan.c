@@ -2,7 +2,6 @@
 #include <commands/explain.h>
 #include <commands/vacuum.h>
 #include <utils/syscache.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include <access/xact.h>
@@ -15,41 +14,39 @@ extern void         db2PrepareQuery           (DB2Session* session, const char *
 extern int          db2ExecuteQuery           (DB2Session* session, ParamDesc* paramList);
 extern int          db2FetchNext              (DB2Session* session);
 extern void         db2CloseStatement         (DB2Session* session);
-extern void         db2Debug1                 (const char* message, ...);
-extern void         db2Debug2                 (const char* message, ...);
-extern void         db2Debug3                 (const char* message, ...);
+extern void         db2Entry                  (int level, const char* message, ...);
+extern void         db2Exit                   (int level, const char* message, ...);
+extern void         db2Debug                  (int level, const char* message, ...);
 extern void         convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
 extern char*        deparseDate               (Datum datum);
 extern char*        deparseTimestamp          (Datum datum, bool hasTimezone);
 
 /** local prototypes */
-TupleTableSlot* db2IterateForeignScan(ForeignScanState* node);
-char*           setSelectParameters  (ParamDesc *paramList, ExprContext * econtext);
+       TupleTableSlot* db2IterateForeignScan(ForeignScanState* node);
+static char*           setSelectParameters  (ParamDesc *paramList, ExprContext * econtext);
 
-/** db2IterateForeignScan
- *   On first invocation (if there is no DB2 statement yet),
- *   get the actual parameter values and run the remote query against
- *   the DB2 database, retrieving the first result row.
- *   Subsequent invocations will fetch more result rows until there
- *   are no more.
- *   The result is stored as a virtual tuple in the ScanState's
- *   TupleSlot and returned.
+/* db2IterateForeignScan
+ * On first invocation (if there is no DB2 statement yet), get the actual parameter values and run the remote query against
+ * the DB2 database, retrieving the first result row.
+ * Subsequent invocations will fetch more result rows until there are no more.
+ * The result is stored as a virtual tuple in the ScanState's TupleSlot and returned.
  */
 TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
   TupleTableSlot* slot      = node->ss.ss_ScanTupleSlot;
   ExprContext*    econtext  = node->ss.ps.ps_ExprContext;
   int             have_result;
   DB2FdwState*    fdw_state = (DB2FdwState*) node->fdw_state;
-  db2Debug1("> db2IterateForeignScan");
+
+  db2Entry(1,"> db2IterateForeignScan.c::db2IterateForeignScan");
   if (db2IsStatementOpen (fdw_state->session)) {
-    db2Debug3("  get next row in foreign table scan");
+    db2Debug(2,"get next row in foreign table scan");
     /* fetch the next result row */
     have_result = db2FetchNext (fdw_state->session);
   } else {
     /* fill the parameter list with the actual values */
     char* paramInfo = setSelectParameters (fdw_state->paramList, econtext);
     /* execute the DB2 statement and fetch the first row */
-    db2Debug3("  execute query in foreign table scan '%s'", paramInfo);
+    db2Debug(2,"execute query in foreign table scan '%s'", paramInfo);
     db2PrepareQuery (fdw_state->session, fdw_state->query, fdw_state->resultList, fdw_state->prefetch, fdw_state->fetch_size);
     have_result = db2ExecuteQuery (fdw_state->session, fdw_state->paramList);
     have_result = db2FetchNext (fdw_state->session);
@@ -60,7 +57,7 @@ TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
     /* increase row count */
     ++fdw_state->rowcount;
     /* convert result to arrays of values and null indicators */
-    db2Debug2("  slot->tts_tupleDescriptor->natts: %d",slot->tts_tupleDescriptor->natts);
+    db2Debug(2,"slot->tts_tupleDescriptor->natts: %d",slot->tts_tupleDescriptor->natts);
     convertTuple (fdw_state, slot->tts_tupleDescriptor->natts, slot->tts_values, slot->tts_isnull, false);
     /* store the virtual tuple */
     ExecStoreVirtualTuple (slot);
@@ -68,7 +65,7 @@ TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
     /* close the statement */
     db2CloseStatement (fdw_state->session);
   }
-  db2Debug1("< db2IterateForeignScan");
+  db2Exit(1,"< db2IterateForeignScan.c::db2IterateForeignScan");
   return slot;
 }
 
@@ -76,7 +73,7 @@ TupleTableSlot* db2IterateForeignScan (ForeignScanState* node) {
  *   Set the current values of the parameters into paramList.
  *   Return a string containing the parameters set for a DEBUG message.
  */
-char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
+static char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
   ParamDesc*     param;
   Datum          datum;
   HeapTuple      tuple;
@@ -86,9 +83,9 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
   MemoryContext  oldcontext;
   StringInfoData info;     /* list of parameters for DEBUG message */
 
-  db2Debug1("> setSelectParameters");
-  db2Debug2("  paramList: %x",paramList);
-  db2Debug2("  econtext : %x",econtext);
+  db2Entry(4,"> db2IterateForeignScan.c::setSelectParameters");
+  db2Debug(5,"paramList: %x",paramList);
+  db2Debug(5,"econtext : %x",econtext);
   
   initStringInfo (&info);
 
@@ -149,7 +146,7 @@ char* setSelectParameters (ParamDesc* paramList, ExprContext* econtext) {
   /* reset memory context */
   MemoryContextSwitchTo (oldcontext);
 
-  db2Debug1("< setSelectParameters - returns: '%s'",info.data);
+  db2Exit(4,"< db2IterateForeignScan.c::setSelectParameters : %s", info.data);
   return info.data;
 }
 

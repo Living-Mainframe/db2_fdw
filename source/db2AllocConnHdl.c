@@ -8,9 +8,9 @@
 extern char      db2Message[ERRBUFSIZE];/* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void      db2Debug1            (const char* message, ...);
-extern void      db2Debug2            (const char* message, ...);
-extern void      db2Debug3            (const char* message, ...);
+extern void      db2Entry             (int level, const char* message, ...);
+extern void      db2Exit              (int level, const char* message, ...);
+extern void      db2Debug             (int level, const char* message, ...);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern void      db2RegisterCallback  (void* arg);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -18,22 +18,20 @@ extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
 extern char*     db2strdup            (const char* p);
 
 /** local prototypes */
-DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
-DB2ConnEntry*    findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user, const char* jwttok);
-DB2ConnEntry*    insertconnEntry      (DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc);
+       DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
+       DB2ConnEntry*    findconnEntry        (DB2ConnEntry* start, const char* srvname, const char* user, const char* jwttok);
+static DB2ConnEntry*    insertconnEntry      (DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc);
 
-/** db2AllocConnHdl
- *
- */
+/* db2AllocConnHdl */
 DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang) {
   DB2ConnEntry* connp   = NULL;
   SQLRETURN     rc      = 0;
   SQLHDBC       hdbc    = SQL_NULL_HDBC;
 
-  db2Debug1("> db2AllocConnHdl(envp: %x, srvname: %s, user: %s, password: %s, jwt_token: %s, nls_lang: %s)", envp, srvname,user, password, jwt_token ? "***" : "NULL", nls_lang);
+  db2Entry(1,"> db2AllocConnHdl.c::db2AllocConnHdl(envp: %x, srvname: %s, user: %s, password: %s, jwt_token: %s, nls_lang: %s)", envp, srvname,user, password, jwt_token ? "***" : "NULL", nls_lang);
   if (nls_lang != NULL) {
     rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
-    db2Debug3("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
+    db2Debug(3,"alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
     rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
     if (rc != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllocHandle failed to allocate hdbc handle", db2Message);
@@ -53,7 +51,7 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
 
       /* create connection handle */
       rc = SQLAllocHandle(SQL_HANDLE_DBC, envp->henv, &hdbc);
-      db2Debug3("  alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
+      db2Debug(3,"alloc dbc handle - rc: %d, henv: %d, hdbc: %d",rc, envp->henv, hdbc);
       rc = db2CheckErr(rc, envp->henv, SQL_HANDLE_ENV, __LINE__, __FILE__);
       if (rc  != SQL_SUCCESS) {
         db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "error connecting to DB2: SQLAllochHandle failed to allocate hdbc handle", db2Message);
@@ -62,7 +60,7 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
       /* Check if JWT token authentication is used */
       if (jwt_token != NULL && jwt_token[0] != '\0') {
         /* JWT token authentication */
-        db2Debug1("  using JWT token authentication");
+        db2Debug(2,"using JWT token authentication");
 
         /* For DB2 11.5.4+ with JWT, use SQLDriverConnect with AUTHENTICATION=TOKEN */
         /* Requires: DB2 client 11.5.4+, server configured with db2token.cfg */
@@ -78,14 +76,14 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
           db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "connection string too long", " connection to foreign DB2 server");
         }
 
-        db2Debug1("  connecting with connection string (token hidden)");
+        db2Debug(2,"connecting with connection string (token hidden)");
 
         /* Use SQLDriverConnect instead of SQLConnect */
         rc = SQLDriverConnect(hdbc, NULL, (SQLCHAR*)connStr, SQL_NTS,
                              outConnStr, sizeof(outConnStr), &outConnStrLen,
                              SQL_DRIVER_NOPROMPT);
 
-        db2Debug1("  connect to database(%s) with JWT token - rc: %d, hdbc: %d", srvname, rc, hdbc);
+        db2Debug(2,"connect to database(%s) with JWT token - rc: %d, hdbc: %d", srvname, rc, hdbc);
         rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
         if (rc != SQL_SUCCESS) {
           db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate with JWT token", " connection connectstring: %s ,%s", srvname, db2Message);
@@ -93,9 +91,9 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
         }
       } else {
         /* Traditional user/password authentication */
-        db2Debug1("  using user/password authentication");
+        db2Debug(2,"using user/password authentication");
         rc = SQLConnect(hdbc, (SQLCHAR*)srvname, SQL_NTS, (SQLCHAR*)user, SQL_NTS, (SQLCHAR*)password, SQL_NTS);
-        db2Debug1("  connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
+        db2Debug(2,"connect to database(%s) - rc: %d, hdbc: %d",srvname, rc, hdbc);
         rc = db2CheckErr(rc, hdbc, SQL_HANDLE_DBC, __LINE__, __FILE__);
         if (rc != SQL_SUCCESS) {
           db2Error_d (FDW_UNABLE_TO_ESTABLISH_CONNECTION, "cannot authenticate"," connection User: %s ,%s"            , user    , db2Message);
@@ -120,16 +118,14 @@ DB2ConnEntry* db2AllocConnHdl(DB2EnvEntry* envp,const char* srvname, char* user,
       }
     }
   }
-  db2Debug1("< db2AllocConnHdl - returns: %x",connp);
+  db2Exit(1,"< db2AllocConnHdl.c::db2AllocConnHdl : %x",connp);
   return connp;
 }
 
-/** findconnEntry
- * 
- */
+/* findconnEntry */
 DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char* user, const char* jwttok) {
   DB2ConnEntry* step = NULL;
-  db2Debug2("  > findconnEntry");
+  db2Entry(2,"> db2AllocConnHdl.c::findconnEntry");
   for (step = start; step != NULL; step = step->right){
     /* NULL-safe comparison for JWT auth where user may be NULL */
     int jwt_null_or_empty     = (!step->jwt_token || step->jwt_token[0] == '\0');
@@ -151,18 +147,16 @@ DB2ConnEntry* findconnEntry(DB2ConnEntry* start, const char* srvname, const char
       break;
     }
   }
-  db2Debug2("  < findconnEntry - returns: %x", step);
+  db2Exit(2,"< db2AllocConnHdl.c::findconnEntry : %x", step);
   return step;
 }
 
-/** insertconnEntry
- *
- */
-DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc) {
+/* insertconnEntry  */
+static DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const char* uid, const char* pwd, const char* jwt_token, SQLHDBC hdbc) {
   DB2ConnEntry* step = NULL;
   DB2ConnEntry* new  = NULL;
 
-  db2Debug2("  > insertconnEntry");
+  db2Entry(2,"> db2AllocConnHdl.c::insertconnEntry");
   new = malloc(sizeof(DB2ConnEntry));
   if (start == NULL){ /* first entry in list */
     new->right = new->left = NULL;
@@ -180,6 +174,6 @@ DB2ConnEntry* insertconnEntry(DB2ConnEntry* start, const char* srvname, const ch
   new->handlelist = NULL;
   new->hdbc       = hdbc;
   new->xact_level = 0;
-  db2Debug2("  < insertconnEntry - returns: %x",new);
+  db2Exit(2,"< db2AllocConnHdl.c::insertconnEntry : %x",new);
   return new;
 }

@@ -3,7 +3,6 @@
 #include <optimizer/planmain.h>
 #include <optimizer/tlist.h>
 #include <parser/parsetree.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include "db2_fdw.h"

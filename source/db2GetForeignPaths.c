@@ -1,22 +1,23 @@
 #include <postgres.h>
 #include <nodes/nodeFuncs.h>
 #include <optimizer/pathnode.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <access/heapam.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void         db2Debug1                 (const char* message, ...);
+extern void         db2Entry                  (int level, const char* message, ...);
+extern void         db2Exit                   (int level, const char* message, ...);
+extern void         db2Debug                  (int level, const char* message, ...);
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 
 /** local prototypes */
        void  db2GetForeignPaths  (PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid);
 static Expr* find_em_expr_for_rel(EquivalenceClass * ec, RelOptInfo * rel);
 
-/** db2GetForeignPaths
- *   Create a ForeignPath node and add it as only possible path.
+/* db2GetForeignPaths
+ * Create a ForeignPath node and add it as only possible path.
  */
 void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid) {
   DB2FdwState* fdwState = (DB2FdwState*) baserel->fdw_private;
@@ -27,16 +28,16 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
   ListCell*      cell;
   char*          delim = " ";
 
-  db2Debug1("> db2GetForeignPaths");
+  db2Entry(1,"> db2GetForeignPaths.c::db2GetForeignPaths");
   initStringInfo (&orderedquery);
 
   foreach (cell, root->query_pathkeys) {
-    PathKey*           pathkey    = (PathKey *) lfirst (cell);
-    EquivalenceClass*  pathkey_ec = pathkey->pk_eclass;
-    Expr*              em_expr    = NULL;
-    char*              sort_clause;
-    Oid                em_type;
-    bool               can_pushdown;
+    PathKey*           pathkey      = (PathKey*) lfirst (cell);
+    EquivalenceClass*  pathkey_ec   = pathkey->pk_eclass;
+    Expr*              em_expr      = NULL;
+    char*              sort_clause  = NULL;
+    Oid                em_type      = 0;
+    bool               can_pushdown = false;
 
     /* deparseExpr would detect volatile expressions as well, but ec_has_volatile saves some cycles. */
     can_pushdown = !pathkey_ec->ec_has_volatile && ((em_expr = find_em_expr_for_rel (pathkey_ec, baserel)) != NULL);
@@ -45,10 +46,26 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
       em_type = exprType ((Node *) em_expr);
 
       /* expressions of a type different from this are not safe to push down into ORDER BY clauses */
-      if (em_type != INT8OID   && em_type != INT2OID    && em_type  != INT4OID    && em_type != OIDOID       &&  em_type != FLOAT4OID
-      &&  em_type != FLOAT8OID && em_type != NUMERICOID && em_type  != DATEOID    && em_type != TIMESTAMPOID && em_type  != TIMESTAMPTZOID
-      &&  em_type != TIMEOID   && em_type != TIMETZOID  &&  em_type != INTERVALOID)
-        can_pushdown = false;
+      switch(em_type){
+        case INT8OID:
+        case INT2OID:
+        case INT4OID:
+        case OIDOID:
+        case FLOAT4OID:
+        case FLOAT8OID:
+        case NUMERICOID:
+        case DATEOID:
+        case TIMESTAMPOID:
+        case TIMESTAMPTZOID:
+        case TIMEOID:
+        case TIMETZOID:
+        case INTERVALOID:
+          can_pushdown = true;
+        break;
+        default:
+          can_pushdown = false;
+        break;
+      }
     }
 
     if (can_pushdown && ((sort_clause = deparseExpr (root, baserel, em_expr, &(fdwState->params))) != NULL)) {
@@ -101,28 +118,25 @@ void db2GetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntable
                                                       ,NIL
                                                       )
     );
-  db2Debug1("< db2GetForeignPaths");
+  db2Exit(1,"< db2GetForeignPaths.c::db2GetForeignPaths");
 }
 
 /* find_em_expr_for_rel
  * Find an equivalence class member expression, all of whose Vars come from the indicated relation.
  */
 static Expr* find_em_expr_for_rel (EquivalenceClass* ec, RelOptInfo* rel) {
-  ListCell* lc_em = NULL;
+  ListCell* lc_em  = NULL;
   Expr*     result = NULL;
-  db2Debug1("> find_em_expr_for_rel");
+
+  db2Entry(4,"> db2GetForeignPaths.c::find_em_expr_for_rel");
   foreach (lc_em, ec->ec_members) {
     EquivalenceMember* em = lfirst (lc_em);
     if (bms_equal (em->em_relids, rel->relids)) {
-      /*
-       * If there is more than one equivalence member whose Vars are
-       * taken entirely from this relation, we'll be content to choose
-       * any one of those.
-       */
+      /* If there is more than one equivalence member whose Vars are taken entirely from this relation, we'll be content to choose any one of those. */
       result =  em->em_expr;
       break;
     }
   }
-  db2Debug1("< find_em_expr_for_rel - returns: %x", result);
+  db2Exit(4,"< db2GetForeignPaths.c::find_em_expr_for_rel : %x", result);
   return result;
 }

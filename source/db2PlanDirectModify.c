@@ -10,8 +10,9 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void         db2Debug1                 (const char* message, ...);
-extern void         db2Debug2                 (const char* message, ...);
+extern void         db2Entry                  (int level, const char* message, ...);
+extern void         db2Exit                   (int level, const char* message, ...);
+extern void         db2Debug                  (int level, const char* message, ...);
 extern bool         is_foreign_expr           (PlannerInfo *root, RelOptInfo *baserel, Expr *expr);
 extern void         deparseDirectUpdateSql    (StringInfo buf, PlannerInfo *root, Index rtindex, Relation rel, RelOptInfo *foreignrel, List *targetlist, List *targetAttrs, List *remote_conds, List **params_list, List *returningList, List **retrieved_attrs);
 extern void         deparseDirectDeleteSql    (StringInfo buf, PlannerInfo *root, Index rtindex, Relation rel, RelOptInfo *foreignrel, List *remote_conds, List **params_list, List *returningList, List **retrieved_attrs);
@@ -24,16 +25,19 @@ static ForeignScan* find_modifytable_subplan  (PlannerInfo* root, ModifyTable* p
  * Decide whether it is safe to modify a foreign table directly, and if so, rewrite subplan accordingly.
  */
 bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, int subplan_index) {
-  bool               fResult          = true;
+  bool  fResult = true;
 
-  db2Debug1("> %s::db2PlanDirectModify", __FILE__);
-  /* Decide whether it is safe to modify a foreign table directly. */
-  /* The table modification must be an UPDATE or DELETE. */
+  db2Entry(1,"> db2PlanDirectModify.c::db2PlanDirectModify");
+  db2Debug(2,"plan->operation: %d", plan->operation);
+  db2Debug(2,"plan->returningLists: %x - %d", plan->returningLists, list_length(plan->returningLists));
+  /* The table modification must be an UPDATE or DELETE and must not use RETURNING */
   if ((plan->operation == CMD_UPDATE || plan->operation == CMD_DELETE) && plan->returningLists == NIL) {
     /* Try to locate the ForeignScan subplan that's scanning rtindex. */
     ForeignScan* fscan  = find_modifytable_subplan(root, plan, rtindex, subplan_index);
+    db2Debug(2,"fscan: %x",fscan);
     if (fscan) {
       /* It's unsafe to modify a foreign table directly if there are any quals that should be evaluated locally. */
+      db2Debug(2,"fscan->scan.plan.qual: %x",fscan->scan.plan.qual);
       if (fscan->scan.plan.qual == NIL) {
         RelOptInfo*     foreignrel        = NULL;
         RangeTblEntry*  rte              = NULL;
@@ -50,6 +54,7 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
           foreignrel = root->simple_rel_array[rtindex];
         }
         rte = root->simple_rte_array[rtindex];
+        /* skip deserialization of plan data*/
         fpinfo = (DB2FdwState*) foreignrel->fdw_private;
 
         /* It's unsafe to update a foreign table directly, 
@@ -66,20 +71,17 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
           forboth(lc, processed_tlist, lc2, targetAttrs) {
             TargetEntry*  tle   = lfirst_node(TargetEntry, lc);
             AttrNumber	  attno = lfirst_int(lc2);
-
             /* update's new-value expressions shouldn't be resjunk */
             Assert(!tle->resjunk);
-
             if (attno <= InvalidAttrNumber) /* shouldn't happen */
               elog(ERROR, "system-column update is not supported");
-
             if (!is_foreign_expr(root, foreignrel, (Expr *) tle->expr)) {
               fResult = false;
               break;
             }
           }
         }
-
+        db2Debug(2,"fResult: %s",(fResult) ? "true" : "false");
         if (fResult) {
           StringInfoData  sql;
           Relation	      rel;
@@ -150,7 +152,7 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
       }
     }
   }
-  db2Debug1("< %s::db2PlanDirectModify : %s", __FILE__, (fResult) ? "true" : "false");
+  db2Exit(1,"< db2PlanDirectModify.c::db2PlanDirectModify : %s", (fResult) ? "true" : "false");
   return fResult;
 }
 
@@ -162,35 +164,43 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
  */
 static ForeignScan* find_modifytable_subplan(PlannerInfo* root, ModifyTable* plan, Index rtindex, int subplan_index) {
   ForeignScan*  fscan   = NULL; 
-	Plan*         subplan = outerPlan(plan);
+  Plan*         subplan = outerPlan(plan);
 
-	/* The cases we support are (1) the desired ForeignScan is the immediate child of ModifyTable, or (2) it is the subplan_index'th child of an
-	 * Append node that is the immediate child of ModifyTable.
+  db2Entry(1,"> db2PlanDirectModify.c::find_modifytable_subplan");
+  /* The cases we support are (1) the desired ForeignScan is the immediate child of ModifyTable, or (2) it is the subplan_index'th child of an
+   * Append node that is the immediate child of ModifyTable.
    * There is no point in looking further down, as that would mean that local joins are involved, so we can't do the update directly.
-	 * There could be a Result atop the Append too, acting to compute the UPDATE targetlist values.
+   * There could be a Result atop the Append too, acting to compute the UPDATE targetlist values.
    * We ignore that here; the tlist will be checked by our caller.
-	 * In principle we could examine all the children of the Append, but it's currently unlikely that the core planner would generate such a plan
-	 * with the children out-of-order.
+   * In principle we could examine all the children of the Append, but it's currently unlikely that the core planner would generate such a plan
+   * with the children out-of-order.
    * Moreover, such a search risks costing O(N^2) time when there are a lot of children.
-	 */
-	if (IsA(subplan, Append))	{
-		Append* appendplan = (Append*) subplan;
+   */
+  db2Debug(3,"subplan from outerplan: %x",subplan);
+  if (IsA(subplan, Append)) {
+    Append* append = (Append*) subplan;
 
-		if (subplan_index < list_length(appendplan->appendplans))
-			subplan = (Plan *) list_nth(appendplan->appendplans, subplan_index);
-	}
-	else if (IsA(subplan, Result) && outerPlan(subplan) != NULL && IsA(outerPlan(subplan), Append)) {
-		Append* appendplan = (Append*) outerPlan(subplan);
+    db2Debug(4,"subplan is Append");
+    if (subplan_index < list_length(append->appendplans)) {
+      subplan = (Plan*) list_nth(append->appendplans, subplan_index);
+      db2Debug(3,"subplan from appendplan: %x",subplan);
+    }
+  } else if (IsA(subplan, Result) && outerPlan(subplan) != NULL && IsA(outerPlan(subplan), Append)) {
+    Append* append = (Append*) outerPlan(subplan);
 
-		if (subplan_index < list_length(appendplan->appendplans))
-			subplan = (Plan *) list_nth(appendplan->appendplans, subplan_index);
-	}
+    db2Debug(4,"subplan is Result");
+    if (subplan_index < list_length(append->appendplans)) {
+      subplan = (Plan*) list_nth(append->appendplans, subplan_index);
+      db2Debug(3,"subplan from resultplan: %x",subplan);
+    }
+  }
 
-	/* Now, have we got a ForeignScan on the desired rel? */
-	if (IsA(subplan, ForeignScan) && (bms_is_member(rtindex, ((ForeignScan*) subplan)->fs_base_relids))) {
-			fscan = (ForeignScan*) subplan;
-	}
-
-	return fscan;
+  /* Now, have we got a ForeignScan on the desired rel? */
+  db2Debug(3,"subplan: %x",subplan);
+  if (IsA(subplan, ForeignScan) && (bms_is_member(rtindex, ((ForeignScan*) subplan)->fs_base_relids))) {
+      db2Debug(4,"subplan is ForeignScan");
+      fscan = (ForeignScan*) subplan;
+  }
+  db2Exit(1,"< db2PlanDirectModify.c::find_modifytable_subplan : %x", fscan);
+  return fscan;
 }
-

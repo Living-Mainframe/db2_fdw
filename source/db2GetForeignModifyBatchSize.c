@@ -10,11 +10,13 @@
 /** external variables */
 
 /** external prototypes */
-extern void            db2Debug1                 (const char* message, ...);
+extern void db2Entry                    (int level, const char* message, ...);
+extern void db2Exit                     (int level, const char* message, ...);
+extern void db2Debug                    (int level, const char* message, ...);
 
 /** local prototypes */
-int db2GetForeignModifyBatchSize(ResultRelInfo *rinfo);
-static int db2_get_batch_size_option   (Relation rel);
+       int  db2GetForeignModifyBatchSize(ResultRelInfo *rinfo);
+static int  db2_get_batch_size_option   (Relation rel);
 
 /* db2GetForeignModifyBatchSize
  * Determine the maximum number of tuples that can be inserted in bulk
@@ -26,6 +28,7 @@ int db2GetForeignModifyBatchSize(ResultRelInfo *rinfo) {
   int          batch_size  = 1;
   DB2FdwState* fmstate     = (DB2FdwState*) rinfo->ri_FdwState;
 
+  db2Entry(1,"> db2GetForeignModifyBatchSize.c::db2GetForeignModifyBatchSize");
   /* should be called only once */
   Assert(rinfo->ri_BatchSize == 0);
 
@@ -68,45 +71,18 @@ int db2GetForeignModifyBatchSize(ResultRelInfo *rinfo) {
       }
     }
   }
+  db2Exit(1,"< db2GetForeignModifyBatchSize.c::db2GetForeignModifyBatchSize : %d", batch_size);
   return batch_size;
 }
 
-
-/* db2GetForeignModifyBatchSize
- *
- * Returns the batch size to use for INSERTs into this foreign table.
- *
- * Returning 1 tells the executor to not batch (i.e., call ExecForeignInsert per-row). 
- * Any value > 1 enables batching, subject to what the executor actually decides to send.
- */
-//int db2GetForeignModifyBatchSize(ResultRelInfo *rinfo) {
-//  Relation rel        = rinfo->ri_RelationDesc;
-//  int      batch_size = 0;
-//
-//  db2Debug1("> db2GetForeignModifyBatchSize");
-//  /* If the table has BEFORE/AFTER ROW triggers or a RETURNING clause is involved, it’s safer to disable batching and just do per-row inserts. 
-//   * That's what postgres_fdw does as well.:contentReference[oaicite:4]{index=4}
-//   */
-//  if (rel->trigdesc && (rel->trigdesc->trig_insert_before_row || rel->trigdesc->trig_insert_after_row)) {
-//    batch_size = 1;
-//  } else {
-//    /* We don't have easy access to "has RETURNING" here like postgres_fdw does (it stores that in its modify state), but PostgreSQL core
-//     * currently skips ExecForeignBatchInsert if there is a RETURNING clause anyway.:contentReference[oaicite:5]{index=5}
-//     */
-//    batch_size = db2_get_batch_size_option(rel);
-//  }
-//  db2Debug1("< db2GetForeignModifyBatchSize - batch_size: %d", batch_size);
-//  return batch_size;
-//}
-
 static int db2_get_batch_size_option(Relation rel) {
-  Oid            relid = RelationGetRelid(rel);
-  ForeignTable*  table;
-  ForeignServer* server;
-  ListCell*      lc;
+  Oid            relid      = RelationGetRelid(rel);
+  ForeignTable*  table      = NULL;
+  ForeignServer* server     = NULL;
+  ListCell*      lc         = NULL;
   int            batch_size = 0;
 
-  db2Debug1("> db2_get_batch_size_option");
+  db2Entry(1,"> db2GetForeignModifyBatchSize.c::db2_get_batch_size_option");
   table  = GetForeignTable(relid);
   server = GetForeignServer(table->serverid);
 
@@ -147,10 +123,9 @@ static int db2_get_batch_size_option(Relation rel) {
       }
     }
   }
-
   /* Default: no batching */
   batch_size = (batch_size < 1) ? DEFAULT_BATCHSZ : batch_size; 
-  db2Debug1("< db2_get_batch_size_option- batch_size: %d", batch_size);
+  db2Exit(1,"< db2GetForeignModifyBatchSize.c::db2_get_batch_size_option : %d", batch_size);
   return batch_size;
 }
 #endif

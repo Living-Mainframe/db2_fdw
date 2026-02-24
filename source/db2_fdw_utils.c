@@ -3,7 +3,6 @@
 #include <catalog/pg_type.h>
 #include <mb/pg_wchar.h>
 #include <miscadmin.h>
-#include <nodes/pathnodes.h>
 #include <optimizer/optimizer.h>
 #include <optimizer/paths.h>
 #include <utils/builtins.h>
@@ -36,11 +35,12 @@ typedef struct {
 
 
 /** external prototypes */
+extern void         db2Entry                   (int level, const char* message, ...);
+extern void         db2Exit                    (int level, const char* message, ...);
+extern void         db2Debug                   (int level, const char* message, ...);
 extern void         db2GetLob                  (DB2Session* session, DB2ResultColumn* column, char** value, long* value_len, unsigned long trunc);
 extern void         db2Shutdown                (void);
 extern short        c2dbType                   (short fcType);
-extern void         db2Debug4                  (const char* message, ...);
-extern void         db2Debug5                  (const char* message, ...);
 extern void*        db2alloc                   (const char* type, size_t size);
 extern void*        db2strdup                  (const char* source);
 extern void         db2free                    (void* p);
@@ -63,9 +63,9 @@ static bool         lookup_shippable           (Oid objectId, Oid classId, DB2Fd
  */
 bool optionIsTrue (const char *value) {
   bool result = false;
-  db2Debug4("> optionIsTrue(value: '%s')",value);
+  db2Entry(4,"> db2_fdw_utils.c::optionIsTrue(value: '%s')",value);
   result = (pg_strcasecmp (value, "on") == 0 || pg_strcasecmp (value, "yes") == 0 || pg_strcasecmp (value, "true") == 0);
-  db2Debug4("< optionIsTrue - returns: '%s'",((result) ? "true" : "false"));
+  db2Exit(4,"< db2_fdw_utils.c::optionIsTrue : '%s'",((result) ? "true" : "false"));
   return result;
 }
 
@@ -80,7 +80,7 @@ char* guessNlsLang (char *nls_lang) {
   char*          charset         = NULL;
   StringInfoData buf;
 
-  db2Debug4("> %s::guessNlsLang(nls_lang: %s)", __FILE__, nls_lang);
+  db2Entry(4,"> db2_fdw_utils.c::guessNlsLang(nls_lang: %s)", nls_lang);
   initStringInfo (&buf);
   if (nls_lang == NULL) {
     server_encoding = db2strdup (GetConfigOption ("server_encoding", false, true));
@@ -183,7 +183,7 @@ char* guessNlsLang (char *nls_lang) {
   } else {
     appendStringInfo (&buf, "NLS_LANG=%s", nls_lang);
   }
-  db2Debug4("< %s::guessNlsLang : %s", __FILE__, buf.data);
+  db2Exit(4,"< db2_fdw_utils.c::guessNlsLang : %s", buf.data);
   return buf.data;
 }
 
@@ -191,9 +191,9 @@ char* guessNlsLang (char *nls_lang) {
  * Close all DB2 connections on process exit.
  */
 void exitHook (int code, Datum arg) {
-  db2Debug4("> %s::exitHook",__FILE__);
+  db2Entry(4,"> db2_fdw_utils.c::exitHook");
   db2Shutdown ();
-  db2Debug4("< %s::exitHook",__FILE__);
+  db2Exit(4,"< db2_fdw_utils.c::exitHook");
 }
 
 /* convertTuple
@@ -208,13 +208,13 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
   DB2ResultColumn*     res            = NULL;
   bool                 isSimpleSelect = false;
 
-  db2Debug4("> %s::convertTuple",__FILE__);
-  db2Debug5("  natts: %d", natts);
-  db2Debug5("  truncate lob: %s", trunc_lob ? "true": "false");
+  db2Entry(4,"> db2_fdw_utils.c::convertTuple");
+  db2Debug(5,"natts: %d", natts);
+  db2Debug(5,"truncate lob: %s", trunc_lob ? "true": "false");
 
   /* assign result values */
   isSimpleSelect = (natts == db2Table->npgcols);
-  db2Debug5("  isSimpleSelect: %s", isSimpleSelect ? "true": "false");
+  db2Debug(5,"isSimpleSelect: %s", isSimpleSelect ? "true": "false");
 
   // initialize all columns to NULL
   for (j = 0; j < natts; j++) {
@@ -224,14 +224,14 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
 
   for (res = fdw_state->resultList; res; res = res->next) {
     j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
-    db2Debug5("  start processing column %d of %d: values index = %d", res->resnum, natts, j);
-    db2Debug5("  res->pgname   : %s"  ,res->pgname  );
-    db2Debug5("  res->pgattnum : %d"  ,res->pgattnum);
-    db2Debug5("  res->pgtype   : %d"  ,res->pgtype  );
-    db2Debug5("  res->pgtypmod : %d"  ,res->pgtypmod);
-    db2Debug5("  res->val      : %s"  ,res->val     );
-    db2Debug5("  res->val_len  : %d"  ,res->val_len );
-    db2Debug5("  res->val_null : %d"  ,res->val_null);
+    db2Debug(5,"start processing column %d of %d: values index = %d", res->resnum, natts, j);
+    db2Debug(5,"res->pgname   : %s"  ,res->pgname  );
+    db2Debug(5,"res->pgattnum : %d"  ,res->pgattnum);
+    db2Debug(5,"res->pgtype   : %d"  ,res->pgtype  );
+    db2Debug(5,"res->pgtypmod : %d"  ,res->pgtypmod);
+    db2Debug(5,"res->val      : %s"  ,res->val     );
+    db2Debug(5,"res->val_len  : %d"  ,res->val_len );
+    db2Debug(5,"res->val_null : %d"  ,res->val_null);
 
     if (res->val_null >= 0) {
       short db2Type = 0;
@@ -242,14 +242,14 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
       switch(c2dbType(res->colType)) {
         case DB2_BLOB:
         case DB2_CLOB: {
-          db2Debug5("  DB2_BLOB or DB2CLOB");
+          db2Debug(5,"DB2_BLOB or DB2CLOB");
           /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
           /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
           db2GetLob (fdw_state->session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
         }
         break;
         case DB2_LONGVARBINARY: {
-          db2Debug5("  DB2_LONGBINARY datatypes");
+          db2Debug(5,"DB2_LONGBINARY datatypes");
           /* for LONG and LONG RAW, the first 4 bytes contain the length */
           value_len = *((int32*) res->val);
           /* the rest is the actual data */
@@ -267,7 +267,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         case DB2_DOUBLE: {
           char* tmp_value = NULL;
   
-          db2Debug5("  DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
+          db2Debug(5,"DB2_FLOAT, DECIMAL, SMALLINT, INTEGER, REAL, DECFLOAT, DOUBLE");
           value     = res->val;
           value_len = res->val_len;
           value_len = (value_len == 0) ? strlen(value) : value_len;
@@ -278,7 +278,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         }
         break;
         default: {
-          db2Debug5("  shoud be string based values");
+          db2Debug(5,"shoud be string based values");
           /* for other data types, db2Table contains the results */
           value     = res->val;
           value_len = res->val_len;
@@ -286,8 +286,8 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         }
         break;
       }
-      db2Debug5("  value         : %s"  , value);
-      db2Debug5("  value_len     : %ld" , value_len);
+      db2Debug(5,"value         : %s"  , value);
+      db2Debug(5,"value_len     : %ld" , value_len);
       /* fill the TupleSlot with the data (after conversion if necessary) */
       if (res->pgtype == BYTEAOID) {
         /* binary columns are not converted */
@@ -300,7 +300,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         regproc   typinput;
         HeapTuple tuple;
         Datum     dat;
-        db2Debug5("  pgtype: %d",res->pgtype);
+        db2Debug(5,"pgtype: %d",res->pgtype);
         /* find the appropriate conversion function */
         tuple = SearchSysCache1 (TYPEOID, ObjectIdGetDatum (res->pgtype));
         if (!HeapTupleIsValid (tuple)) {
@@ -309,11 +309,11 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         typinput = ((Form_pg_type) GETSTRUCT (tuple))->typinput;
         ReleaseSysCache (tuple);
         dat = CStringGetDatum (value);
-        db2Debug5("  CStringGetDatum(%s): %d",value, dat);
+        db2Debug(5,"CStringGetDatum(%s): %d",value, dat);
   
         /* for string types, check that the data are in the database encoding */
         if (res->pgtype == BPCHAROID || res->pgtype == VARCHAROID || res->pgtype == TEXTOID) {
-          db2Debug5("  pg_verify_mbstr");
+          db2Debug(5,"pg_verify_mbstr");
           (void) pg_verify_mbstr (GetDatabaseEncoding(), value, value_len, res->noencerr == NO_ENC_ERR_TRUE);
         }
         /* call the type input function */
@@ -328,12 +328,12 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
           case NUMERICOID:
             /* these functions require the type modifier */
             values[j] = OidFunctionCall3 (typinput, dat, ObjectIdGetDatum (InvalidOid), Int32GetDatum (res->pgtypmod));
-            db2Debug5("  OidFunctionCall3 : values[%d]: %d", j, values[j]);
+            db2Debug(5,"OidFunctionCall3 : values[%d]: %d", j, values[j]);
             break;
           default:
             /* the others don't */
             values[j] = OidFunctionCall1 (typinput, dat);
-            db2Debug5("  OidFunctionCall1 : values[%d]: %d", j, values[j]);
+            db2Debug(5,"OidFunctionCall1 : values[%d]: %d", j, values[j]);
         }
       }
       /* release the data buffer for LOBs */
@@ -342,19 +342,21 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         if (value != NULL) {
           db2free (value);
         } else {
-          db2Debug5("  not freeing value, since it is null");
+          db2Debug(5,"not freeing value, since it is null");
         }
       }
     } else {
-      db2Debug5("  column %d is NULL", res->resnum);
+      db2Debug(5,"column %d is NULL", res->resnum);
     }
   }
-  db2Debug4("< %s::convertTuple",__FILE__);
+  db2Exit(4,"< db2_fdw_utils.c::convertTuple");
 }
 
 /* Undo the effects of set_transmission_modes(). */
 void reset_transmission_modes(int nestlevel) {
+  db2Entry(4,"> db2_fdw_utils.c::reset_transmission_modes");
   AtEOXact_GUC(true, nestlevel);
+  db2Exit(4,"< db2_fdw_utils.c::reset_transmission_modes");
 }
 
 /* Force assorted GUC parameters to settings that ensure that we'll output data values in a form that is unambiguous to the remote server.
@@ -370,6 +372,7 @@ void reset_transmission_modes(int nestlevel) {
 int set_transmission_modes(void) {
   int nestlevel = NewGUCNestLevel();
 
+  db2Entry(4,"> db2_fdw_utils.c::set_transmission_modes");
   /* The values set here should match what pg_dump does.  See also configure_remote_session in connection.c. */
   if (DateStyle != USE_ISO_DATES)
     (void) set_config_option("datestyle", "ISO", PGC_USERSET, PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);
@@ -384,6 +387,7 @@ int set_transmission_modes(void) {
    */
   (void) set_config_option("search_path", "pg_catalog", PGC_USERSET, PGC_S_SESSION, GUC_ACTION_SAVE, true, 0, false);
 
+  db2Exit(4,"< db2_fdw_utils.c::set_transmission_modes : %d", nestlevel);
   return nestlevel;
 }
 
@@ -402,7 +406,10 @@ int set_transmission_modes(void) {
  * But keeping track of that would be a huge exercise.
  */
 bool is_builtin (Oid objectId) {
-  return (objectId < FirstGenbkiObjectId);
+  bool isBuiltin = (objectId < FirstGenbkiObjectId);
+  db2Entry(4,"> db2_fdw_utils.c::is_builtin");
+  db2Exit (4,"> db2_fdw_utils.c::is_builtin : %s", (isBuiltin) ? "true": "false");
+  return isBuiltin;
 }
 
 /* is_shippable
@@ -410,39 +417,47 @@ bool is_builtin (Oid objectId) {
  */
 bool is_shippable (Oid objectId, Oid classId, DB2FdwState* fpinfo) {
   ShippableCacheKey     key;
-  ShippableCacheEntry*  entry;
+  ShippableCacheEntry*  entry     = NULL;
+  bool                  shippable = false; 
 
+  db2Entry(4,"> db2_fdw_utils.c::is_shippable");
   /* Built-in objects are presumed shippable. */
-  if (is_builtin(objectId))
-    return true;
+  if (is_builtin(objectId)) {
+    shippable = true;
+  } else {
+    /* Otherwise, give up if user hasn't specified any shippable extensions. */
+    if (fpinfo->shippable_extensions == NIL) {
+      shippable = false;
+    } else {
+      /* Initialize cache if first time through. */
+      if (!ShippableCacheHash) {
+        InitializeShippableCache();
+      }
 
-  /* Otherwise, give up if user hasn't specified any shippable extensions. */
-  if (fpinfo->shippable_extensions == NIL)
-    return false;
+      /* Set up cache hash key */
+      key.objid     = objectId;
+      key.classid   = classId;
+      key.serverid  = fpinfo->fserver->serverid;
 
-  /* Initialize cache if first time through. */
-  if (!ShippableCacheHash)
-    InitializeShippableCache();
+      /* See if we already cached the result. */
+      entry = (ShippableCacheEntry*) hash_search(ShippableCacheHash, &key, HASH_FIND, NULL);
+      if (!entry) {
+        /* Not found in cache, so perform shippability lookup. */
+        shippable = lookup_shippable(objectId, classId, fpinfo);
 
-  /* Set up cache hash key */
-  key.objid     = objectId;
-  key.classid   = classId;
-  key.serverid  = fpinfo->fserver->serverid;
-
-  /* See if we already cached the result. */
-  entry = (ShippableCacheEntry*) hash_search(ShippableCacheHash, &key, HASH_FIND, NULL);
-
-  if (!entry) {
-    /* Not found in cache, so perform shippability lookup. */
-    bool  shippable = lookup_shippable(objectId, classId, fpinfo);
-
-    /* Don't create a new hash entry until *after* we have the shippable result in hand, as the underlying catalog lookups might trigger a
-     * cache invalidation.
-     */
-    entry = (ShippableCacheEntry*) hash_search(ShippableCacheHash, &key, HASH_ENTER, NULL);
-    entry->shippable = shippable;
+        /* Don't create a new hash entry until *after* we have the shippable result in hand, as the underlying catalog lookups might trigger a
+        * cache invalidation.
+        */
+        entry = (ShippableCacheEntry*) hash_search(ShippableCacheHash, &key, HASH_ENTER, NULL);
+        entry->shippable = shippable;
+      } else {
+        db2Debug(4, "no shippable cache entry (%x) found shippable is set to false", entry);
+        shippable = false;
+      }
+    }
   }
-  return entry->shippable;
+  db2Exit(4,"< db2_fdw_utils.c::is_shippable : %s", shippable ? "true" : "false");
+  return shippable;
 }
 
 /* Flush cache entries when pg_foreign_server is updated.
@@ -455,6 +470,7 @@ static void InvalidateShippableCacheCbk(Datum arg, int cacheid, uint32 hashvalue
   HASH_SEQ_STATUS       status;
   ShippableCacheEntry*  entry;
 
+  db2Entry(5,"> db2_fdw_utils.c::InvalidateShippableCacheCbk");
   /* In principle we could flush only cache entries relating to the pg_foreign_server entry being outdated; but that would be more
    * complicated, and it's probably not worth the trouble.
    * So for now, just flush all entries.
@@ -464,12 +480,14 @@ static void InvalidateShippableCacheCbk(Datum arg, int cacheid, uint32 hashvalue
     if (hash_search(ShippableCacheHash, &entry->key, HASH_REMOVE, NULL) == NULL)
       elog(ERROR, "hash table corrupted");
   }
+  db2Exit(5,"< db2_fdw_utils.c::InvalidateShippableCacheCbk");
 }
 
 /* Initialize the backend-lifespan cache of shippability decisions. */
 static void InitializeShippableCache(void) {
   HASHCTL ctl;
 
+  db2Entry(5,"> db2_fdw_utils.c::InitializeShippableCache");
   /* Create the hash table. */
   ctl.keysize   = sizeof(ShippableCacheKey);
   ctl.entrysize = sizeof(ShippableCacheEntry);
@@ -477,6 +495,7 @@ static void InitializeShippableCache(void) {
 
   /* Set up invalidation callback on pg_foreign_server. */
   CacheRegisterSyscacheCallback(FOREIGNSERVEROID, InvalidateShippableCacheCbk, (Datum) 0);
+  db2Exit(5,"< db2_fdw_utils.c::InitializeShippableCache");
 }
 
 /* Returns true if given object (operator/function/type) is shippable according to the server options.
@@ -485,13 +504,15 @@ static void InitializeShippableCache(void) {
  * In the future we could additionally have a list of functions/operators declared one at a time.
  */
 static bool lookup_shippable(Oid objectId, Oid classId, DB2FdwState* fpinfo) {
-  Oid extensionOid;
+  Oid   extensionOid = 0;
+  bool  isValid       = false;
 
+  db2Entry(5,"> db2_fdw_utils.c::lookup_shippable");
   /* Is object a member of some extension?  (Note: this is a fairly expensive lookup, which is why we try to cache the results.) */
   extensionOid = getExtensionOfObject(classId, objectId);
 
   /* If so, is that extension in fpinfo->shippable_extensions? */
-  if (OidIsValid(extensionOid) && list_member_oid(fpinfo->shippable_extensions, extensionOid))
-    return true;
+  isValid = (OidIsValid(extensionOid) && list_member_oid(fpinfo->shippable_extensions, extensionOid));
+  db2Exit(5,"< db2_fdw_utils.c::lookup_shippable : %s", (isValid) ? "true" : "false");
   return false;
 }

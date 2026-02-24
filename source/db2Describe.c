@@ -15,8 +15,9 @@ extern int          err_code;              /* error code, set by db2CheckErr()  
 extern bool         optionIsTrue         (const char* value);
 extern void*        db2alloc             (const char* type, size_t size);
 extern void         db2free              (void* p);
-extern void         db2Debug1            (const char* message, ...);
-extern void         db2Debug2            (const char* message, ...);
+extern void         db2Entry             (int level, const char* message, ...);
+extern void         db2Exit              (int level, const char* message, ...);
+extern void         db2Debug             (int level, const char* message, ...);
 extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void         db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern char*        db2CopyText          (const char* string, int size, int quote);
@@ -27,9 +28,9 @@ extern void         db2FreeStmtHdl       (HdlEntry* handlep, DB2ConnEntry* connp
 /** internal prototypes */
 DB2Table*           db2Describe          (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
 
-/** db2Describe
- *   Find the remote DB2 table and describe it.
- *   Returns an allocated data structure with the results.
+/* db2Describe
+ * Find the remote DB2 table and describe it.
+ * Returns an allocated data structure with the results.
  */
 DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz) {
   DB2Table*   reply;
@@ -52,7 +53,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   SQLINTEGER  codepage = 0;
   SQLRETURN   rc = 0;
 
-  db2Debug1("> db2Describe");
+  db2Entry(1,"> db2Describe.c::db2Describe");
   /* get a complete quoted table name */
   qtable = db2CopyText (table, strlen (table), 1);
   length = strlen (qtable);
@@ -87,7 +88,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   }
   /* execute the query */
   rc = SQLExecute(stmthp->hsql);
-  rc= db2CheckErr(rc, stmthp->hsql, stmthp->type, __LINE__, __FILE__);
+  rc = db2CheckErr(rc, stmthp->hsql, stmthp->type, __LINE__, __FILE__);
   if (rc != SQL_SUCCESS) {
     if (err_code == 942)
       db2Error_d (FDW_TABLE_NOT_FOUND, "table not found",
@@ -101,10 +102,10 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
   /* allocate an db2Table struct for the results */
   reply          = db2alloc ("reply", sizeof (DB2Table));
   reply->name    = tablename;
-  db2Debug2("  table description");
-  db2Debug2("  reply->name   : '%s'", reply->name);
+  db2Debug(2,"table description");
+  db2Debug(2,"reply->name   : '%s'", reply->name);
   reply->pgname  = pgname;
-  db2Debug2("  reply->pgname : '%s'", reply->pgname);
+  db2Debug(2,"reply->pgname : '%s'", reply->pgname);
   reply->npgcols = 0;
 
   reply->batchsz = DEFAULT_BATCHSZ;
@@ -122,7 +123,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
 
   reply->ncols = ncols;
   reply->cols = (DB2Column**) db2alloc ("reply->cols", sizeof (DB2Column*) *reply->ncols);
-  db2Debug2("  reply->ncols  : %d", reply->ncols);
+  db2Debug(2,"reply->ncols  : %d", reply->ncols);
 
   /* loop through the column list */
   for (i = 1; i <= reply->ncols; ++i) {
@@ -158,20 +159,20 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLDescribeCol failed to get column data", db2Message);
     }
     reply->cols[i - 1]->colName  = db2CopyText ((char*) colName, (int) nameLen, 1);
-    db2Debug2("  reply->cols[%d]->colName  : '%s'", (i-1), reply->cols[i - 1]->colName);
-    db2Debug2("  dataType: %d", dataType);
+    db2Debug(2,"reply->cols[%d]->colName  : '%s'", (i-1), reply->cols[i - 1]->colName);
+    db2Debug(2,"dataType: %d", dataType);
     reply->cols[i - 1]->colType  = (short)  dataType;
     if (dataType == -7){
       // datatype -7 does not exist it seems to be used for SQL_BOOLEAN wrongly
       reply->cols[i - 1]->colType = SQL_BOOLEAN;
     }
-    db2Debug2("  reply->cols[%d]->colType  : %d (%s)", (i-1), reply->cols[i - 1]->colType,c2name(reply->cols[i - 1]->colType));
+    db2Debug(2,"reply->cols[%d]->colType  : %d (%s)", (i-1), reply->cols[i - 1]->colType,c2name(reply->cols[i - 1]->colType));
     reply->cols[i - 1]->colSize  = (size_t) colSize;
-    db2Debug2("  reply->cols[%d]->colSize  : %ld", (i-1), reply->cols[i - 1]->colSize);
+    db2Debug(2,"reply->cols[%d]->colSize  : %ld", (i-1), reply->cols[i - 1]->colSize);
     reply->cols[i - 1]->colScale = (short)  scale;
-    db2Debug2("  reply->cols[%d]->colScale : %d", (i-1), reply->cols[i - 1]->colScale);
+    db2Debug(2,"reply->cols[%d]->colScale : %d", (i-1), reply->cols[i - 1]->colScale);
     reply->cols[i - 1]->colNulls = (short)  nullable;
-    db2Debug2("  reply->cols[%d]->colNulls : %d", (i-1), reply->cols[i - 1]->colNulls);
+    db2Debug(2,"reply->cols[%d]->colNulls : %d", (i-1), reply->cols[i - 1]->colNulls);
 
     /* get the number of characters for string fields */
     rc = SQLColAttribute (stmthp->hsql, i, SQL_DESC_PRECISION, NULL, 0, NULL, &charlen);
@@ -180,7 +181,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLColAttribute failed to get column length", db2Message);
     }
     reply->cols[i - 1]->colChars = (size_t) charlen;
-    db2Debug2("  reply->cols[%d]->colChars : %ld", (i-1), reply->cols[i - 1]->colChars);
+    db2Debug(2,"reply->cols[%d]->colChars : %ld", (i-1), reply->cols[i - 1]->colChars);
 
     /* get the binary length for RAW fields */
     rc = SQLColAttribute (stmthp->hsql, i, SQL_DESC_OCTET_LENGTH, NULL, 0, NULL, &bin_size);
@@ -189,7 +190,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLColAttribute failed to get column size", db2Message);
     }
     reply->cols[i - 1]->colBytes = (size_t) bin_size;
-    db2Debug2("  reply->cols[%d]->colBytes : %ld", (i-1), reply->cols[i - 1]->colBytes);
+    db2Debug(2,"reply->cols[%d]->colBytes : %ld", (i-1), reply->cols[i - 1]->colBytes);
 
     /* get the columns codepage */
     rc = SQLColAttribute(stmthp->hsql, i, SQL_DESC_CODEPAGE, NULL, 0, NULL, (SQLPOINTER)&codepage);
@@ -198,7 +199,7 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLColAttribute failed to get column codepage", db2Message);
     }
     reply->cols[i - 1]->colCodepage = (int) codepage;
-    db2Debug2("  reply->cols[%d]->colCodepage : %d", (i-1), reply->cols[i - 1]->colCodepage);
+    db2Debug(2,"reply->cols[%d]->colCodepage : %d", (i-1), reply->cols[i - 1]->colCodepage);
 
     /* Unfortunately a LONG VARBINARY is of type LONG VARCHAR but the codepage is set to 0 */
     if (reply->cols[i-1]->colType == SQL_LONGVARCHAR && reply->cols[i-1]->colCodepage == 0){
@@ -265,10 +266,10 @@ DB2Table* db2Describe (DB2Session* session, char* schema, char* table, char* pgn
       default:
       break;
     }
-    db2Debug2("  reply->cols[%d]->val_size : %d", (i-1), reply->cols[i - 1]->val_size);
+    db2Debug(2,"reply->cols[%d]->val_size : %d", (i-1), reply->cols[i - 1]->val_size);
   }
   /* release statement handle, this takes care of the parameter handles */
   db2FreeStmtHdl(stmthp, session->connp);
-  db2Debug1("< db2Describe - returns: %x", reply);
+  db2Exit(1,"< db2Describe.c::db2Describe - returns: %x", reply);
   return reply;
 }

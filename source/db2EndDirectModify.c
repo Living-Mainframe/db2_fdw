@@ -8,8 +8,9 @@ extern regproc* output_funcs;
 /** external prototypes */
 extern void         db2CloseStatement    (DB2Session* session);
 extern void         db2free              (void* p);
-extern void         db2Debug1            (const char* message, ...);
-extern void         db2Debug2            (const char* message, ...);
+extern void         db2Entry             (int level, const char* message, ...);
+extern void         db2Exit              (int level, const char* message, ...);
+extern void         db2Debug             (int level, const char* message, ...);
 
 /** local prototypes */
 void db2EndDirectModify(ForeignScanState* node);
@@ -20,10 +21,10 @@ void db2EndDirectModify(ForeignScanState* node);
 void db2EndDirectModify(ForeignScanState* node) {
 	DB2FdwDirectModifyState* fdw_state = (DB2FdwDirectModifyState*) node->fdw_state;
 
-	db2Debug1("> %s::db2EndDirectModify",__FILE__);
+	db2Entry(1,"> db2EndDirectModify.c::db2EndDirectModify");
 	/* MemoryContext will be deleted automatically. */
   if (fdw_state == NULL) {
-    db2Debug2("  no fdw_state, nothing to do");
+    db2Debug(2,"no fdw_state, nothing to do");
     return;
   }
 
@@ -50,5 +51,5 @@ void db2EndDirectModify(ForeignScanState* node) {
  
   db2free(fdw_state);
   node->fdw_state = NULL;
-	db2Debug1("< %s::db2EndDirectModify",__FILE__);
+	db2Exit(1,"< db2EndDirectModify.c::db2EndDirectModify");
 }
