@@ -55,9 +55,13 @@ void db2BeginDirectModify(ForeignScanState* node, int eflags) {
 
     /* Get private info created by planner functions. */
     dmstate->query           = strVal(list_nth (fsplan->fdw_private, FdwDirectModifyPrivateUpdateSql));
+    db2Debug2("dmstate->query: %s",dmstate->query);
     dmstate->has_returning   = boolVal(list_nth(fsplan->fdw_private, FdwDirectModifyPrivateHasReturning));
+    db2Debug2("dmstate->has_returning: %s",dmstate->has_returning? "true" : "false");
     dmstate->retrieved_attrs = (List*) list_nth(fsplan->fdw_private, FdwDirectModifyPrivateRetrievedAttrs);
+    db2Debug2("dmstate->retrieved_attrs: %x - %d", dmstate->retrieved_attrs, list_length(dmstate->retrieved_attrs));
     dmstate->set_processed   = boolVal(list_nth(fsplan->fdw_private, FdwDirectModifyPrivateSetProcessed));
+    db2Debug2("dmstate->set_processed: %s", dmstate->set_processed ? "true" : "false");
 
     /* Create context for per-tuple temp workspace. */
     dmstate->temp_cxt = AllocSetContextCreate(estate->es_query_cxt,  "db2_fdw temporary data", ALLOCSET_SMALL_SIZES);

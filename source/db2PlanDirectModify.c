@@ -146,8 +146,14 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
 
           table_close(rel, NoLock);
         }
+      } else {
+        fResult = false;
       }
+    } else {
+      fResult = false;
     }
+  } else {
+    fResult = false;
   }
   db2Exit1(": %s", (fResult) ? "true" : "false");
   return fResult;

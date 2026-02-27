@@ -5,6 +5,8 @@
 #include <foreign/fdwapi.h>
 #include <funcapi.h>
 #include "ParamDesc.h"
+#include "DB2ResultColumn.h"
+
 
 // Execution state of a foreign scan that modifies a foreign table directly. 
 typedef struct db2FdwDirectModifyState {
@@ -16,6 +18,7 @@ typedef struct db2FdwDirectModifyState {
   char*               nls_lang;               // DB2 locale information
   DB2Session*         session;                // encapsulates the active DB2 session
   ParamDesc*          paramList;              // description of parameters needed for the query
+  DB2ResultColumn*    resultList;             // list of result columns for the query
   DB2Table*           db2Table;               // description of the remote DB2 table
   unsigned long       prefetch;               // number of rows to prefetch (SQL_ATTR_PREFETCH_NROWS 0-1024)
   int                 fetch_size;             // fetch size for this remote table (SQL_ATTR_ROW_ARRAY_SIZE 1 - 32767)
