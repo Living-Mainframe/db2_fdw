@@ -51,7 +51,6 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
       if (strcmp (def->defname, OPT_KEY) == 0) {
         if (optionIsTrue (STRVAL(def->arg))) {
           Var*  var           = NULL;
-          char* key_col_name  = db2strdup(psprintf("__db2fdw_rowid_%s", NameStr(att->attname)));
 
           #if PG_VERSION_NUM < 140000
           TargetEntry *tle;
@@ -82,8 +81,8 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
                        );
           db2Debug2("create var rtindex: %d, attrno: %d, typid: %d, typmod: %d, collation: %d",rtindex,attrno,att->atttypid,att->atttypmod,att->attcollation);
           /* Register it as a required row-identity column. The name becomes the resjunk column name in the plan. */
-          add_row_identity_var(root, var, rtindex, key_col_name);
-          db2Debug2("add resjunk column %s: %d", key_col_name, rtindex);
+          add_row_identity_var(root, var, rtindex, NameStr(att->attname));
+          db2Debug2("add resjunk column %s: %d", NameStr(att->attname), rtindex);
           #endif  /* PG_VERSION_NUM */
           has_key = true;
         }
