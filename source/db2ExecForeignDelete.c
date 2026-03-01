@@ -90,26 +90,15 @@ void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleT
       db2Debug2("param->bindType: %d - BIND_OUTPUT - skipped",param->bindType);
       continue;
     }
+    db2Debug3("db2Table->cols[%d]->colPrimKeyPart: %d  ",param->colnum,db2Table->cols[param->colnum]->colPrimKeyPart);
     if (db2Table->cols[param->colnum]->colPrimKeyPart != 0) {
-      AttrNumber attrno = -1;
-      TupleDesc tupdesc = oldslot->tts_tupleDescriptor;
-      for (int i = 0; i < tupdesc->natts; i++) {
-        Form_pg_attribute att = TupleDescAttr(tupdesc,i);
-        if (att->attisdropped)
-          continue;
-        if (strcmp(NameStr(att->attname), psprintf("__db2fdw_rowid_%s", db2Table->cols[param->colnum]->pgname)) == 0) {
-          attrno = i + 1;
-          db2Debug2("key %s attrno   : %d",NameStr(att->attname),attrno);
-          db2Debug2("       atttypid : %d",att->atttypid);
-          db2Debug2("       atttypmod: %d",att->atttypmod);
-          break;
-        } 
-      }
-      if (attrno != -1) {
-        /* for primary key parameters extract the resjunk entry */
-        datum = ExecGetJunkAttribute (oldslot, attrno, &isnull);
-        db2Debug2("primaryKey value from resjunk entry: %ld",datum);
-      }
+      if (AttributeNumberIsValid(db2Table->cols[param->colnum]->pkey)) {
+        db2Debug2("db2Table->cols[%d]->pkey: %d",param->colnum,db2Table->cols[param->colnum]->pkey);
+        datum = ExecGetJunkAttribute (oldslot, db2Table->cols[param->colnum]->pkey, &isnull);
+        db2Debug2("primaryKey value from oldslot resjunk entry: %ld",datum);
+      } else {
+   			elog(ERROR, "no JunkAttribute Value found for key column: %s",db2Table->cols[param->colnum]->colName);
+      }     
       // If null go and check the normal parameter in the slot
       if (isnull) {
         /* for other parameters extract the datum from newslot */
