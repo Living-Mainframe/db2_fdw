@@ -48,11 +48,14 @@ void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo
   }
 
   /* primary-key junk attrs are only needed for UPDATE/DELETE */
-  if (subplan != NULL) {
+  if (subplan != NULL && (mtstate->operation == CMD_DELETE || mtstate->operation == CMD_UPDATE)) {
     for (i = 0; i < fdw_state->db2Table->ncols; ++i) {
       if (!fdw_state->db2Table->cols[i]->colPrimKeyPart)
         continue;
       fdw_state->db2Table->cols[i]->pkey = ExecFindJunkAttributeInTlist(subplan->targetlist, fdw_state->db2Table->cols[i]->pgname);
+      db2Debug2("fdw_state->db2Table->cols[%d]->pkey: %d", i, fdw_state->db2Table->cols[i]->pkey);
+  		if (!AttributeNumberIsValid(fdw_state->db2Table->cols[i]->pkey))
+	  		elog(ERROR, "could not find junk %s column",fdw_state->db2Table->cols[i]->pgname);
     }
   }
 
