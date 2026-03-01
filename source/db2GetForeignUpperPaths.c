@@ -394,8 +394,8 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
         /* Safe to push down */
         fpinfo->pushdown_safe = true;
         /* Construct PgFdwPathExtraData */
-        fpextra = palloc0_object(DB2FdwPathExtraData);
-        fpextra->target = root->upper_targets[UPPERREL_ORDERED];
+        fpextra                 = db2alloc("add_foreign_ordered_path:fpextra",sizeof(DB2FdwPathExtraData));
+        fpextra->target         = root->upper_targets[UPPERREL_ORDERED];
         fpextra->has_final_sort = true;
         /* Estimate the costs of performing the final sort remotely */
         estimate_path_cost_size(root, input_rel, NIL, root->sort_pathkeys, fpextra, &rows, &width, &disabled_nodes,	&startup_cost, &total_cost);
@@ -581,7 +581,7 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   fpinfo->pushdown_safe = true;
 
   /* Construct DB2FdwPathExtraData */
-  fpextra                 = palloc0_object(DB2FdwPathExtraData);
+  fpextra                 = db2alloc("add_foreign_final_path:fpextra",sizeof(DB2FdwPathExtraData));
   fpextra->target         = root->upper_targets[UPPERREL_FINAL];
   fpextra->has_final_sort = has_final_sort;
   fpextra->has_limit      = extra->limit_needed;

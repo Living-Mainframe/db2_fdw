@@ -197,7 +197,7 @@ static void prepare_query_params(PlanState* node, List* fdw_exprs, int numParams
   Assert(numParams > 0);
 
   /* Prepare for output conversion of parameters used in remote query. */
-  *param_flinfo = palloc0_array(FmgrInfo, numParams);
+  *param_flinfo = db2alloc("prepare_query_params:param_flinfo",sizeof(FmgrInfo) * numParams);
 
   i = 0;
   foreach(lc, fdw_exprs) {
