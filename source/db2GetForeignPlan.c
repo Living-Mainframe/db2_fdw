@@ -97,6 +97,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
           fpinfo->resultList = resCol;
           db2Debug3("fpinfo->resultList: %x", fpinfo->resultList);
         } else {
+          db2Debug3("about to free resCol: %x, colName: %s, pgattnum: %d", resCol, resCol->colName, resCol->pgattnum);
           db2free(resCol);
         }
       }
