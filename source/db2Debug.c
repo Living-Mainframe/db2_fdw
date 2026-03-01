@@ -96,14 +96,15 @@ void db2EntryExit(int level, int entry, const char* message, ...) {
 void db2Debug(int level, const char* message, ...) {
   if (isLogLevel(level)) {
     char    cBuffer [4000];
-    char*   sIndent = (char*)palloc0(2 * debug_depth + 1);
     int     dLevel  = DEBUG5;
+    int     offset  = (2*debug_depth);
     va_list arg_marker;
 
-    memset(sIndent, ' ', 2 * debug_depth);
+    memset(cBuffer, ' ', offset);
+    cBuffer[offset] = '\0';
 
     va_start (arg_marker, message);
-    vsnprintf (cBuffer, sizeof(cBuffer), message, arg_marker);
+    vsnprintf (cBuffer+offset, sizeof(cBuffer)-offset, message, arg_marker);
     switch(level){
       case 1:
       dLevel = DEBUG1;
@@ -122,8 +123,7 @@ void db2Debug(int level, const char* message, ...) {
       dLevel = DEBUG5;
       break;
     }
-    elog (dLevel, "%s%s", sIndent, cBuffer);
+    elog (dLevel, "%s", cBuffer);
     va_end   (arg_marker);
-    pfree(sIndent);
   }
 }
