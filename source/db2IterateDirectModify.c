@@ -17,8 +17,8 @@ TupleTableSlot* db2IterateDirectModify(ForeignScanState *node);
  */
 TupleTableSlot* db2IterateDirectModify(ForeignScanState *node) {
   DB2FdwDirectModifyState* 	dmstate     = (DB2FdwDirectModifyState*) node->fdw_state;
-  EState*                   estate      = node->ss.ps.state;
-  ResultRelInfo*            rtinfo      = node->resultRelInfo;
+//  EState*                   estate      = node->ss.ps.state;
+//  ResultRelInfo*            rtinfo      = node->resultRelInfo;
   int                       have_result = 0;
   TupleTableSlot*           slot        = NULL;
 
