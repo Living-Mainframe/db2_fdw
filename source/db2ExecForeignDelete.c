@@ -110,6 +110,13 @@ void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleT
         datum = ExecGetJunkAttribute (oldslot, attrno, &isnull);
         db2Debug2("primaryKey value from resjunk entry: %ld",datum);
       }
+      // If null go and check the normal parameter in the slot
+      if (isnull) {
+        /* for other parameters extract the datum from newslot */
+        datum = slot_getattr (newslot, db2Table->cols[param->colnum]->pgattnum, &isnull);
+        db2Debug2("parameter value from newslot: %ld",datum);
+        isnull = (datum == 0);
+      }
     } else {
       /* for other parameters extract the datum from newslot */
       datum = slot_getattr (newslot, db2Table->cols[param->colnum]->pgattnum, &isnull);
