@@ -275,7 +275,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
         }
         break;
         default: {
-          db2Debug5("shoud be string based values");
+          db2Debug5("should be string based values");
           /* for other data types, db2Table contains the results */
           value     = res->val;
           value_len = res->val_len;
