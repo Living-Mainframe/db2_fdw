@@ -15,7 +15,7 @@ extern int          db2ExecuteQuery           (DB2Session* session, ParamDesc* p
 extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 extern short        c2dbType                  (short fcType);
-extern void         convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
+extern void         convertTuple              (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* reslist, int natts, Datum* values, bool* nulls, bool trunc_lob);
 extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
@@ -113,7 +113,7 @@ static int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows
       /* the first "targrows" rows are added as samples */
       /* use a temporary memory context during convertTuple */
       old_cxt = MemoryContextSwitchTo (tmp_cxt);
-      convertTuple (fdw_state, tupDesc->natts, values, nulls, true);
+      convertTuple (fdw_state->session,fdw_state->db2Table,fdw_state->resultList, tupDesc->natts, values, nulls, true);
       MemoryContextSwitchTo (old_cxt);
       rows[collected_rows++] = heap_form_tuple (tupDesc, values, nulls);
       MemoryContextReset (tmp_cxt);
@@ -129,7 +129,7 @@ static int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows
         heap_freetuple (rows[k]);
         /* use a temporary memory context during convertTuple */
         old_cxt = MemoryContextSwitchTo (tmp_cxt);
-        convertTuple (fdw_state, tupDesc->natts, values, nulls, true);
+        convertTuple (fdw_state->session,fdw_state->db2Table,fdw_state->resultList, tupDesc->natts, values, nulls, true);
         MemoryContextSwitchTo (old_cxt);
         rows[k] = heap_form_tuple (tupDesc, values, nulls);
         MemoryContextReset (tmp_cxt);

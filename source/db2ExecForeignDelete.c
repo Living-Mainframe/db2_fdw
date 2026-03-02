@@ -12,7 +12,7 @@ extern regproc* output_funcs;
 /** external prototypes */
 extern int             db2ExecuteQuery           (DB2Session* session, ParamDesc* paramList);
 extern void            db2Debug                  (int level, const char* message, ...);
-extern void            convertTuple              (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
+extern void            convertTuple              (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* reslist, int natts, Datum* values, bool* nulls, bool trunc_lob);
 extern char*           deparseDate               (Datum datum);
 extern char*           deparseTimestamp          (Datum datum, bool hasTimezone);
 extern void*           db2alloc                  (const char* type, size_t size);
@@ -59,7 +59,7 @@ TupleTableSlot* db2ExecForeignDelete (EState* estate, ResultRelInfo* rinfo, Tupl
   ExecClearTuple (slot);
 
   /* convert result for RETURNING to arrays of values and null indicators */
-  convertTuple (fdw_state, slot->tts_tupleDescriptor->natts, slot->tts_values, slot->tts_isnull, false);
+  convertTuple (fdw_state->session,fdw_state->db2Table,fdw_state->resultList, slot->tts_tupleDescriptor->natts, slot->tts_values, slot->tts_isnull, false);
 
   /* store the virtual tuple */
   ExecStoreVirtualTuple (slot);
@@ -97,8 +97,8 @@ void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleT
         datum = ExecGetJunkAttribute (oldslot, db2Table->cols[param->colnum]->pkey, &isnull);
         db2Debug2("primaryKey value from oldslot resjunk entry: %ld",datum);
       } else {
-   			elog(ERROR, "no JunkAttribute Value found for key column: %s",db2Table->cols[param->colnum]->colName);
-      }     
+        elog(ERROR, "no JunkAttribute Value found for key column: %s",db2Table->cols[param->colnum]->colName);
+      }
       // If null go and check the normal parameter in the slot
       if (isnull) {
         /* for other parameters extract the datum from newslot */

@@ -46,7 +46,7 @@ extern void         db2free                    (void* p);
 bool                optionIsTrue               (const char *value);
 char*               guessNlsLang               (char* nls_lang);
 void                exitHook                   (int code, Datum arg);
-void                convertTuple               (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) ;
+void                convertTuple               (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* reslist, int natts, Datum* values, bool* nulls, bool trunc_lob);
 void                reset_transmission_modes   (int nestlevel);
 int                 set_transmission_modes     (void);
 bool                is_builtin                 (Oid objectId);
@@ -197,11 +197,10 @@ void exitHook (int code, Datum arg) {
  * Convert a result row from DB2 stored in db2Table into arrays of values and null indicators.
  * If trunc_lob it true, truncate LOBs to WIDTH_THRESHOLD+1 bytes.
  */
-void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls, bool trunc_lob) {
+void convertTuple (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* reslist, int natts, Datum* values, bool* nulls, bool trunc_lob) {
   char*                value          = NULL;
   long                 value_len      = 0;
   int                  j              = 0;
-  DB2Table*            db2Table       = fdw_state->db2Table;
   DB2ResultColumn*     res            = NULL;
   bool                 isSimpleSelect = false;
 
@@ -210,7 +209,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
   db2Debug5("truncate lob: %s", trunc_lob ? "true": "false");
 
   /* assign result values */
-  isSimpleSelect = (natts == db2Table->npgcols);
+  isSimpleSelect = (db2Table && natts == db2Table->npgcols);
   db2Debug5("isSimpleSelect: %s", isSimpleSelect ? "true": "false");
 
   // initialize all columns to NULL
@@ -219,7 +218,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
     values[j] = PointerGetDatum (NULL);
   }
 
-  for (res = fdw_state->resultList; res; res = res->next) {
+  for (res = reslist; res; res = res->next) {
     j = ((isSimpleSelect) ? res->pgattnum : res->resnum) - 1;
     db2Debug5("start processing column %d of %d: values index = %d", res->resnum, natts, j);
     db2Debug5("res->pgname   : %s"  ,res->pgname  );
@@ -242,7 +241,7 @@ void convertTuple (DB2FdwState* fdw_state, int natts, Datum* values, bool* nulls
           db2Debug5("DB2_BLOB or DB2CLOB");
           /* for LOBs, get the actual LOB contents (allocated), truncated if desired */
           /* the column index is 1 based, whereas index id 0 based, so always add 1 to index when calling db2GetLob, since it does a column based access*/
-          db2GetLob (fdw_state->session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
+          db2GetLob (session, res, &value, &value_len, trunc_lob ? (WIDTH_THRESHOLD + 1) : 0);
         }
         break;
         case DB2_LONGVARBINARY: {
