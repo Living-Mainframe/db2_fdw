@@ -1,8 +1,11 @@
 #include <postgres.h>
-#include <commands/vacuum.h>
-#include <utils/memutils.h>
-#include <optimizer/optimizer.h>
 #include <access/heapam.h>
+#if PG_VERSION_NUM < 140000
+#include <access/xact.h>
+#endif
+#include <commands/vacuum.h>
+#include <optimizer/optimizer.h>
+#include <utils/memutils.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
 

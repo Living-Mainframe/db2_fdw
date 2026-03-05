@@ -6,7 +6,6 @@
 #include <access/sysattr.h>
 #include <access/table.h>
 
-
 #include <catalog/pg_aggregate.h>
 #include <catalog/pg_authid.h>
 #include <catalog/pg_collation.h>
@@ -962,9 +961,15 @@ static void appendOrderByClause(List* pathkeys, bool has_final_sort, deparse_exp
     /* Lookup the operator corresponding to the compare type in the opclass.
      * The datatype used by the opfamily is not necessarily the same as the expression type (for array types for example).
      */
+    #if PG_VERSION_NUM < 180000
+    oprid = get_opfamily_member(pathkey->pk_opfamily, em->em_datatype, em->em_datatype, pathkey->pk_strategy);
+    if (!OidIsValid(oprid))
+      elog(ERROR, "missing operator %d(%u,%u) in opfamily %u", pathkey->pk_strategy, em->em_datatype, em->em_datatype, pathkey->pk_opfamily);
+    #else
     oprid = get_opfamily_member_for_cmptype(pathkey->pk_opfamily, em->em_datatype, em->em_datatype, pathkey->pk_cmptype);
     if (!OidIsValid(oprid))
       elog(ERROR, "missing operator %d(%u,%u) in opfamily %u", pathkey->pk_cmptype, em->em_datatype, em->em_datatype, pathkey->pk_opfamily);
+    #endif
     deparseExprInt(em_expr, context);
 
     /* Here we need to use the expression's actual type to discover whether the desired operator will be the default or not. */
@@ -2099,11 +2104,10 @@ static void deparseParamExpr         (Param*             expr, deparse_expr_cxt*
  * Handle it the same way we handle plain Params --- see deparseParam for comments.
  */
 static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
-  Relids  relids = ctx->scanrel->relids;
   int     relno  = 0;
   int     colno  = 0;
   /* Qualify columns when multiple relations are involved. */
-  bool    qualify_col = (bms_membership(relids) == BMS_MULTIPLE);
+  bool    qualify_col = (bms_membership( ctx->scanrel->relids) == BMS_MULTIPLE);
   bool    is_query_var = false;
 
   db2Entry1();
@@ -2114,8 +2118,13 @@ static void deparseVar(Var* expr, deparse_expr_cxt* ctx) {
     appendStringInfo(ctx->buf, "%s%d.%s%d", SUBQUERY_REL_ALIAS_PREFIX, relno, SUBQUERY_COL_ALIAS_PREFIX, colno);
     return;
   }
-  is_query_var = bms_is_member(expr->varno, ctx->root->all_query_rels);
+  #if PG_VERSION_NUM < 160000
+  is_query_var = bms_is_member(expr->varno, ctx->scanrel->relids);
+  db2Debug2("bms_is_member(%d,%d): %s",expr->varno, ctx->scanrel->relids, is_query_var ? "true":"false");
+  #else
+  is_query_var = bms_is_member(expr->varno, ctx->root->all_query_rels);  
   db2Debug2("bms_is_member(%d,%d): %s",expr->varno, ctx->root->all_query_rels, is_query_var ? "true":"false");
+  #endif
   db2Debug2("expr->varlevelsup: %d",expr->varlevelsup);
   if (is_query_var && expr->varlevelsup == 0) {
     deparseColumnRef(ctx->buf, expr->varno, expr->varattno, planner_rt_fetch(expr->varno, ctx->root), qualify_col);
@@ -3305,7 +3314,11 @@ static void deparseLockingClause(deparse_expr_cxt *context) {
      *
      * Note: because we actually run the query as a cursor, this assumes that DECLARE CURSOR ... FOR UPDATE is supported, which it isn't before 8.3.
      */
+    #if PG_VERSION_NUM < 140000
+    if (relid == root->parse->resultRelation && (root->parse->commandType == CMD_UPDATE || root->parse->commandType == CMD_DELETE)) {
+    #else
     if (bms_is_member(relid, root->all_result_relids) && (root->parse->commandType == CMD_UPDATE || root->parse->commandType == CMD_DELETE)) {
+    #endif
       /* Relation is UPDATE/DELETE target, so use FOR UPDATE */
       appendStringInfoString(buf, " FOR UPDATE");
 
@@ -3391,9 +3404,17 @@ static void deparseTargetList(StringInfo buf, RangeTblEntry *rte, Index rtindex,
 
   first = true;
   for (i = 1; i <= tupdesc->natts; i++) {
+    #if PG_VERISON_NUM < 180000
+    Form_pg_attribute attr = TupleDescAttr(tupdesc, i - 1);
+
+    /* Ignore dropped attributes. */
+    if (attr->attisdropped)
+      continue;
+    #else
     /* Ignore dropped attributes. */
     if (TupleDescCompactAttr(tupdesc, i - 1)->attisdropped)
       continue;
+    #endif
 
     if (have_wholerow || bms_is_member(i - FirstLowInvalidHeapAttributeNumber, attrs_used)) {
       if (!first)
@@ -3492,13 +3513,23 @@ static void deparseSubqueryTargetList(deparse_expr_cxt* context) {
  * ordering operator is shippable.
  */
 EquivalenceMember* find_em_for_rel(PlannerInfo* root, EquivalenceClass* ec, RelOptInfo* rel) {
-  DB2FdwState*              fpinfo = (DB2FdwState*) rel->fdw_private;
+  DB2FdwState*              fpinfo  = (DB2FdwState*) rel->fdw_private;
+  EquivalenceMember*        em      = NULL;
+  #if PG_VERSION_NUM < 180000
+  ListCell*                 lc      = NULL;
+  #else
   EquivalenceMemberIterator it;
-  EquivalenceMember*        em = NULL;
+  #endif
 
   db2Entry1();
+
+  #if PG_VERSION_NUM < 180000
+  foreach(lc, ec->ec_members) {
+    em = (EquivalenceMember *) lfirst(lc);
+  #else
   setup_eclass_member_iterator(&it, ec, rel->relids);
   while ((em = eclass_member_iterator_next(&it)) != NULL) {
+  #endif
     /* Note we require !bms_is_empty, else we'd accept constant expressions which are not suitable for the purpose. */
     if (bms_is_subset(em->em_relids, rel->relids) 
     &&  !bms_is_empty(em->em_relids) 

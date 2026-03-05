@@ -5,6 +5,7 @@
 #include <optimizer/optimizer.h>
 #include <optimizer/pathnode.h>
 #include <optimizer/tlist.h>
+#include <parser/parsetree.h>
 #include <utils/rel.h>
 #include "db2_fdw.h"
 #include "DB2FdwState.h"
@@ -16,8 +17,11 @@ extern void         deparseDirectDeleteSql    (StringInfo buf, PlannerInfo *root
 
 /** local prototypes */
        bool         db2PlanDirectModify       (PlannerInfo* root, ModifyTable* plan, Index rtindex, int subplan_index);
+#if PG_VERSION_NUM >= 140000
 static ForeignScan* find_modifytable_subplan  (PlannerInfo* root, ModifyTable* plan, Index rtindex, int subplan_index);
-
+#else
+static void         rebuild_fdw_scan_tlist    (ForeignScan *fscan, List *tlist);
+#endif
 /* postgresPlanDirectModify
  * Decide whether it is safe to modify a foreign table directly, and if so, rewrite subplan accordingly.
  */
@@ -29,10 +33,16 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
   db2Debug2("plan->returningLists: %x - %d", plan->returningLists, list_length(plan->returningLists));
   /* The table modification must be an UPDATE or DELETE and must not use RETURNING */
   if ((plan->operation == CMD_UPDATE || plan->operation == CMD_DELETE) && plan->returningLists == NIL) {
+    #if PG_VERSION_NUM < 140000
+    Plan* subplan = (Plan *) list_nth(plan->plans, subplan_index);
+    if (IsA(subplan, ForeignScan)) {
+      ForeignScan*fscan = (ForeignScan *) subplan;
+    #else
     /* Try to locate the ForeignScan subplan that's scanning rtindex. */
     ForeignScan* fscan  = find_modifytable_subplan(root, plan, rtindex, subplan_index);
     db2Debug2("fscan: %x",fscan);
     if (fscan) {
+    #endif
       /* It's unsafe to modify a foreign table directly if there are any quals that should be evaluated locally. */
       db2Debug2("fscan->scan.plan.qual: %x",fscan->scan.plan.qual);
       if (fscan->scan.plan.qual == NIL) {
@@ -58,6 +68,31 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
          * if any expressions to assign to the target columns are unsafe to evaluate remotely. 
          */
         if (plan->operation == CMD_UPDATE) {
+          #if PG_VERSION_NUM < 140000
+          int   col;
+
+          /* We transmit only columns that were explicitly targets of the UPDATE, so as to avoid unnecessary data transmission. */
+          col = -1;
+          while ((col = bms_next_member(rte->updatedCols, col)) >= 0) {
+            /* bit numbers are offset by FirstLowInvalidHeapAttributeNumber */
+            AttrNumber	attno = col + FirstLowInvalidHeapAttributeNumber;
+            TargetEntry *tle;
+
+            if (attno <= InvalidAttrNumber) /* shouldn't happen */
+              elog(ERROR, "system-column update is not supported");
+
+            tle = get_tle_by_resno(subplan->targetlist, attno);
+
+            if (!tle)
+              elog(ERROR, "attribute number %d not found in subplan targetlist", attno);
+
+            if (!is_foreign_expr(root, foreignrel, (Expr *) tle->expr)) {
+              fResult = false;
+              break;
+            }
+            targetAttrs = lappend_int(targetAttrs, attno);
+          }
+          #else
           ListCell*	lc 	= NULL;
           ListCell*	lc2 = NULL;
 
@@ -77,6 +112,7 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
               break;
             }
           }
+          #endif
         }
         db2Debug2("fResult: %s",(fResult) ? "true" : "false");
         if (fResult) {
@@ -124,26 +160,36 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
 
           /* Update the operation and target relation info. */
           fscan->operation      = plan->operation;
+          #if PG_VERSION_NUM >= 140000
           fscan->resultRelation = rtindex;
-
+          #endif
           /* Update the fdw_exprs list that will be available to the executor. */
           fscan->fdw_exprs      = params_list;
 
           /* Update the fdw_private list that will be available to the executor.
           * Items in the list must match enum FdwDirectModifyPrivateIndex, above.
           */
+          #if PG_VERSION_NUM < 150000
+          fscan->fdw_private    = list_make4(makeString(sql.data), makeInteger((retrieved_attrs != NIL)), retrieved_attrs, makeInteger(plan->canSetTag));
+          #else
           fscan->fdw_private    = list_make4(makeString(sql.data), makeBoolean((retrieved_attrs != NIL)), retrieved_attrs, makeBoolean(plan->canSetTag));
+          #endif
 
           /* Update the foreign-join-related fields. */
           if (fscan->scan.scanrelid == 0) {
             /* No need for the outer subplan. */
             fscan->scan.plan.lefttree = NULL;
+          #if PG_VERSION_NUM < 140000
+            /* Build new fdw_scan_tlist if UPDATE/DELETE .. RETURNING. */
+            if (returningList)
+              rebuild_fdw_scan_tlist(fscan, returningList);
           }
-
-          /* Finally, unset the async-capable flag if it is set, as we currently don't support asynchronous execution of direct modifications. */
+          #else
+          }
+            /* Finally, unset the async-capable flag if it is set, as we currently don't support asynchronous execution of direct modifications. */
           if (fscan->scan.plan.async_capable)
             fscan->scan.plan.async_capable = false;
-
+          #endif
           table_close(rel, NoLock);
         }
       } else {
@@ -159,6 +205,7 @@ bool db2PlanDirectModify(PlannerInfo* root, ModifyTable* plan, Index rtindex, in
   return fResult;
 }
 
+#if PG_VERSION_NUM >= 140000
 /* find_modifytable_subplan
  * Helper routine for postgresPlanDirectModify to find the ModifyTable subplan node that scans the specified RTI.
  *
@@ -200,10 +247,39 @@ static ForeignScan* find_modifytable_subplan(PlannerInfo* root, ModifyTable* pla
 
   /* Now, have we got a ForeignScan on the desired rel? */
   db2Debug3("subplan: %x",subplan);
+  #if PG_VERSION_NUM < 160000
+  if (IsA(subplan, ForeignScan) && (bms_is_member(rtindex, ((ForeignScan*) subplan)->fs_relids))) {
+  #else
   if (IsA(subplan, ForeignScan) && (bms_is_member(rtindex, ((ForeignScan*) subplan)->fs_base_relids))) {
+  #endif
       db2Debug4("subplan is ForeignScan");
       fscan = (ForeignScan*) subplan;
   }
   db2Exit1(": %x", fscan);
   return fscan;
 }
+#else
+/* rebuild_fdw_scan_tlist
+ * Build new fdw_scan_tlist of given foreign-scan plan node from given tlist
+ *
+ * There might be columns that the fdw_scan_tlist of the given foreign-scan plan node contains that the given tlist doesn't.
+ * The fdw_scan_tlist would have contained resjunk columns such as 'ctid' of the target relation and 'wholerow' of non-target relations,
+ * but the tlist might not contain them, for example. 
+ * So, adjust the tlist so it contains all the columns specified in the fdw_scan_tlist; else setrefs.c will get confused.
+ */
+static void rebuild_fdw_scan_tlist(ForeignScan *fscan, List *tlist) {
+  List*     new_tlist = tlist;
+  List*     old_tlist = fscan->fdw_scan_tlist;
+  ListCell* lc;
+
+  foreach(lc, old_tlist) {
+    TargetEntry *tle = (TargetEntry *) lfirst(lc);
+
+    if (tlist_member(tle->expr, new_tlist))
+      continue;       /* already got it */
+
+    new_tlist = lappend(new_tlist, makeTargetEntry(tle->expr, list_length(new_tlist) + 1, NULL, false));
+  }
+  fscan->fdw_scan_tlist = new_tlist;
+}
+#endif

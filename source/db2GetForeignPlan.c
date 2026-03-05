@@ -61,8 +61,13 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
   db2Entry1();
   /* Get FDW private data created by db2GetForeignUpperPaths(), if any. */
   if (best_path->fdw_private) {
+    #if PG_VERSION_NUM < 150000
+    has_final_sort  = intVal(list_nth(best_path->fdw_private, FdwPathPrivateHasFinalSort));
+    has_limit       = intVal(list_nth(best_path->fdw_private,	FdwPathPrivateHasLimit));
+    #else
     has_final_sort  = boolVal(list_nth(best_path->fdw_private, FdwPathPrivateHasFinalSort));
     has_limit       = boolVal(list_nth(best_path->fdw_private, FdwPathPrivateHasLimit));
+    #endif
   }
 
   db2Debug2("length of tlist: %d", list_length(tlist));

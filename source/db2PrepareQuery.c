@@ -5,7 +5,7 @@
 #include "ParamDesc.h"
 #include "DB2ResultColumn.h"
 
-#define SQL_VALUE_PTR_ULEN(v) ((SQLPOINTER)(uintptr_t)(SQLULEN)(v))
+#define SQL_VALUE_PTR_ULEN(v) ((SQLPOINTER)(u_int64_t)(SQLULEN)(v))
 
 /** global variables */
 

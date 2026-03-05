@@ -31,7 +31,11 @@ void db2BeginDirectModify(ForeignScanState* node, int eflags) {
   /* Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL. */
   if (!(eflags & EXEC_FLAG_EXPLAIN_ONLY)) {
     /* Get info about foreign table. */
+    #if PG_VERSION_NUM < 140000
+    rtindex           = estate->es_result_relation_info->ri_RangeTableIndex;
+    #else
     rtindex           = node->resultRelInfo->ri_RangeTableIndex;
+    #endif
     foreigntable      = (fsplan->scan.scanrelid == 0) ? ExecOpenScanRelation(estate, rtindex, eflags) : node->ss.ss_currentRelation;
       /* We'll save private state in node->fdw_state. */
     dmstate           = db2GetFdwDirectModifyState(foreigntable->rd_id, NULL, false);
@@ -56,11 +60,19 @@ void db2BeginDirectModify(ForeignScanState* node, int eflags) {
     /* Get private info created by planner functions. */
     dmstate->query           = strVal(list_nth (fsplan->fdw_private, FdwDirectModifyPrivateUpdateSql));
     db2Debug2("dmstate->query: %s",dmstate->query);
+    #if PG_VERSION_NUM < 150000
+    dmstate->has_returning   = intVal(list_nth(fsplan->fdw_private, FdwDirectModifyPrivateHasReturning));
+    #else
     dmstate->has_returning   = boolVal(list_nth(fsplan->fdw_private, FdwDirectModifyPrivateHasReturning));
+    #endif
     db2Debug2("dmstate->has_returning: %s",dmstate->has_returning? "true" : "false");
     dmstate->retrieved_attrs = (List*) list_nth(fsplan->fdw_private, FdwDirectModifyPrivateRetrievedAttrs);
     db2Debug2("dmstate->retrieved_attrs: %x - %d", dmstate->retrieved_attrs, list_length(dmstate->retrieved_attrs));
+    #if PG_VERSION_NUM < 150000
+    dmstate->set_processed   = intVal(list_nth(fsplan->fdw_private, FdwDirectModifyPrivateSetProcessed));
+    #else
     dmstate->set_processed   = boolVal(list_nth(fsplan->fdw_private, FdwDirectModifyPrivateSetProcessed));
+    #endif
     db2Debug2("dmstate->set_processed: %s", dmstate->set_processed ? "true" : "false");
 
     /* Create context for per-tuple temp workspace. */

@@ -65,7 +65,7 @@ void db2AddForeignUpdateTargets (PlannerInfo* root, Index rtindex,RangeTblEntry*
           /* Wrap it in a resjunk TLE with the right name ... */
           tle = makeTargetEntry( (Expr*)var
                                , list_length(parsetree->targetList) + 1
-                               , key_col_name
+                               , NameStr(att->attname)
                                , true
                               );
           /* ... and add it to the query's targetlist */

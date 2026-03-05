@@ -17,6 +17,11 @@
 #include "DB2FdwState.h"
 #include "DB2FdwPathExtraData.h"
 
+#if PG_VERSION_NUM < 140000
+/* source-code-compatibility hacks for pull_varnos() API change */
+#define make_restrictinfo(a,b,c,d,e,f,g,h,i) make_restrictinfo_new(a,b,c,d,e,f,g,h,i)
+#endif
+
 /** external prototypes */
 extern void*              db2alloc                  (const char* type, size_t size);
 extern char*              db2strdup                 (const char* source);
@@ -300,12 +305,16 @@ static void add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
                                           , grouped_rel
                                           , grouped_rel->reltarget
                                           , rows
+      #if PG_VERSION_NUM >= 180000
                                           , disabled_nodes
+      #endif
                                           , startup_cost
                                           , total_cost
                                           , NIL                    /* no pathkeys */
                                           , NULL
+      #if PG_VERSION_NUM >= 170000
                                           , NIL                    /* no fdw_restrictinfo list */
+      #endif
                                           , NIL);                  /* no fdw_private */
       /* Add generated path into grouped_rel by add_path(). */
       add_path(grouped_rel, (Path*) grouppath);
@@ -403,18 +412,26 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
         * Build the fdw_private list that will be used by postgresGetForeignPlan.
         * Items in the list must match order in enum FdwPathPrivateIndex.
         */
+        #if PG_VERSION_NUM < 150000
+        fdw_private = list_make2(makeInteger(true), makeInteger(false));
+        #else
         fdw_private = list_make2(makeBoolean(true), makeBoolean(false));
+        #endif
         /* Create foreign ordering path */
         ordered_path = create_foreign_upper_path( root
                                                 , input_rel
                                                 , root->upper_targets[UPPERREL_ORDERED]
                                                 , rows
+        #if PG_VERSION_NUM >= 180000
                                                 , disabled_nodes
+        #endif
                                                 , startup_cost
                                                 , total_cost
                                                 , root->sort_pathkeys
                                                 , NULL                   /* no extra plan */
+        #if PG_VERSION_NUM >= 170000
                                                 , NIL                    /* no fdw_restrictinfo list */
+        #endif
                                                 , fdw_private);
         /* and add it to the ordered_rel */
         add_path(ordered_rel, (Path *) ordered_path);
@@ -504,12 +521,16 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
                                               , path->parent
                                               , path->pathtarget
                                               , path->rows
+        #if PG_VERSION_NUM >= 180000
                                               , path->disabled_nodes
+        #endif
                                               , path->startup_cost
                                               , path->total_cost
                                               , path->pathkeys
                                               , NULL                     /* no extra plan */
+        #if PG_VERSION_NUM >= 170000
                                               , NIL                      /* no fdw_restrictinfo list */
+        #endif
                                               , NIL);                    /* no fdw_private */
 
         /* and add it to the final_rel */
@@ -603,19 +624,27 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
     ifpinfo->use_remote_estimate = save_use_remote_estimate;
 
   /* Build the fdw_private list that will be used by postgresGetForeignPlan. Items in the list must match order in enum FdwPathPrivateIndex. */
+  #if PG_VERSION_NUM < 150000
+  fdw_private = list_make2(makeInteger(has_final_sort), makeInteger(extra->limit_needed));
+  #else
   fdw_private = list_make2(makeBoolean(has_final_sort), makeBoolean(extra->limit_needed));
+  #endif
 
   /* Create foreign final path; this gets rid of a no-longer-needed outer plan (if any), which makes the EXPLAIN output look cleaner */
   final_path = create_foreign_upper_path( root
                                         , input_rel
                                         , root->upper_targets[UPPERREL_FINAL]
                                         , rows
+  #if PG_VERSION_NUM >= 180000
                                         , disabled_nodes
+  #endif
                                         , startup_cost
                                         , total_cost
                                         , pathkeys
                                         , NULL                                  /* no extra plan */
+  #if PG_VERSION_NUM >= 170000
                                         , NIL                                   /* no fdw_restrictinfo list */
+  #endif
                                         , fdw_private);
 
   /* and add it to the final_rel */
@@ -631,10 +660,26 @@ static void adjust_foreign_grouping_path_cost(PlannerInfo* root, List* pathkeys,
    * Likewise, if the GROUP BY clause is sort-able but isn't a superset of the given pathkeys, adjust the costs with that function.
    * Otherwise, adjust the costs by applying the same heuristic as for the scan or join case.
    */
+  #if PG_VERSION_NUM < 160000
+  if (!grouping_is_sortable(root->parse->groupClause) || !pathkeys_contained_in(pathkeys, root->group_pathkeys)) {
+  #else
   if (!grouping_is_sortable(root->processed_groupClause) || !pathkeys_contained_in(pathkeys, root->group_pathkeys)) {
+  #endif
     Path  sort_path;  /* dummy for result of cost_sort */
 
-    cost_sort(&sort_path, root, pathkeys, 0, *p_startup_cost + *p_run_cost, retrieved_rows, width, 0.0, work_mem, limit_tuples);
+    cost_sort( &sort_path
+             , root
+             , pathkeys
+    #if PG_VERSION_NUM >= 180000
+             , 0
+    #endif
+             , *p_startup_cost + *p_run_cost
+             , retrieved_rows
+             , width
+             , 0.0
+             , work_mem
+             , limit_tuples
+             );
 
     *p_startup_cost = sort_path.startup_cost;
     *p_run_cost = sort_path.total_cost - sort_path.startup_cost;
@@ -768,7 +813,11 @@ static bool foreign_grouping_ok(PlannerInfo* root, RelOptInfo* grouped_rel, Node
 
       /* Currently, the core code doesn't wrap havingQuals in RestrictInfos, so we must make our own. */
       Assert(!IsA(expr, RestrictInfo));
+      #if PG_VERSION_NUM < 160000
+      rinfo = make_restrictinfo(root, expr, true, false, false,        root->qual_security_level, grouped_rel->relids, NULL, NULL);
+      #else
       rinfo = make_restrictinfo(root, expr, true, false, false, false, root->qual_security_level, grouped_rel->relids, NULL, NULL);
+      #endif
       if (is_foreign_expr(root, grouped_rel, expr))
         fpinfo->remote_conds = lappend(fpinfo->remote_conds, rinfo);
       else
@@ -1019,10 +1068,39 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
       /* Get rows from input rel */
       input_rows = ofpinfo->rows;
       /* Collect statistics about aggregates for estimating costs. */
+      #if PG_VERSION_NUM < 140000
+      MemSet(&aggcosts, 0, sizeof(AggClauseCosts));
+      if (root->parse->hasAggs) {
+        get_agg_clause_costs(root, (Node *) fpinfo->grouped_tlist, AGGSPLIT_SIMPLE, &aggcosts);
+        /* The cost of aggregates in the HAVING qual will be the same for each child as it is for the parent, so there's no need
+         * to use a translated version of havingQual.
+         */
+        get_agg_clause_costs(root, (Node *) root->parse->havingQual, AGGSPLIT_SIMPLE, &aggcosts);
+      }
+      #else
       if (root->parse->hasAggs) {
         get_agg_clause_costs(root, AGGSPLIT_SIMPLE, &aggcosts);
       }
+      #endif
       /* Get number of grouping columns and possible number of groups */
+      #if PG_VERSION_NUM < 160000
+      numGroupCols = list_length(root->parse->groupClause);
+      #if PG_VERSION_NUM < 140000
+      numGroups    = estimate_num_groups( root
+                                        , get_sortgrouplist_exprs( root->parse->groupClause
+                                                                 , fpinfo->grouped_tlist
+                                                                 )
+                                        , input_rows, NULL
+                                        );
+      #else
+      numGroups    = estimate_num_groups( root
+                                        , get_sortgrouplist_exprs( root->parse->groupClause
+                                                                 , fpinfo->grouped_tlist
+                                                                 )
+                                        , input_rows, NULL, NULL
+                                        );
+      #endif
+      #else
       numGroupCols = list_length(root->processed_groupClause);
       numGroups    = estimate_num_groups( root
                                         , get_sortgrouplist_exprs( root->processed_groupClause
@@ -1030,6 +1108,7 @@ void estimate_path_cost_size(PlannerInfo* root, RelOptInfo* foreignrel, List* pa
                                                                  )
                                         , input_rows, NULL, NULL
                                         );
+      #endif
 
       /* Get the retrieved_rows and rows estimates.  If there are HAVING quals, account for their selectivity. */
       if (root->hasHavingQual) {
