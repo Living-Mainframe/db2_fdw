@@ -137,11 +137,10 @@ extern char*           guessNlsLang              (char* nls_lang);
 extern void            exitHook                  (int code, Datum arg);
 
 
-/** Foreign-data wrapper handler function: return a struct with pointers
- * to callback routines.
+/* Foreign-data wrapper handler function: return a struct with pointers to callback routines.
  */
 PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
-  FdwRoutine *fdwroutine = makeNode (FdwRoutine);
+  FdwRoutine* fdwroutine    = makeNode (FdwRoutine);
 
   fdwroutine->GetForeignRelSize         = db2GetForeignRelSize;
   fdwroutine->GetForeignPaths           = db2GetForeignPaths;
@@ -181,12 +180,9 @@ PGDLLEXPORT Datum db2_fdw_handler (PG_FUNCTION_ARGS) {
   PG_RETURN_POINTER (fdwroutine);
 }
 
-/** db2_fdw_validator
- *   Validate the generic options given to a FOREIGN DATA WRAPPER, SERVER,
- *   USER MAPPING or FOREIGN TABLE that uses db2_fdw.
- *
- *   Raise an ERROR if the option or its value are considered invalid
- *   or a required option is missing.
+/* db2_fdw_validator
+ * Validate the generic options given to a FOREIGN DATA WRAPPER, SERVER, USER MAPPING or FOREIGN TABLE that uses db2_fdw.
+ * Raise an ERROR if the option or its value are considered invalid or a required option is missing.
  */
 PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
   List*     options_list               = untransformRelOptions (PG_GETARG_DATUM (0));
@@ -382,8 +378,8 @@ PGDLLEXPORT Datum db2_fdw_validator (PG_FUNCTION_ARGS) {
   PG_RETURN_VOID ();
 }
 
-/** db2_close_connections
- *   Close all open DB2 connections.
+/* db2_close_connections
+ * Close all open DB2 connections.
  */
 PGDLLEXPORT Datum db2_close_connections (PG_FUNCTION_ARGS) {
   if (dml_in_transaction)
@@ -398,19 +394,19 @@ PGDLLEXPORT Datum db2_close_connections (PG_FUNCTION_ARGS) {
   PG_RETURN_VOID ();
 }
 
-/** db2_diag
- *   Get the DB2 client version.
- *   If a non-NULL argument is supplied, it must be a foreign server name.
- *   In this case, the remote server version is returned as well.
+/* db2_diag
+ * Get the DB2 client version.
+ * If a non-NULL argument is supplied, it must be a foreign server name.
+ * In this case, the remote server version is returned as well.
  */
 PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
   Oid            srvId     = InvalidOid;
   char*          pgversion = NULL;
   StringInfoData version;
 
-  /** Get the PostgreSQL server version.
+  /* Get the PostgreSQL server version.
    * We cannot use PG_VERSION because that would give the version against which
-   * db2xa_fdw was compiled, not the version it is running with.
+   * db2_fdw was compiled, not the version it is running with.
    */
   pgversion = GetConfigOptionByName ("server_version", NULL);
 
@@ -491,11 +487,37 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
   PG_RETURN_TEXT_P (cstring_to_text (version.data));
 }
 
-/** _PG_init
- *   Library load-time initalization.
- *   Sets exitHook() callback for backend shutdown.
+/* _PG_init
+ * Library load-time initalization.
+ * Sets exitHook() callback for backend shutdown.
  */
 void _PG_init (void) {
-  /* register an exit hook */
-  on_proc_exit (&exitHook, PointerGetDatum (NULL));
+  char*       pgversion     = NULL;
+  int         min_pgversion = PG_SUPPORTED_MIN_VERSION / 10000;
+  int         i_pgversion   = min_pgversion;
+
+  /* Get the PostgreSQL server version.
+   * We cannot use PG_VERSION because that would give the version against which
+   * db2_fdw was compiled, not the version it is running with.
+   */
+  pgversion     = GetConfigOptionByName ("server_version", NULL);
+  if (pgversion != NULL) {
+    char majorversion[3];
+    majorversion[0] = pgversion[0];
+    majorversion[1] = pgversion[1];
+    majorversion[2] = '\0';
+    i_pgversion     = atoi(majorversion);
+  }
+
+  if (i_pgversion >= min_pgversion) {
+    /* register an exit hook */
+    on_proc_exit (&exitHook, PointerGetDatum (NULL));
+  } else {
+    ereport (ERROR
+            , ( errcode(ERRCODE_INSUFFICIENT_RESOURCES)
+              , errmsg ("You are running a PG version %s which is not supported.", pgversion)
+              , errhint("You need at least PG version %d or higher.", min_pgversion)
+              )
+            );
+  }
 }
