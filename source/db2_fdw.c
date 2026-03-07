@@ -408,7 +408,7 @@ PGDLLEXPORT Datum db2_diag (PG_FUNCTION_ARGS) {
    * We cannot use PG_VERSION because that would give the version against which
    * db2_fdw was compiled, not the version it is running with.
    */
-  pgversion = GetConfigOptionByName ("server_version", NULL);
+  pgversion = GetConfigOptionByName ("server_version", NULL, false);
 
   initStringInfo (&version);
   appendStringInfo (&version, "db2_fdw %s, PostgreSQL %s", DB2_FDW_VERSION, pgversion);
@@ -500,7 +500,7 @@ void _PG_init (void) {
    * We cannot use PG_VERSION because that would give the version against which
    * db2_fdw was compiled, not the version it is running with.
    */
-  pgversion     = GetConfigOptionByName ("server_version", NULL);
+  pgversion     = GetConfigOptionByName ("server_version", NULL, false);
   if (pgversion != NULL) {
     char majorversion[3];
     majorversion[0] = pgversion[0];

@@ -11,10 +11,13 @@
 #define _db2_fdw_h_
 
 #ifdef POSTGRES_H
+
 #include <foreign/foreign.h>
 #include <foreign/fdwapi.h>
 #include <nodes/pathnodes.h>
+
 #define PG_SUPPORTED_MIN_VERSION 130000
+
 #if PG_VERSION_NUM >= 150000
 #define STRVAL(arg) ((String *)(arg))->sval
 #else
@@ -34,24 +37,11 @@
 #define PQ_QUERY_PARAM_MAX_LIMIT 65535
 #endif /* PQ_QUERY_PARAM_MAX_LIMIT */
 
-/* array_create_iterator has a new signature from 9.5 on */
-#define array_create_iterator(arr, slice_ndim) array_create_iterator(arr, slice_ndim, NULL)
+#else  /* POSTGRES_H */
 
-/* GetConfigOptionByName has a new signature from 9.6 on */
-#define GetConfigOptionByName(name, varname) GetConfigOptionByName(name, varname, false)
-
-
-/* list API has changed in v13 */
-#define list_next(l, e) lnext((l), (e))
-#define do_each_cell(cell, list, element) for_each_cell(cell, (list), (element))
-
-/* older versions don't have JSONOID */
-#ifndef JSONOID
-#define JSONOID InvalidOid
-#endif
-#else 
 #include <sqlcli1.h>
 #include <postgres_ext.h>
+
 #endif /* POSTGRES_H */
 
 

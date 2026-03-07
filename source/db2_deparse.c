@@ -2308,7 +2308,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
               } else {
                 Datum          datum;
                 bool           isNull;
-                ArrayIterator  iterator = array_create_iterator (DatumGetArrayTypeP (constant->constvalue), 0);
+                ArrayIterator  iterator = array_create_iterator (DatumGetArrayTypeP (constant->constvalue), 0, NULL);
                 bool           first_arg = true;
 
                 /* loop through the array elements */
@@ -2508,7 +2508,7 @@ static void deparseBoolExpr          (BoolExpr*          expr, deparse_expr_cxt*
   if (arg != NULL) {
     bool bBreak = false;
     appendStringInfo (&buf, "(%s%s", expr->boolop == NOT_EXPR ? "NOT " : "", arg);
-    do_each_cell(cell, expr->args, list_next(expr->args, list_head(expr->args))) { 
+    for_each_cell(cell, expr->args, lnext(expr->args, list_head(expr->args))) { 
       db2free(arg);
       arg = deparseExpr (ctx->root, ctx->foreignrel, (Expr*)lfirst(cell), ctx->params_list);
       if (arg != NULL) {
