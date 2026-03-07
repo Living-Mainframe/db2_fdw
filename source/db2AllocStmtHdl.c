@@ -7,8 +7,6 @@
 /* Windows doesn't have snprintf */
 #define snprintf _snprintf
 #endif
-#include <sqlcli1.h>
-#include <postgres_ext.h>
 #include "db2_fdw.h"
 
 /** external variables */

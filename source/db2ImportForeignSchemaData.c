@@ -1,8 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <sqlcli1.h>
-#include <postgres_ext.h>
 #include "db2_fdw.h"
 
 /** global variables */

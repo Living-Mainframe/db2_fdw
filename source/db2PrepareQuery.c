@@ -1,6 +1,4 @@
 #include <string.h>
-#include <sqlcli1.h>
-#include <postgres_ext.h>
 #include "db2_fdw.h"
 #include "ParamDesc.h"
 #include "DB2ResultColumn.h"

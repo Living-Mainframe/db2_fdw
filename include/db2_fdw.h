@@ -49,8 +49,13 @@
 #ifndef JSONOID
 #define JSONOID InvalidOid
 #endif
-
+#else 
+#ifndef SQL_H_SQLCLI1
+#include <sqlcli1.h>
+#include <postgres_ext.h>
+#endif /* SQL_H_SQLCLI1 */
 #endif /* POSTGRES_H */
+
 
 /* db2_fdw version */
 #define DB2_FDW_VERSION             "18.2.0"

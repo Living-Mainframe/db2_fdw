@@ -7,7 +7,6 @@
 #include "ParamDesc.h"
 #include "DB2ResultColumn.h"
 
-
 // Execution state of a foreign scan that modifies a foreign table directly. 
 typedef struct db2FdwDirectModifyState {
   // DB2 Section
