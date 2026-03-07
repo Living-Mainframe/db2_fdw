@@ -17,7 +17,6 @@ extern void         db2Error_d           (db2error sqlstate, const char* message
 extern HdlEntry*    db2AllocStmtHdl      (SQLSMALLINT type, DB2ConnEntry* connp, db2error error, const char* errmsg);
 extern SQLSMALLINT  c2param              (SQLSMALLINT fparamType);
 extern char*        param2name           (SQLSMALLINT fparamType);
-extern void*        db2alloc             (const char* type, size_t size);
 
 /** internal prototypes */
 void                db2PrepareQuery      (DB2Session* session, const char *query, DB2ResultColumn* resultList, unsigned long prefetch, int fetchsize);

@@ -87,9 +87,6 @@ typedef struct deparse_expr_cxt {
 
 /** external prototypes */
 extern short              c2dbType                  (short fcType);
-extern void*              db2alloc                  (const char* type, size_t size);
-extern void*              db2strdup                 (const char* source);
-extern void               db2free                   (void* p);
 extern bool               is_shippable              (Oid objectId, Oid classId, DB2FdwState* fpinfo);
 extern EquivalenceMember* find_em_for_rel           (PlannerInfo* root, EquivalenceClass* ec, RelOptInfo* rel);
 extern EquivalenceMember* find_em_for_rel_target    (PlannerInfo* root, EquivalenceClass* ec, RelOptInfo* rel);
@@ -1687,7 +1684,7 @@ char* deparseWhereConditions (PlannerInfo* root, RelOptInfo * rel) {
       /* append new WHERE clause to query string */
       appendStringInfo (&where_clause, " %s %s", keyword, where);
       keyword = "AND";
-      db2free (where);
+      db2free (where, "where");
     } else {
       fdwState->local_conds = lappend (fdwState->local_conds, ((RestrictInfo*) lfirst (cell))->clause);
     }
@@ -1883,7 +1880,7 @@ char* deparseExpr (PlannerInfo* root, RelOptInfo* rel, Expr* expr, List** params
   char* retValue = NULL;
   db2Entry1();
   if (expr != NULL) {
-    deparse_expr_cxt* ctx = db2alloc("deparseExpr.context", sizeof(deparse_expr_cxt));
+    deparse_expr_cxt* ctx = db2alloc(sizeof(deparse_expr_cxt),"deparseExpr.context");
     StringInfoData    buf;
 
     initStringInfo(&buf);
@@ -1894,9 +1891,9 @@ char* deparseExpr (PlannerInfo* root, RelOptInfo* rel, Expr* expr, List** params
     ctx->buf         = &buf;
     ctx->params_list = params;
     deparseExprInt(expr, ctx);
-    retValue = (buf.len > 0) ? db2strdup(buf.data) : NULL;
-    db2free(ctx->buf->data);
-    db2free(ctx);
+    retValue = (buf.len > 0) ? db2strdup(buf.data,"buf.data") : NULL;
+    db2free(ctx->buf->data,"ctx->buf->data");
+    db2free(ctx, "ctx");
   }
   db2Exit1(": %s", retValue);
   return retValue;
@@ -2167,7 +2164,7 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
   if (!HeapTupleIsValid (tuple)) {
     elog (ERROR, "cache lookup failed for operator %u", expr->opno);
   }
-  opername     = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
+  opername     = db2strdup (((Form_pg_operator) GETSTRUCT (tuple))->oprname.data,"opername");
   oprkind      = ((Form_pg_operator) GETSTRUCT (tuple))->oprkind;
   leftargtype  = ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
   rightargtype = ((Form_pg_operator) GETSTRUCT (tuple))->oprright;
@@ -2226,7 +2223,7 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
                   /* the other operators have the same name in DB2 */
                   appendStringInfo (ctx->buf, "(%s %s %s)", left, opername, right);
                 }
-                db2free(right);
+                db2free(right,"right");
               }
             } else {
               /* unary operator */
@@ -2239,7 +2236,7 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
                 appendStringInfo (ctx->buf, "(%s%s)", opername, left);
               }
             }
-            db2free(left);
+            db2free(left,"left");
           }
         } else {
           /* cannot translate this operator */
@@ -2248,7 +2245,7 @@ static void deparseOpExpr            (OpExpr*            expr, deparse_expr_cxt*
       }
     }
   }
-  db2free (opername);
+  db2free (opername,"opername");
   db2Exit1();
 }
 
@@ -2263,7 +2260,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
   if (!HeapTupleIsValid (tuple)) {
     elog (ERROR, "cache lookup failed for operator %u", expr->opno);
   }
-  opername    = db2strdup(((Form_pg_operator) GETSTRUCT (tuple))->oprname.data);
+  opername    = db2strdup(((Form_pg_operator) GETSTRUCT (tuple))->oprname.data,"opername");
   leftargtype =           ((Form_pg_operator) GETSTRUCT (tuple))->oprleft;
   schema      =           ((Form_pg_operator) GETSTRUCT (tuple))->oprnamespace;
   ReleaseSysCache (tuple);
@@ -2304,7 +2301,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
               initStringInfo(&buf);
               if (constant->constisnull) {
                 appendStringInfo(&buf, "NULL");
-                right = db2strdup(buf.data);
+                right = db2strdup(buf.data,"buf.data");
               } else {
                 Datum          datum;
                 bool           isNull;
@@ -2337,10 +2334,10 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
                   bResult = false;
                 }
                 if (bResult) {
-                  right = db2strdup(buf.data);
+                  right = db2strdup(buf.data,"buf.data");
                 }
               }
-              db2free(buf.data);
+              db2free(buf.data,"buf.data");
             }
             break;
             case T_ArrayCoerceExpr: {
@@ -2370,7 +2367,7 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
                 element = deparseExpr (ctx->root, ctx->foreignrel, (Expr*) lfirst (cell), ctx->params_list);
                 if (element == NULL) {
                   /* if any element cannot be converted, give up */
-                  db2free(buf.data);
+                  db2free(buf.data,"buf.data");
                   bResult = false;
                   break;
                 }
@@ -2380,12 +2377,12 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
               db2Debug2("first_arg: %s", first_arg ? "true" : "false");
               if (first_arg) {
                 /* don't push down empty arrays, since the semantics for NOT x = ANY(<empty array>) differ */
-                db2free(buf.data);
+                db2free(buf.data,"buf.data");
                 bResult = false;
                 break;
               }
-              right = (bResult) ? db2strdup(buf.data) : NULL;
-              db2free(buf.data);
+              right = (bResult) ? db2strdup(buf.data,"buf.data") : NULL;
+              db2free(buf.data,"buf.data");
             }
             break;
             default: {
@@ -2398,8 +2395,8 @@ static void deparseScalarArrayOpExpr (ScalarArrayOpExpr* expr, deparse_expr_cxt*
           if (bResult) {
             appendStringInfo (ctx->buf, "(%s %s IN (%s))",left, expr->useOr ? "" : "NOT", right);
           }
-          db2free(left);
-          db2free(right);
+          db2free(left,"left");
+          db2free(right,"right");
         }
       }
     }
@@ -2431,9 +2428,9 @@ static void deparseDistinctExpr      (DistinctExpr*      expr, deparse_expr_cxt*
       if (right != NULL) {
         appendStringInfo (ctx->buf, "( %s IS DISTINCT FROM %s)", left, right);
       }
-      db2free(right);
+      db2free(right,"right");
     }
-    db2free(left);
+    db2free(left,"left");
   }
   db2Exit1();
 }
@@ -2490,9 +2487,9 @@ static void deparseNullIfExpr        (NullIfExpr*        expr, deparse_expr_cxt*
       if (right != NULL) {
         appendStringInfo (ctx->buf, "NULLIF(%s,%s)", left, right);
       }
-      db2free(right);
+      db2free(right,"right");
     }
-    db2free(left);
+    db2free(left,"left");
   }
   db2Exit1(": %s", ctx->buf->data);
 }
@@ -2509,7 +2506,7 @@ static void deparseBoolExpr          (BoolExpr*          expr, deparse_expr_cxt*
     bool bBreak = false;
     appendStringInfo (&buf, "(%s%s", expr->boolop == NOT_EXPR ? "NOT " : "", arg);
     for_each_cell(cell, expr->args, lnext(expr->args, list_head(expr->args))) { 
-      db2free(arg);
+      db2free(arg,"arg");
       arg = deparseExpr (ctx->root, ctx->foreignrel, (Expr*)lfirst(cell), ctx->params_list);
       if (arg != NULL) {
         appendStringInfo (&buf, " %s %s", expr->boolop == AND_EXPR ? "AND":"OR", arg);
@@ -2522,8 +2519,8 @@ static void deparseBoolExpr          (BoolExpr*          expr, deparse_expr_cxt*
       appendStringInfo (ctx->buf, "%s)", buf.data);
     }
   }
-  db2free(buf.data);
-  db2free(arg);
+  db2free(buf.data,"buf.data");
+  db2free(arg,"arg");
   db2Exit1(": %s", ctx->buf->data);
 }
 
@@ -2596,7 +2593,7 @@ static void deparseCaseExpr          (CaseExpr*          expr, deparse_expr_cxt*
     if (!bBreak) {
       appendStringInfo(ctx->buf,"%s",buf.data);
     }
-    db2free(buf.data);
+    db2free(buf.data,"buf.data");
   }
   db2Exit1(": %s", ctx->buf->data);
 }
@@ -2626,7 +2623,7 @@ static void deparseCoalesceExpr      (CoalesceExpr*      expr, deparse_expr_cxt*
     if (arg != NULL) {
       appendStringInfo (ctx->buf, "%s)",result.data);
     }
-    db2free(result.data);
+    db2free(result.data,"result.data");
   }
   db2Exit1(": %s", ctx->buf->data);
 }
@@ -2649,7 +2646,7 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
     if (!HeapTupleIsValid (tuple)) {
       elog (ERROR, "cache lookup failed for function %u", expr->funcid);
     }
-    opername = db2strdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data);
+    opername = db2strdup (((Form_pg_proc) GETSTRUCT (tuple))->proname.data,"opername");
     db2Debug2("opername: %s",opername);
     schema = ((Form_pg_proc) GETSTRUCT (tuple))->pronamespace;
     db2Debug2("schema: %d",schema);
@@ -2699,7 +2696,7 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
           if (arg != NULL) {
             appendStringInfo (&buf, "%s%s", (first_arg) ? ", " : "",arg);
             first_arg = false;
-            db2free(arg);
+            db2free(arg,"arg");
           } else {
             ok = false;
             db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
@@ -2711,7 +2708,7 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
         if (ok) {
           appendStringInfo(ctx->buf,"%s",buf.data);
         }
-        db2free(buf.data);
+        db2free(buf.data,"buf.data");
       } else if (strcmp (opername, "date_part") == 0) {
         char* left = NULL;
 
@@ -2735,12 +2732,12 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
             } else {
               appendStringInfo (ctx->buf, "EXTRACT(%s FROM %s)", left + 1, right);
             }
-            db2free(right);
+            db2free(right,"right");
           } else {
             db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
           }
         }
-        db2free (left);
+        db2free (left,"left");
       } else if (strcmp (opername, "now") == 0 || strcmp (opername, "transaction_timestamp") == 0) {
         /* special case: current timestamp */
         appendStringInfo (ctx->buf, "(CAST (?/*:now*/ AS TIMESTAMP))");
@@ -2749,7 +2746,7 @@ static void deparseFuncExpr          (FuncExpr*          expr, deparse_expr_cxt*
         db2Debug2("T_FuncExpr: function %s that we cannot render for DB2", opername);
       }
     }
-    db2free (opername);
+    db2free (opername,"opername");
   }
   db2Exit1(": %s", ctx->buf->data);
 }
@@ -2918,7 +2915,7 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
               break;
             }
             appendStringInfo(&result, "%s%s", cbuf.data, first_arg ? "" : ", ");
-            db2free(cbuf.data);
+            db2free(cbuf.data,"cbuf.data");
             first_arg = false;
           }
         }
@@ -2928,7 +2925,7 @@ static void deparseAggref            (Aggref*            expr, deparse_expr_cxt*
           db2Debug2("parsed aggref so far: %s", result.data);
           db2Debug2("could not deparse aggregate args");
         }
-        db2free(result.data);
+        db2free(result.data,"result.data");
       }
     }
   }

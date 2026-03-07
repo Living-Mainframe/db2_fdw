@@ -11,8 +11,6 @@
 /** external prototypes */
 extern List*        serializePlanData         (DB2FdwState* fdwState);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
-extern void         db2free                   (void* p);
-extern char*        db2strdup                 (const char* p);
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* rel, Expr* expr, List** params);
 extern char*        get_jointype_name         (JoinType jointype);
 extern List*        build_tlist_to_deparse    (RelOptInfo* foreignrel);
@@ -47,11 +45,11 @@ ForeignScan* db2GetForeignPlan (PlannerInfo* root, RelOptInfo* foreignrel, Oid f
     /* for base relations, set scan_relid as the relid of the relation */
     scan_relid = foreignrel->relid;
     /* check if the foreign scan is for an UPDATE or DELETE */
-#if PG_VERSION_NUM < 140000
+    #if PG_VERSION_NUM < 140000
     if (foreignrel->relid == root->parse->resultRelation && (root->parse->commandType == CMD_UPDATE || root->parse->commandType == CMD_DELETE)) {
-#else
+    #else
     if (bms_is_member(foreignrel->relid, root->all_result_relids) && (root->parse->commandType == CMD_UPDATE || root->parse->commandType == CMD_DELETE)) {
-#endif  /* PG_VERSION_NUM */
+    #endif  /* PG_VERSION_NUM */
       /* we need the table's primary key columns */
       need_keys = true;
     }
@@ -239,7 +237,7 @@ static void createQuery (PlannerInfo* root, RelOptInfo* foreignrel, bool modify,
   db2Debug2("  append modify clause: %s", query.data);
 
   /* get a copy of the where clause without single quoted string literals */
-  wherecopy = db2strdup (query.data);
+  wherecopy = db2strdup (query.data,"wherecopy");
   for (p = wherecopy; *p != '\0'; ++p) {
     if (*p == '\'')
       in_quote = !in_quote;
@@ -258,7 +256,7 @@ static void createQuery (PlannerInfo* root, RelOptInfo* foreignrel, bool modify,
     }
   }
 
-  db2free (wherecopy);
+  db2free (wherecopy,"wherecopy");
 
   /*
    * Calculate MD5 hash of the query string so far.
@@ -276,9 +274,9 @@ if (!pg_md5_hash (query.data, strlen (query.data), md5)) {
   /* add comment with MD5 hash to query */
   initStringInfo (&result);
   appendStringInfo (&result, "SELECT /*%s*/ %s", md5, query.data);
-  db2free (query.data);
-  fdwState->query = (result.len > 0) ? db2strdup(result.data) : NULL;
-  db2free(result.data);
+  db2free (query.data,"query.data");
+  fdwState->query = (result.len > 0) ? db2strdup(result.data,"result.data") : NULL;
+  db2free(result.data,"result.data");
   db2Debug2("  query: %s",fdwState->query);
   db2Debug1("< createQuery");
 }

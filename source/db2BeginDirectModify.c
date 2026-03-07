@@ -8,7 +8,6 @@
 #include "db2_fdw.h"
 #include "DB2FdwDirectModifyState.h"
 
-extern void*                    db2alloc                  (const char* type, size_t size);
 extern DB2Session*              db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern DB2FdwDirectModifyState* db2GetFdwDirectModifyState(Oid foreigntableid, double* sample_percent, bool describe);
 
@@ -168,7 +167,7 @@ static void init_returning_filter(DB2FdwDirectModifyState* dmstate, List* fdw_sc
    *
    * Also get the indexes of the entries for ctid and oid if any.
    */
-  dmstate->attnoMap   = (AttrNumber*) db2alloc("init_returning_filter::attnoMap",resultTupType->natts * sizeof(AttrNumber));
+  dmstate->attnoMap   = (AttrNumber*) db2alloc(resultTupType->natts * sizeof(AttrNumber), "attnoMap");
   dmstate->ctidAttno  = dmstate->oidAttno = 0;
 
   i = 1;
@@ -209,7 +208,7 @@ static void prepare_query_params(PlanState* node, List* fdw_exprs, int numParams
   Assert(numParams > 0);
 
   /* Prepare for output conversion of parameters used in remote query. */
-  *param_flinfo = db2alloc("prepare_query_params:param_flinfo",sizeof(FmgrInfo) * numParams);
+  *param_flinfo = db2alloc(sizeof(FmgrInfo) * numParams,"param_flinfo");
 
   i = 0;
   foreach(lc, fdw_exprs) {
@@ -231,7 +230,7 @@ static void prepare_query_params(PlanState* node, List* fdw_exprs, int numParams
   *param_exprs = ExecInitExprList(fdw_exprs, node);
 
   /* Allocate buffer for text form of query parameters. */
-  *param_values = (const char **) db2alloc("prepare_query_params::param_values",numParams * sizeof(char *));
+  *param_values = (const char **) db2alloc(numParams * sizeof(char *),"param_values");
   db2Exit4();
 }
 

@@ -23,9 +23,6 @@
 #endif
 
 /** external prototypes */
-extern void*              db2alloc                  (const char* type, size_t size);
-extern char*              db2strdup                 (const char* source);
-extern void*              db2free                   (void* p);
 extern List*              build_tlist_to_deparse    (RelOptInfo* foreignrel);
 extern char*              deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
 extern bool               is_shippable              (Oid objectId, Oid classId, DB2FdwState* fpinfo);
@@ -158,27 +155,27 @@ static void db2CloneFdwStateUpper(PlannerInfo* root, RelOptInfo* input_rel, RelO
 
   db2Entry4();
   if (fdw_in != NULL) {
-    copy = (DB2FdwState*) db2alloc("fdw_state_upper", sizeof(DB2FdwState));
+    copy = (DB2FdwState*) db2alloc(sizeof(DB2FdwState), "copy");
 
     /* Connection/session fields */
-    copy->dbserver     = fdw_in->dbserver   ? db2strdup(fdw_in->dbserver)   : NULL;
-    copy->user         = fdw_in->user       ? db2strdup(fdw_in->user)       : NULL;
-    copy->password     = fdw_in->password   ? db2strdup(fdw_in->password)   : NULL;
-    copy->jwt_token    = fdw_in->jwt_token  ? db2strdup(fdw_in->jwt_token)  : NULL;
-    copy->nls_lang     = fdw_in->nls_lang   ? db2strdup(fdw_in->nls_lang)   : NULL;
+    copy->dbserver     = fdw_in->dbserver   ? db2strdup(fdw_in->dbserver, "copy->dbserver")   : NULL;
+    copy->user         = fdw_in->user       ? db2strdup(fdw_in->user,     "copy->user")       : NULL;
+    copy->password     = fdw_in->password   ? db2strdup(fdw_in->password, "copy->password")   : NULL;
+    copy->jwt_token    = fdw_in->jwt_token  ? db2strdup(fdw_in->jwt_token,"copy->jwt_token ") : NULL;
+    copy->nls_lang     = fdw_in->nls_lang   ? db2strdup(fdw_in->nls_lang, "copy->nls_lang")   : NULL;
     /* Planner-time session handle can be shared (it is not serialized). */
     copy->session      = fdw_in->session;
 
     /* Planning/execution fields */
-    copy->query        = fdw_in->query ? db2strdup(fdw_in->query) : NULL;
+    copy->query        = fdw_in->query ? db2strdup(fdw_in->query,copy->query) : NULL;
     copy->prefetch     = fdw_in->prefetch;
     copy->startup_cost = fdw_in->startup_cost;
     copy->total_cost   = fdw_in->total_cost;
     copy->rowcount     = 0;
     copy->temp_cxt     = NULL;
 
-    copy->order_clause = fdw_in->order_clause ? db2strdup(fdw_in->order_clause) : NULL;
-    copy->where_clause = fdw_in->where_clause ? db2strdup(fdw_in->where_clause) : NULL;
+    copy->order_clause = fdw_in->order_clause ? db2strdup(fdw_in->order_clause,"copy->order_clause") : NULL;
+    copy->where_clause = fdw_in->where_clause ? db2strdup(fdw_in->where_clause,"copy->where_clause") : NULL;
 
     /* Shallow-copy expression lists (Expr nodes are immutable at this stage), but ensure list cells are independent because createQuery mutates the list. */
     copy->params       = fdw_in->params       ? list_copy(fdw_in->params)       : NIL;
@@ -207,16 +204,16 @@ static DB2Table* db2CloneDb2TableForPlan(const DB2Table* src) {
 
   db2Entry4();
   if (src != NULL) {
-    dst = (DB2Table*) db2alloc("db2_table_clone", sizeof(DB2Table));
+    dst = (DB2Table*) db2alloc(sizeof(DB2Table),"DB2Table* dst");
 
-    dst->name    = src->name   ? db2strdup(src->name)   : NULL;
-    dst->pgname  = src->pgname ? db2strdup(src->pgname) : NULL;
+    dst->name    = src->name   ? db2strdup(src->name,"dst->name")   : NULL;
+    dst->pgname  = src->pgname ? db2strdup(src->pgname,"dst->pgname") : NULL;
     dst->batchsz = src->batchsz;
     dst->ncols   = src->ncols;
     dst->npgcols = src->npgcols;
 
     if (src->ncols > 0) {
-      dst->cols = (DB2Column**) db2alloc("db2_table_clone->cols", sizeof(DB2Column*) * src->ncols);
+      dst->cols = (DB2Column**) db2alloc(sizeof(DB2Column*) * src->ncols,"dst->cols(%d)",src->ncols);
       for (i = 0; i < src->ncols; ++i) {
         dst->cols[i] = db2CloneDb2ColumnForPlan(src->cols[i]);
       }
@@ -233,12 +230,12 @@ static DB2Column* db2CloneDb2ColumnForPlan(const DB2Column* src) {
 
   db2Entry4();
   if (src != NULL) {
-    dst = (DB2Column*) db2alloc("db2_column_clone", sizeof(DB2Column));
+    dst = (DB2Column*) db2alloc( sizeof(DB2Column),"DB2Column* dst");
     /* start with a struct copy, then fix up pointer members */
     *dst = *src;
 
-    dst->colName = src->colName ? db2strdup(src->colName) : NULL;
-    dst->pgname  = src->pgname  ? db2strdup(src->pgname)  : NULL;
+    dst->colName = src->colName ? db2strdup(src->colName,"dst->colName") : NULL;
+    dst->pgname  = src->pgname  ? db2strdup(src->pgname,"dst->pgname")  : NULL;
   }
   db2Exit4(": %x", dst);
   return dst;
@@ -403,7 +400,7 @@ static void add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel, 
         /* Safe to push down */
         fpinfo->pushdown_safe = true;
         /* Construct PgFdwPathExtraData */
-        fpextra                 = db2alloc("add_foreign_ordered_path:fpextra",sizeof(DB2FdwPathExtraData));
+        fpextra                 = db2alloc(sizeof(DB2FdwPathExtraData),"fpextra");
         fpextra->target         = root->upper_targets[UPPERREL_ORDERED];
         fpextra->has_final_sort = true;
         /* Estimate the costs of performing the final sort remotely */
@@ -602,7 +599,7 @@ static void add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel, Re
   fpinfo->pushdown_safe = true;
 
   /* Construct DB2FdwPathExtraData */
-  fpextra                 = db2alloc("add_foreign_final_path:fpextra",sizeof(DB2FdwPathExtraData));
+  fpextra                 = db2alloc(sizeof(DB2FdwPathExtraData),"fpextra");
   fpextra->target         = root->upper_targets[UPPERREL_FINAL];
   fpextra->has_final_sort = has_final_sort;
   fpextra->has_limit      = extra->limit_needed;

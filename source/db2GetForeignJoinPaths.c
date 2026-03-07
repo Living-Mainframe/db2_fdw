@@ -8,8 +8,6 @@
 
 /** external prototypes */
 extern char*        deparseExpr               (PlannerInfo* root, RelOptInfo* foreignrel, Expr* expr, List** params);
-extern char*        db2strdup                 (const char* source);
-extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 void db2GetForeignJoinPaths(PlannerInfo* root, RelOptInfo* joinrel, RelOptInfo* outerrel, RelOptInfo* innerrel, JoinType jointype, JoinPathExtraData* extra);
@@ -50,7 +48,7 @@ void db2GetForeignJoinPaths (PlannerInfo * root, RelOptInfo * joinrel, RelOptInf
         * time considering it again and don't add the same path a second time.
         * Once we know that this join can be pushed down, we fill the data structure.
         */
-        fdwState = (DB2FdwState *) db2alloc("joinrel->fdw_private", sizeof (DB2FdwState));
+        fdwState = (DB2FdwState *) db2alloc(sizeof (DB2FdwState),"DB2FdwState* fdwState");
 
         joinrel->fdw_private = fdwState;
 
@@ -224,12 +222,12 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
   db2Table_o = fdwState_o->db2Table;
   db2Table_i = fdwState_i->db2Table;
 
-  fdwState->db2Table          = (DB2Table*) db2alloc("fdw_state->db2Table", sizeof (DB2Table));
-  fdwState->db2Table->name    = db2strdup ("");
-  fdwState->db2Table->pgname  = db2strdup ("");
+  fdwState->db2Table          = (DB2Table*) db2alloc(sizeof (DB2Table), "fdw_state->db2Table");
+  fdwState->db2Table->name    = db2strdup ("", "fdwState->db2Table->name");
+  fdwState->db2Table->pgname  = db2strdup ("", "fdwState->db2Table->pgname");
   fdwState->db2Table->ncols   = 0;
   fdwState->db2Table->npgcols = 0;
-  fdwState->db2Table->cols    = (DB2Column **) db2alloc("fdw_state->db2Table->cols[]", (sizeof (DB2Column*) * (db2Table_o->ncols + db2Table_i->ncols)));
+  fdwState->db2Table->cols    = (DB2Column **) db2alloc((sizeof (DB2Column*) * (db2Table_o->ncols + db2Table_i->ncols)), "fdw_state->db2Table->cols[%d]",(db2Table_o->ncols + db2Table_i->ncols));
 
   /* Search db2Column from children's db2Table.
    * Here we assume that children are foreign table, not foreign join.
@@ -272,7 +270,7 @@ static bool foreign_join_ok (PlannerInfo * root, RelOptInfo * joinrel, JoinType 
       }
     }
 
-    newcol = (DB2Column*) db2alloc("fdw_state->db2Table->cols[idx]", sizeof (DB2Column));
+    newcol = (DB2Column*) db2alloc(sizeof (DB2Column), "newcol");
     if (col) {
       memcpy (newcol, col, sizeof (struct db2Column));
       used_flag = 1;

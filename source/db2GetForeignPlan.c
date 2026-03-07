@@ -23,10 +23,6 @@ enum FdwPathPrivateIndex {
 };
 
 /** external prototypes */
-extern void*  db2alloc                (const char* type, size_t size);
-extern void*  db2free                 (void* pvoid);
-extern char*  db2strdup               (const char* source);
-
 extern bool   is_foreign_expr         (PlannerInfo* root, RelOptInfo* baserel, Expr* expr);
 extern void   deparseSelectStmtForRel (StringInfo buf, PlannerInfo* root, RelOptInfo* rel, List* tlist, List* remote_conds, List* pathkeys, bool has_final_sort, bool has_limit, bool is_subquery, List** retrieved_attrs, List** params_list);
 extern List*  build_tlist_to_deparse  (RelOptInfo* foreignrel);
@@ -92,7 +88,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
       /* examine each SELECT list entry for Var nodes */
       db2Debug3("size of tlist: %d", ptlist_len);
       foreach (cell, ptlist) {
-        resCol             = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+        resCol             = (DB2ResultColumn*)db2alloc(sizeof(DB2ResultColumn), "resCol");
         getUsedColumns ((Expr*) lfirst (cell), foreignrel, resCol);
         db2Debug3("resCol->colName: %s", resCol->colName);
         db2Debug3("resCol->pgattnum: %d", resCol->pgattnum);
@@ -103,13 +99,13 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
           db2Debug3("fpinfo->resultList: %x", fpinfo->resultList);
         } else {
           db2Debug3("about to free resCol: %x, colName: %s, pgattnum: %d", resCol, resCol->colName, resCol->pgattnum);
-          db2free(resCol);
+          db2free(resCol,"resCol");
         }
       }
       for (resCol = fpinfo->resultList; resCol; resCol = resCol->next) {
         iResCol++;
       }
-      cols    = (DB2ResultColumn**)db2alloc("resultColumns", iResCol+1 * sizeof(DB2ResultColumn*));
+      cols    = (DB2ResultColumn**)db2alloc(iResCol+1 * sizeof(DB2ResultColumn*),"cols(%d)",iResCol+1);
       iResCol = 0;
       for (resCol = fpinfo->resultList; resCol; resCol = resCol->next) {
         db2Debug2("resCol: %x", resCol);
@@ -204,7 +200,7 @@ ForeignScan* db2GetForeignPlan(PlannerInfo* root, RelOptInfo* foreignrel, Oid fo
       /* examine each condition for Tlist nodes; they come in the correct sequence as in the query and do not need to be sorted */
       db2Debug3("size of tlist: %d", ptlist_len);
       foreach (cell, ptlist) {
-        DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+        DB2ResultColumn* resCol = (DB2ResultColumn*)db2alloc(sizeof(DB2ResultColumn),"DB2ResultColumn* resCol");
         db2Debug3("examine tlist");
         resCol->next       = fpinfo->resultList;
         fpinfo->resultList = resCol;
@@ -313,7 +309,7 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
           // add all columns but the last one here
           for (index = 0; index < (fpinfo->db2Table->ncols - 1); index++) {
             if (fpinfo->db2Table->cols[index]->pgname) {
-              tmpCol = (DB2ResultColumn*)db2alloc("resultColumn",sizeof(DB2ResultColumn));
+              tmpCol = (DB2ResultColumn*)db2alloc(sizeof(DB2ResultColumn),"tmpCol");
               tmpCol->resnum     = index+1;
               copyCol2Result(tmpCol,fpinfo->db2Table->cols[index]);
               db2Debug4("db2Table[%d]->colName %s added to result list", index, fpinfo->db2Table->cols[index]->colName);
@@ -366,7 +362,7 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
         if (aggname && strcmp(aggname, "count") == 0) {
           DB2FdwState*  fpinfo  = (DB2FdwState*) foreignrel->fdw_private;
           /* if it's a COUNT(*) then we need an additional result */
-          DB2Column* col = db2alloc("DB2Column for count(*)",sizeof(DB2Column));
+          DB2Column* col = db2alloc(sizeof(DB2Column),"DB2Column* col");
           db2Debug4("found COUNT aggregate");
           col->colName        = "count";
           col->colType        = -5; // SQL_BIGINT type in DB2, which can hold the result of COUNT(*)
@@ -556,7 +552,7 @@ static void getUsedColumns (Expr* expr, RelOptInfo* foreignrel, DB2ResultColumn*
 static void copyCol2Result(DB2ResultColumn* resCol, DB2Column* column) {
   db2Entry4();
   if (resCol && resCol->colName == NULL) {
-    resCol->colName        = db2strdup(column->colName);
+    resCol->colName        = db2strdup(column->colName,"resCol->colName");
     resCol->colType        = column->colType;
     resCol->colSize        = column->colSize;
     resCol->colScale       = column->colScale;
@@ -566,7 +562,7 @@ static void copyCol2Result(DB2ResultColumn* resCol, DB2Column* column) {
     resCol->colPrimKeyPart = column->colPrimKeyPart;
     resCol->colCodepage    = column->colCodepage;
     resCol->pgbaserelid    = column->pgrelid;
-    resCol->pgname         = db2strdup(column->pgname);
+    resCol->pgname         = db2strdup(column->pgname,"resCol->pgname");
     resCol->pgattnum       = column->pgattnum;
     resCol->pgtype         = column->pgtype;
     resCol->pgtypmod       = column->pgtypmod;

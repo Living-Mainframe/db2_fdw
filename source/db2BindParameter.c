@@ -9,7 +9,6 @@
 extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void*        db2alloc             (const char* type, size_t size);
 extern SQLRETURN    db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void         db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLSMALLINT  param2c              (SQLSMALLINT fcType);
@@ -41,7 +40,7 @@ void db2BindParameter (DB2Session* session, ParamDesc* param, SQLLEN* indicator,
             char*      end     = NULL;
             SQLBIGINT* sqlbint = NULL;
             if (param->value != NULL) {
-              sqlbint  = db2alloc("SQLBIGINT",sizeof(SQLBIGINT));
+              sqlbint  = db2alloc(sizeof(SQLBIGINT), "SQLBIGINT sqlbigint");
               *sqlbint = strtoll(param->value,&end,10);
               db2Debug2("sqlbint: %d",*sqlbint);
             }
@@ -62,7 +61,7 @@ void db2BindParameter (DB2Session* session, ParamDesc* param, SQLLEN* indicator,
             char*        end     = NULL;
             SQLSMALLINT* sqlsint = NULL;
             if (param->value != NULL) {
-              sqlsint  = db2alloc("SQLSMALLINT",sizeof(SQLSMALLINT));
+              sqlsint  = db2alloc(sizeof(SQLSMALLINT), "SQLSMALLINT sqlsint");
               *sqlsint = strtol(param->value,&end,10);
               db2Debug2("sqlsint: %d",*sqlsint);
             }
@@ -83,7 +82,7 @@ void db2BindParameter (DB2Session* session, ParamDesc* param, SQLLEN* indicator,
             char*       end    = NULL;
             SQLINTEGER* sqlint = NULL;
             if (param->value != NULL) {
-              sqlint  = db2alloc("SQLINTEGER",sizeof(SQLINTEGER));
+              sqlint  = db2alloc(sizeof(SQLINTEGER),"SQLINTEGER sqlint");
               *sqlint = strtol(param->value,&end,10);
               db2Debug2("sqlint: %d",*sqlint);
             }
@@ -108,7 +107,7 @@ void db2BindParameter (DB2Session* session, ParamDesc* param, SQLLEN* indicator,
           case SQL_DECFLOAT: {
             SQL_NUMERIC_STRUCT* num = NULL;
             if (param->value != NULL) {
-              num = db2alloc("SQL_NUMERIC_STRUCT",sizeof(SQL_NUMERIC_STRUCT));
+              num = db2alloc(sizeof(SQL_NUMERIC_STRUCT), "SQL_NUMERIC_STRUCT num ");
               parse2num_struct(param->value, num);
               db2Debug2("num: '%s'",*num);
             }

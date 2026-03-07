@@ -6,7 +6,6 @@
 #include "db2_fdw.h"
 
 /** external prototypes */
-extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 char* db2GetShareFileName(const char *relativename);
@@ -15,10 +14,12 @@ char* db2GetShareFileName(const char *relativename);
  * Returns the allocated absolute path of a file in the "share" directory.
  */
 char* db2GetShareFileName (const char *relativename) {
-  char share_path[MAXPGPATH], *result;
+  char  share_path[MAXPGPATH];
+  char* result = NULL;
+
   db2Entry1();
   get_share_path(my_exec_path, share_path);
-  result = db2alloc("sharedFileName", MAXPGPATH);
+  result = db2alloc(MAXPGPATH,"result[%d]",MAXPGPATH);
   snprintf(result, MAXPGPATH, "%s/%s", share_path, relativename);
   db2Exit1(": %s",result);
   return result;

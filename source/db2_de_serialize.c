@@ -5,7 +5,6 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void*        db2alloc            (const char* type, size_t size);
 extern char*        c2name              (short fcType);
 
 /** local prototypes */
@@ -21,7 +20,7 @@ static Const*       serializeLong       (long i);
  *   Extract the data structures from a List created by serializePlanData.
  */
 DB2FdwState* deserializePlanData (List* list) {
-  DB2FdwState* state  = db2alloc ("DB2FdwState", sizeof (DB2FdwState));
+  DB2FdwState* state  = db2alloc (sizeof(DB2FdwState),"DB2FdwState");
   int          idx    = 0; 
   int          i      = 0; 
   int          len    = 0;
@@ -59,17 +58,17 @@ DB2FdwState* deserializePlanData (List* list) {
   /* relation_name */
   state->relation_name     = deserializeString(list_nth(list, idx++));
   /* table data */
-  state->db2Table          = (DB2Table*) db2alloc ("state->db2Table", sizeof (struct db2Table));
+  state->db2Table          = (DB2Table*) db2alloc (sizeof (struct db2Table),"state->db2Table");
   state->db2Table->name    = deserializeString(list_nth(list, idx++));
   state->db2Table->pgname  = deserializeString(list_nth(list, idx++));
   state->db2Table->batchsz = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
   state->db2Table->ncols   = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
   state->db2Table->npgcols = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
-  state->db2Table->cols    = (DB2Column**) db2alloc ("state->db2Table->cols", sizeof (DB2Column*) * state->db2Table->ncols);
+  state->db2Table->cols    = (DB2Column**) db2alloc (sizeof (DB2Column*) * state->db2Table->ncols,"state->db2Table->cols");
 
   /* loop columns */
   for (i = 0; i < state->db2Table->ncols; ++i) {
-    state->db2Table->cols[i]           = (DB2Column *) db2alloc ("state->db2Table->cols[i]", sizeof (DB2Column));
+    state->db2Table->cols[i]           = (DB2Column *) db2alloc (sizeof (DB2Column), "state->db2Table->cols[i]");
     state->db2Table->cols[i]->colName  = deserializeString(list_nth(list, idx++));
     db2Debug3("deserialize col[%d].colName: %s"  ,i, state->db2Table->cols[i]->colName);
     state->db2Table->cols[i]->colType  = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
@@ -112,7 +111,7 @@ DB2FdwState* deserializePlanData (List* list) {
   /* parameter table entries */
   state->paramList = NULL;
   for (i = 0; i < len; ++i) {
-    param            = (ParamDesc*) db2alloc ("state->parmList->next", sizeof (ParamDesc));
+    param            = (ParamDesc*) db2alloc (sizeof (ParamDesc),"state->parmList->next");
     param->colName         = deserializeString(list_nth(list, idx++));
     db2Debug3("deserialize param[%d].colName: %s"  ,i, param->colName);
     param->colType        = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
@@ -145,7 +144,7 @@ DB2FdwState* deserializePlanData (List* list) {
   /* parameter table entries */
   state->resultList = NULL;
   for (i = 0; i < len; ++i) {
-    DB2ResultColumn* res =  (DB2ResultColumn *) db2alloc ("state->resultList->next", sizeof (DB2ResultColumn));
+    DB2ResultColumn* res =  (DB2ResultColumn *) db2alloc (sizeof (DB2ResultColumn),"state->resultList->next");
     res->colName        = deserializeString(list_nth(list, idx++));
     db2Debug3("deserialize res[%d].colName: %s"  ,i, res->colName);
     res->colType        = (short) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
@@ -180,7 +179,7 @@ DB2FdwState* deserializePlanData (List* list) {
     db2Debug3("deserialize res[%d].noencerr: %ld"  ,i, res->noencerr);
     res->resnum         = (int) DatumGetInt32(((Const*)list_nth(list, idx++))->constvalue);
     db2Debug3("deserialize res[%d].resnum: %d"  ,i, res->resnum);
-    res->val            = (char*) db2alloc ("res->val", res->val_size + 1);
+    res->val            = (char*) db2alloc (res->val_size + 1, "res->val");
     res->val_len        = 0;
     res->val_null       = 1;
     res->next           = state->resultList;

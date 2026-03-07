@@ -1,9 +1,6 @@
+#include <string.h>
 #include <postgres.h>
 #include <miscadmin.h>
-#include <string.h>
-#include <stdlib.h>
-#include <optimizer/optimizer.h>
-#include <access/heapam.h>
 #include <utils/guc.h>
 #include "db2_fdw.h"
 

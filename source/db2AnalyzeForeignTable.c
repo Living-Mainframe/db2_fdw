@@ -19,7 +19,6 @@ extern int          db2FetchNext              (DB2Session* session);
 extern void         checkDataType             (short db2type, int scale, Oid pgtype, const char* tablename, const char* colname);
 extern short        c2dbType                  (short fcType);
 extern void         convertTuple              (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* reslist, int natts, Datum* values, bool* nulls, bool trunc_lob);
-extern void*        db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
        bool db2AnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages);
@@ -45,8 +44,8 @@ static int acquireSampleRowsFunc (Relation relation, int elevel, HeapTuple* rows
   bool              first_column    = true;
   StringInfoData    query;
   TupleDesc         tupDesc         = RelationGetDescr (relation);
-  Datum*            values          = (Datum*) db2alloc("values", tupDesc->natts* sizeof (Datum));
-  bool*             nulls           = (bool*)  db2alloc("null"  , tupDesc->natts* sizeof (bool));
+  Datum*            values          = (Datum*) db2alloc(tupDesc->natts* sizeof (Datum), "values");
+  bool*             nulls           = (bool*)  db2alloc(tupDesc->natts* sizeof (bool) , "null");
   double            rstate          = 0;
   double            rowstoskip      = -1;
   double            sample_percent  = 0;

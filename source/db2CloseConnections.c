@@ -14,7 +14,6 @@ extern void      db2Error_d           (db2error sqlstate, const char* message, c
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void      db2UnregisterCallback(void* arg);
 extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
-extern void      db2free              (void* p);
 
 /** local prototypes */
        void      db2CloseConnections  (void);

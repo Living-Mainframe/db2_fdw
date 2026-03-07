@@ -7,7 +7,6 @@ extern regproc* output_funcs;
 
 /** external prototypes */
 extern void         db2CloseStatement    (DB2Session* session);
-extern void         db2free              (void* p);
 
 /** local prototypes */
 void db2EndDirectModify(ForeignScanState* node);
@@ -33,7 +32,7 @@ void db2EndDirectModify(ForeignScanState* node) {
   /* Finish statement / cursor, if you keep a handle there */
   if (fdw_state->session) {
     db2CloseStatement (fdw_state->session);
-    db2free(fdw_state->session);
+    db2free(fdw_state->session,"fdw_state->session");
     fdw_state->session = NULL;
   }
 
@@ -43,10 +42,10 @@ void db2EndDirectModify(ForeignScanState* node) {
   }
 
   if (output_funcs){
-    db2free(output_funcs);
+    db2free(output_funcs,"output_funcs");
   }
  
-  db2free(fdw_state);
+  db2free(fdw_state,"fdw_state");
   node->fdw_state = NULL;
 	db2Exit1();
 }

@@ -6,7 +6,6 @@
 extern DB2EnvEntry*  rootenvEntry;          /* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern void*         db2alloc             (const char* type, size_t size);
 extern DB2ConnEntry* db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);
 extern DB2EnvEntry*  db2AllocEnvHdl       (const char* nls_lang);
 extern DB2EnvEntry*  findenvEntry         (DB2EnvEntry* start, const char* nlslang);
@@ -50,7 +49,7 @@ DB2Session* db2GetSession (const char* srvname, char* user, char* password, char
   }
 
   /* allocate a data structure pointing to the cached entries */
-  session        = db2alloc("session", sizeof (DB2Session));
+  session        = db2alloc(sizeof (DB2Session),"DB2Session* session");
   session->envp  = envp;
   session->connp = connp;
   session->stmtp = NULL;

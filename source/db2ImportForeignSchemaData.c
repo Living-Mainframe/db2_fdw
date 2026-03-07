@@ -10,10 +10,6 @@ extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set b
 extern int          err_code;              /* error code, set by db2CheckErr()                              */
 
 /** external prototypes */
-extern void*        db2alloc              (const char* type, size_t size);
-extern void*        db2realloc            (void* p, size_t size);
-extern void         db2free               (void* p);
-extern char*        db2strdup             (const char* source);
 extern char*        db2CopyText           (const char* string, int size, int quote);
 extern SQLRETURN    db2CheckErr           (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void         db2Error_d            (db2error sqlstate, const char* message, const char* detail, ...);
@@ -110,21 +106,21 @@ char** getForeignTableList(DB2Session* session, char* schema, int list_type, cha
       case 0: {   /* FDW_IMPORT_SCHEMA_ALL      */
         char* query_str = "SELECT T.TABNAME FROM SYSCAT.TABLES T  WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') ORDER BY T.TABNAME";
         int   s_len     = strlen(query_str)+1;
-        column_query = db2alloc("column_query",s_len);
+        column_query = db2alloc(s_len, "column_query");
         strncpy(column_query,query_str,s_len);
       }
       break;
       case 1: {   /* FDW_IMPORT_SCHEMA_LIMIT_TO */
         char* query_str = "SELECT T.TABNAME FROM SYSCAT.TABLES T WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') AND T.TABNAME IN (%s) ORDER BY T.TABNAME";
         int   s_len     = strlen(query_str) + strlen(table_list) + 1;
-        column_query = db2alloc("column_query",s_len);
+        column_query = db2alloc(s_len, "column_query");
         snprintf(column_query,s_len,query_str,table_list);
       }
       break;
       case 2: {   /* FDW_IMPORT_SCHEMA_EXCEPT   */
         char* query_str = "SELECT T.TABNAME FROM SYSCAT.TABLES T WHERE T.TABSCHEMA = ? AND T.TYPE IN ('T','V') AND T.TABNAME NOT IN (%s) ORDER BY T.TABNAME";
         int   s_len     = strlen(query_str) + strlen(table_list) + 1;
-        column_query = db2alloc("column_query",s_len);
+        column_query = db2alloc(s_len, "column_query");
         snprintf(column_query,s_len,query_str,table_list);
       }
       break;
@@ -171,12 +167,12 @@ char** getForeignTableList(DB2Session* session, char* schema, int list_type, cha
   if (rc != SQL_SUCCESS && rc != SQL_NO_DATA) {
     db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error importing foreign schema: SQLFetch failed to execute column query", db2Message);
   }
-  tabnames = (char**) db2alloc("tabnames", (tabidx + 1) * sizeof(char*));
+  tabnames = (char**) db2alloc( (tabidx + 1) * sizeof(char*), "tabnames");
   while(rc == SQL_SUCCESS || rc == SQL_SUCCESS_WITH_INFO) {
     tabnames[tabidx] = NULL;
     db2Debug2("tabname[%d] : '%s', ind: %d", tabidx, tab_buf, ind_tab);
     if (ind_tab != SQL_NULL_DATA) {
-      char* tabname = (char*) db2alloc("tabname", strlen((char*)tab_buf)+1);
+      char* tabname = (char*) db2alloc(strlen((char*)tab_buf)+1, "tabname");
       strncpy(tabname, (char*)tab_buf, strlen((char*)tab_buf)+1);
       tabnames[tabidx] = tabname;
     }
@@ -186,13 +182,13 @@ char** getForeignTableList(DB2Session* session, char* schema, int list_type, cha
       db2Error_d (FDW_UNABLE_TO_CREATE_EXECUTION, "error importing foreign schema: SQLFetch failed to execute column query", db2Message);
     }
     tabidx++;
-    tabnames = (char**) db2realloc(tabnames, (tabidx + 1) * sizeof(char*));
+    tabnames = (char**) db2realloc((tabidx + 1) * sizeof(char*), tabnames, "tabnames");
   }
   tabnames[tabidx] = NULL;
   /* release the statement handle */
   db2FreeStmtHdl(stmtp, session->connp);
   stmtp = NULL;
-  db2free(column_query);
+  db2free(column_query,"column_query");
   db2Exit1(": [%d]", tabidx-1);
   return tabnames;
 }
@@ -230,20 +226,20 @@ DB2Table* describeForeignTable (DB2Session* session, char* schema, char* tabname
     qschema = db2CopyText (schema, strlen (schema), 1);
     length += strlen (qschema) + 1;
   }
-  tablename = db2alloc ("reply->name", length + 1);
+  tablename = db2alloc (length + 1,"tablename");
   tablename[0] = '\0';		/* empty */
   if (schema != NULL) {
     strncat (tablename, qschema,length);
     strncat (tablename, ".",length);
   }
   strncat (tablename, qtable,length);
-  db2free (qtable);
+  db2free (qtable,"qtable");
   if (schema != NULL)
-    db2free (qschema);
+    db2free (qschema,"qschema");
 
   /* construct a "SELECT * FROM ..." query to describe columns */
   length += 40;
-  query = db2alloc ("query", length + 1);
+  query = db2alloc (length + 1, "query");
   snprintf ((char*)query, length+1, (char*)"SELECT * FROM %s FETCH FIRST 1 ROW ONLY", tablename);
 
   /* create statement handle */
@@ -266,10 +262,10 @@ DB2Table* describeForeignTable (DB2Session* session, char* schema, char* tabname
     else
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLExecute failed to describe table", db2Message);
   }
-  db2free(query);
+  db2free(query,"query");
 
   /* allocate an db2Table struct for the results */
-  reply          = db2alloc ("reply", sizeof (DB2Table));
+  reply          = db2alloc (sizeof (DB2Table),"DB2Table* reply");
   reply->name    = tabname;
   db2Debug2("table description");
   db2Debug2("reply->name   : '%s'", reply->name);
@@ -283,13 +279,13 @@ DB2Table* describeForeignTable (DB2Session* session, char* schema, char* tabname
   }
 
   reply->ncols = ncols;
-  reply->cols = (DB2Column**) db2alloc ("reply->cols", sizeof (DB2Column*) *reply->ncols);
+  reply->cols = (DB2Column**) db2alloc (sizeof (DB2Column*) *reply->ncols,"reply->cols(%d)",reply->ncols);
   db2Debug2("reply->ncols  : %d", reply->ncols);
 
   /* loop through the column list */
   for (i = 1; i <= reply->ncols; ++i) {
     /* allocate an db2Column struct for the column */
-    reply->cols[i - 1]                 = (DB2Column *) db2alloc (" reply->cols[i - 1]", sizeof (DB2Column));
+    reply->cols[i - 1]                 = (DB2Column *) db2alloc (sizeof (DB2Column), "reply->cols[%d - 1]", i);
     reply->cols[i - 1]->colPrimKeyPart = 0;
     reply->cols[i - 1]->colCodepage    = 0;
     reply->cols[i - 1]->pgname         = NULL;
@@ -315,7 +311,7 @@ DB2Table* describeForeignTable (DB2Session* session, char* schema, char* tabname
     if (rc != SQL_SUCCESS) {
       db2Error_d (FDW_UNABLE_TO_CREATE_REPLY, "error describing remote table: SQLDescribeCol failed to get column data", db2Message);
     }
-    reply->cols[i - 1]->colName  = db2strdup((char*)colName);
+    reply->cols[i - 1]->colName  = db2strdup((char*)colName,"reply->cols[%d - 1]->colName",i);
     db2Debug2("reply->cols[%d]->colName  : '%s'", (i-1), reply->cols[i - 1]->colName);
     db2Debug2("dataType: %d", dataType);
     reply->cols[i - 1]->colType  = (short)  dataType;

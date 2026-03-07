@@ -10,8 +10,6 @@
 extern DB2Session*    db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern char*          guessNlsLang              (char* nls_lang);
 extern short          c2dbType                  (short fcType);
-extern void           db2free                   (void* p);
-extern char*          db2strdup                 (const char* source);
 extern bool           isForeignSchema           (DB2Session* session, char* schema);
 extern char**         getForeignTableList       (DB2Session* session, char* schema, int list_type, char* table_list);
 extern DB2Table*      describeForeignTable      (DB2Session* session, char* schema, char* tabname);
@@ -114,17 +112,17 @@ List* db2ImportForeignSchema (ImportForeignSchemaStmt* stmt, Oid serverOid) {
       db2Debug2("import table_list: %s",tblist.data);
     }
     tablist  = getForeignTableList(session, stmt->remote_schema, stmt->list_type, tblist.data);
-    db2free (tblist.data);
+    db2free (tblist.data,"tblist.data");
     for (int i = 0; tablist[i] != NULL; i++) {
       DB2Table* db2Table = describeForeignTable(session, stmt->remote_schema, tablist[i]);
       if (db2Table != NULL) {
         generateForeignTableCreate(&buf, server->servername, stmt->local_schema, stmt->remote_schema, db2Table, foldcase, readonly);
         db2Debug2("pg fdw table ddl: '%s'",buf.data);
-        result = lappend (result, db2strdup (buf.data));
+        result = lappend (result, db2strdup (buf.data,"buf.data"));
         resetStringInfo (&buf);
       }
     }
-    db2free (tablist);
+    db2free (tablist,"tablist");
   }
   db2Exit1(": %d", list_length(result));
   return result;
@@ -137,7 +135,7 @@ static char* fold_case (char *name, fold_t foldcase) {
   char* result = NULL;
   db2Entry4("(name: '%s', foldcase: %d)", name, foldcase);
   if (foldcase == CASE_KEEP) {
-    result = db2strdup (name);
+    result = db2strdup (name,"result");
   } else {
     if (foldcase == CASE_LOWER) {
       result = str_tolower (name, strlen (name), DEFAULT_COLLATION_OID);
@@ -148,7 +146,7 @@ static char* fold_case (char *name, fold_t foldcase) {
         if (strcmp (upstr, name) == 0)
           result = str_tolower (name, strlen (name), DEFAULT_COLLATION_OID);
         else
-          result = db2strdup (name);
+          result = db2strdup (name,"result");
       }
     }
   }
@@ -172,14 +170,14 @@ static void generateForeignTableCreate(StringInfo buf, char* servername, char* l
                   , local_schema
                   , foldedname
                   );
-  db2free (foldedname);
+  db2free (foldedname,"foldedname");
   for (int i = 0; i < db2Table->ncols; i++) {
     appendStringInfo(buf, (firstcol) ? "" : ", ");
 
     /* column name */
     foldedname = fold_case (db2Table->cols[i]->colName, foldcase);
     appendStringInfo (buf, "\"%s\" ", foldedname);
-    db2free (foldedname);
+    db2free (foldedname,"foldedname");
 
     // check charlen is not 0; set it to 1 in that case
     db2Table->cols[i]->colSize = db2Table->cols[i]->colSize == 0 ? 1 : db2Table->cols[i]->colSize;

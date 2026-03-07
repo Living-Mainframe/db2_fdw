@@ -9,7 +9,6 @@
 #include "db2_fdw.h"
 
 /** external prototypes */
-extern char*        db2strdup                 (const char* source);
 extern bool         optionIsTrue              (const char* value);
 
 /** local prototypes */

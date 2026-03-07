@@ -189,6 +189,25 @@ typedef enum { CASE_KEEP, CASE_LOWER, CASE_SMART } fold_t;
 #define serializeInt(x)                makeConst(INT4OID, -1, InvalidOid, 4, Int32GetDatum((int32)(x)), false, true)
 #define serializeOid(x)                makeConst(OIDOID, -1, InvalidOid, 4, ObjectIdGetDatum(x), false, true)
 
+
+extern void* db2Alloc  (size_t size, const char* message, ...) __attribute__ ((format (gnu_printf, 2, 0)));
+extern void  db2Free   (void* p, const char* message, ...) __attribute__ ((format (gnu_printf, 2, 0)));
+extern void* db2ReAlloc(size_t size, void* p, const char* message, ...) __attribute__ ((format (gnu_printf, 3, 0)));
+extern char* db2StrDup (const char* source, const char* message, ...) __attribute__ ((format (gnu_printf, 2, 0)));
+
+#define db2alloc(size, msg, ...) \
+    db2Alloc( size, "%d %s:%s %s", __LINE__, __FILE__, __func__, msg, ##__VA_ARGS__)
+
+#define db2free(pvoid, msg, ...) \
+    db2Free( pvoid, "%d %s:%s %s", __LINE__, __FILE__, __func__, msg, ##__VA_ARGS__)
+
+#define db2realloc(size, pvoid, msg, ...) \
+    db2ReAlloc( size, pvoid, "%d %s:%s %s", __LINE__, __FILE__, __func__, msg, ##__VA_ARGS__)
+
+#define db2strdup(src, msg, ...) \
+    db2StrDup( src, "%d %s:%s %s", __LINE__, __FILE__, __func__, msg, ##__VA_ARGS__)
+
+
 // keep the values in sync with the LogLevels defined in elog.h of PostgreSQL
 // output, that only appears in log
 #define DB2DEBUG5    10

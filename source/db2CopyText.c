@@ -6,7 +6,6 @@
 /** external variables */
 
 /** external prototypes */
-extern void*     db2alloc             (const char* type, size_t size);
 
 /** local prototypes */
 char* db2CopyText (const char* string, int size, int quote);
@@ -24,7 +23,7 @@ char* db2CopyText (const char* string, int size, int quote) {
   db2Entry4("(string: '%s', size: %d, quote: %d)",string,size,quote);
   /* if "string" is parenthized, return a copy */
   if (string[0] == '(' && string[size - 1] == ')') {
-    result = db2alloc ("copyText", size + 1);
+    result = db2alloc (size + 1, "result");
     memcpy (result, string, size);
     result[size] = '\0';
     return result;
@@ -37,7 +36,7 @@ char* db2CopyText (const char* string, int size, int quote) {
     }
   }
 
-  result = db2alloc ("copyText", resultsize + 1);
+  result = db2alloc (resultsize + 1, "result");
   if (quote)
     result[++j] = '"';
   for (i = 0; i < size; ++i) {

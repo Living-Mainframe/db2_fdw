@@ -9,7 +9,6 @@
 
 /** external prototypes */
 extern DB2Session*  db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
-extern void*        db2alloc                  (const char* type, size_t size);
 extern DB2FdwState* deserializePlanData       (List* list);
 
 /** local prototypes */
@@ -33,7 +32,7 @@ void db2BeginForeignScan(ForeignScanState* node, int eflags) {
 
   /* add a fake parameter "if that string appears in the query */
   if (strstr (fdw_state->query, "?/*:now*/") != NULL) {
-    ParamDesc*  paramDesc = (ParamDesc*) db2alloc ("fdw_state->paramList->next", sizeof (ParamDesc));
+    ParamDesc*  paramDesc = (ParamDesc*) db2alloc (sizeof (ParamDesc), "fdw_state->paramList->next");
     paramDesc->type      = TIMESTAMPTZOID;
     paramDesc->bindType  = BIND_STRING;
     paramDesc->value     = NULL;
@@ -83,7 +82,7 @@ static void addExprParams(ForeignScanState* node){
       continue;
 
     /* create a new entry in the parameter list */
-    paramDesc       = (ParamDesc*) db2alloc("fdw_state->paramList->next", sizeof (ParamDesc));
+    paramDesc       = (ParamDesc*) db2alloc(sizeof (ParamDesc), "fdw_state->paramList->next");
     paramDesc->type = exprType ((Node*) (expr->expr));
 
     if (paramDesc->type == TEXTOID

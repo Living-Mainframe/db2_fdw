@@ -10,7 +10,6 @@ extern DB2FdwState* db2GetFdwState       (Oid foreigntableid, double* sample_per
 extern DB2Session*  db2GetSession        (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern int          db2ExecuteTruncate   (DB2Session* session, const char* query);
 extern void         db2CloseStatement    (DB2Session* session);
-extern void         db2free              (void* p);
 
 /** local prototypes */
        void         db2ExecForeignTruncate  (List *rels, DropBehavior behavior, bool restart_seqs);
@@ -41,7 +40,7 @@ void db2ExecForeignTruncate(List *rels, DropBehavior behavior, bool restart_seqs
       db2ExecuteTruncate(fdw_state->session,fdw_state->query);
 
       db2CloseStatement (fdw_state->session);
-      db2free(fdw_state->session);
+      db2free(fdw_state->session,"fdw_state->session");
       fdw_state->session = NULL;
     }
   }

@@ -19,9 +19,6 @@ extern DB2Session*  db2GetSession (const char* connectstring, char* user, char* 
 extern DB2Table*    db2Describe   (DB2Session* session, char* schema, char* table, char* pgname, long max_long, char* noencerr, char* batchsz);
 extern char*        db2CopyText   (const char* string, int size, int quote);
 extern char*        c2name        (short fcType);
-extern void*        db2alloc      (const char* type, size_t size);
-extern void         db2free       (void* p);
-extern char*        db2strdup     (const char* source);
 
 /** local prototypes */
        DB2FdwState*             db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
@@ -38,7 +35,7 @@ static void                     getOptions                (Oid foreigntableid, L
  * "sample_percent" can be NULL, in that case it is not set.
  */
 DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool describe) {
-  DB2FdwState* fdwState    = db2alloc("fdw_state", sizeof (DB2FdwState));
+  DB2FdwState* fdwState    = db2alloc(sizeof (DB2FdwState),"DB2FdwState* fdwState");
   char*        pgtablename = get_rel_name (foreigntableid);
   List*        options     = NIL;
   ListCell*    cell        = NULL;
@@ -120,7 +117,7 @@ DB2FdwState* db2GetFdwState (Oid foreigntableid, double* sample_percent, bool de
  * "sample_percent" can be NULL, in that case it is not set.
  */
 DB2FdwDirectModifyState* db2GetFdwDirectModifyState (Oid foreigntableid, double* sample_percent, bool describe) {
-  DB2FdwDirectModifyState* fdwState    = db2alloc("fdw_state", sizeof (DB2FdwDirectModifyState));
+  DB2FdwDirectModifyState* fdwState    = db2alloc(sizeof (DB2FdwDirectModifyState),"DB2FdwDirectModifyState* fdwState");
   char*        pgtablename = get_rel_name (foreigntableid);
   List*        options     = NIL;
   ListCell*    cell        = NULL;
@@ -200,7 +197,7 @@ static DB2Table* describeForeignTable (Oid foreigntableid, char* schema, char* t
 
   db2Entry2();
 
-  db2Table = (DB2Table*)db2alloc("db2_table", sizeof (DB2Table));
+  db2Table = (DB2Table*)db2alloc(sizeof (DB2Table),"DB2Table* db2_table");
   /* get a complete quoted table name */
   qtable = db2CopyText (table, strlen (table), 1);
   length = strlen (qtable);
@@ -208,16 +205,16 @@ static DB2Table* describeForeignTable (Oid foreigntableid, char* schema, char* t
     qschema = db2CopyText (schema, strlen (schema), 1);
     length += strlen (qschema) + 1;
   }
-  tablename = db2alloc ("db2Table->name", length + 1);
+  tablename = db2alloc (length + 1,"db2Table->name");
   tablename[0] = '\0';		/* empty */
   if (schema != NULL) {
     strncat (tablename, qschema, length);
     strncat (tablename, ".", length);
   }
   strncat (tablename, qtable,length);
-  db2free (qtable);
+  db2free (qtable,"qtable");
   if (schema != NULL)
-    db2free (qschema);
+    db2free (qschema,"qschema");
 
   db2Table->name = tablename;
   db2Debug3("table description");
@@ -239,7 +236,7 @@ static DB2Table* describeForeignTable (Oid foreigntableid, char* schema, char* t
   db2Debug3("db2Table->npgcols : %d", db2Table->npgcols);
   db2Table->ncols   = tupdesc->natts;
   db2Debug3("db2Table->ncols   : %d", db2Table->ncols);
-  db2Table->cols    = (DB2Column**) db2alloc ("db2Table->cols", sizeof (DB2Column*) * db2Table->ncols);
+  db2Table->cols    = (DB2Column**)  db2alloc(sizeof (DB2Column*) * db2Table->ncols,"DB2Columns* db2Table->cols(%d)",db2Table->ncols);
   db2Debug3("db2Table->cols    : %x", db2Table->cols);
 
   /* loop through foreign table columns */
@@ -266,12 +263,12 @@ static DB2Table* describeForeignTable (Oid foreigntableid, char* schema, char* t
       bool          db2nulls_set = false;
       bool          db2codepage_set = false;
 
-      db2Table->cols[cidx]           = (DB2Column*) db2alloc ("db2Table->cols[cidx]", sizeof (DB2Column));
+      db2Table->cols[cidx]           = (DB2Column*) db2alloc (sizeof (DB2Column),"DB2Column db2Table->cols[%d]",cidx);
       db2Table->cols[cidx]->used     = 0;
       db2Table->cols[cidx]->pgattnum = att_tuple->attnum;
       db2Table->cols[cidx]->pgtype   = att_tuple->atttypid;
       db2Table->cols[cidx]->pgtypmod = att_tuple->atttypmod;
-      db2Table->cols[cidx]->pgname   = db2strdup (NameStr(att_tuple->attname));
+      db2Table->cols[cidx]->pgname   = db2strdup (NameStr(att_tuple->attname),"db2Table->cols[%d]->pgname",cidx);
       db2Table->cols[cidx]->colName  = db2CopyText ( str_toupper(db2Table->cols[cidx]->pgname, strlen(db2Table->cols[cidx]->pgname), DEFAULT_COLLATION_OID)
                                                    , strlen(db2Table->cols[cidx]->pgname)
                                                    , 1
@@ -315,7 +312,7 @@ static DB2Table* describeForeignTable (Oid foreigntableid, char* schema, char* t
       }
       if (!db2type_set || !db2size_set || !db2bytes_set || !db2chars_set || !db2scale_set || !db2nulls_set || !db2codepage_set) {
         db2Debug2("INFO: column %d - %s without required options, discarding db2Table", cidx, db2Table->cols[cidx]->pgname);
-        db2free (db2Table);
+        db2free (db2Table,"db2Table");
         db2Table = NULL;
         break;
       }
@@ -447,7 +444,7 @@ static void getColumnData (DB2Table* db2Table, Oid foreigntableid) {
       db2Table->cols[index - 1]->pgattnum = att_tuple->attnum;
       db2Table->cols[index - 1]->pgtype   = att_tuple->atttypid;
       db2Table->cols[index - 1]->pgtypmod = att_tuple->atttypmod;
-      db2Table->cols[index - 1]->pgname   = db2strdup (NameStr(att_tuple->attname));
+      db2Table->cols[index - 1]->pgname   = db2strdup (NameStr(att_tuple->attname),"db2Table->cols[%d - 1]->pgname", index);
     }
 
     /* loop through column options */

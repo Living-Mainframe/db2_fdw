@@ -11,7 +11,6 @@ extern regproc* output_funcs;
 
 /** external prototypes */
 extern void         db2CloseStatement    (DB2Session* session);
-extern void         db2free              (void* p);
 
 /** local prototypes */
 void                db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo);
@@ -36,7 +35,7 @@ void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
   /* Finish statement / cursor, if you keep a handle there */
   if (fdw_state->session) {
     db2CloseStatement (fdw_state->session);
-    db2free(fdw_state->session);
+    db2free(fdw_state->session,"fdw_state->session");
     fdw_state->session = NULL;
   }
 
@@ -46,10 +45,10 @@ void db2EndForeignModifyCommon(EState *estate, ResultRelInfo *rinfo) {
   }
 
   if (output_funcs){
-    db2free(output_funcs);
+    db2free(output_funcs,"output_funcs");
   }
  
   rinfo->ri_FdwState = NULL;
-  db2free(fdw_state);
+  db2free(fdw_state,"fdw_state");
   db2Exit1();
 }

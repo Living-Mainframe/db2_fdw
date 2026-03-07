@@ -15,7 +15,6 @@ extern void            db2Debug                  (int level, const char* message
 extern void            convertTuple              (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* reslist, int natts, Datum* values, bool* nulls, bool trunc_lob);
 extern char*           deparseDate               (Datum datum);
 extern char*           deparseTimestamp          (Datum datum, bool hasTimezone);
-extern void*           db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 TupleTableSlot* db2ExecForeignDelete (EState* estate, ResultRelInfo* rinfo, TupleTableSlot* slot, TupleTableSlot* planSlot);
@@ -195,7 +194,7 @@ void setModifyParameters (ParamDesc *paramList, TupleTableSlot * newslot, TupleT
           datum = (Datum) PG_DETOAST_DATUM (datum);
           /* the first 4 bytes contain the length */
           value_len = VARSIZE (datum) - VARHDRSZ;
-          param->value = db2alloc("param->value", value_len);
+          param->value = db2alloc(value_len,"param->value");
           memcpy (param->value, VARDATA(datum), value_len);
           db2Debug2("param->value: %s (ought to be a LONG or LONGRAW)",param->value);
         }

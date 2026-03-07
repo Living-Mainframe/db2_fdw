@@ -38,9 +38,6 @@ typedef struct {
 extern void         db2GetLob                  (DB2Session* session, DB2ResultColumn* column, char** value, long* value_len, unsigned long trunc);
 extern void         db2Shutdown                (void);
 extern short        c2dbType                   (short fcType);
-extern void*        db2alloc                   (const char* type, size_t size);
-extern void*        db2strdup                  (const char* source);
-extern void         db2free                    (void* p);
 
 /** local prototypes */
 bool                optionIsTrue               (const char *value);
@@ -80,7 +77,7 @@ char* guessNlsLang (char *nls_lang) {
   db2Entry4("(nls_lang: %s)", nls_lang);
   initStringInfo (&buf);
   if (nls_lang == NULL) {
-    server_encoding = db2strdup (GetConfigOption ("server_encoding", false, true));
+    server_encoding = db2strdup (GetConfigOption ("server_encoding", false, true),"server_encoding");
     /* find an DB2 client character set that matches the database encoding */
     if (strcmp (server_encoding, "UTF8") == 0)
       charset = "AL32UTF8";
@@ -150,8 +147,8 @@ char* guessNlsLang (char *nls_lang) {
                       )
               );
     }
-    db2free(server_encoding);
-    lc_messages = db2strdup (GetConfigOption ("lc_messages", false, true));
+    db2free(server_encoding,"server_encoding");
+    lc_messages = db2strdup (GetConfigOption ("lc_messages", false, true),"lc_messages");
     /* try to guess those for which there is a backend translation */
     if (strncmp (lc_messages, "de_", 3) == 0 || pg_strncasecmp (lc_messages, "german", 6) == 0)
       language = "GERMAN_GERMANY";
@@ -176,7 +173,7 @@ char* guessNlsLang (char *nls_lang) {
     if (strncmp (lc_messages, "zh_TW", 5) == 0 || pg_strncasecmp (lc_messages, "chinese-traditional", 19) == 0)
       language = "TRADITIONAL CHINESE_TAIWAN";
     appendStringInfo (&buf, "NLS_LANG=%s.%s", language, charset);
-    db2free(lc_messages);
+    db2free(lc_messages,"lc_messages");
   } else {
     appendStringInfo (&buf, "NLS_LANG=%s", nls_lang);
   }
@@ -287,7 +284,7 @@ void convertTuple (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* res
       /* fill the TupleSlot with the data (after conversion if necessary) */
       if (res->pgtype == BYTEAOID) {
         /* binary columns are not converted */
-        bytea* result = (bytea*) db2alloc ("bytea", value_len + VARHDRSZ);
+        bytea* result = (bytea*) db2alloc (value_len + VARHDRSZ,"result");
         memcpy (VARDATA (result), value, value_len);
         SET_VARSIZE (result, value_len + VARHDRSZ);
   
@@ -336,7 +333,7 @@ void convertTuple (DB2Session* session, DB2Table* db2Table, DB2ResultColumn* res
       db2Type = c2dbType(res->colType);
       if (db2Type == DB2_BLOB || db2Type == DB2_CLOB) {
         if (value != NULL) {
-          db2free (value);
+          db2free (value,"value");
         } else {
           db2Debug5("not freeing value, since it is null");
         }

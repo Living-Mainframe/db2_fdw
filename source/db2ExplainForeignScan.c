@@ -10,8 +10,6 @@
 #include "DB2FdwState.h"
 
 /** external prototypes */
-extern void*        db2alloc                  (const char* type, size_t size);
-extern void         db2free                   (void* p);
 
 /** local prototypes */
        void db2ExplainForeignScan(ForeignScanState* node, ExplainState* es);
@@ -46,7 +44,7 @@ static void db2Explain (void* fdw, ExplainState* es) {
   for (const char* p = src; *p; p++) {
     if (*p == '"') count++;
   }
-  tempQuery = db2alloc("tempQuery", qlength+count+1);
+  tempQuery = db2alloc(qlength+count+1,"tempQuery");
   dest      = tempQuery;
   src       = fdw_state->query;
   while(*src){
@@ -87,6 +85,6 @@ static void db2Explain (void* fdw, ExplainState* es) {
   }
   /* close */
   pclose(fp);
-  db2free(tempQuery);
+  db2free(tempQuery,"tempQuery");
   db2Exit1();
 }

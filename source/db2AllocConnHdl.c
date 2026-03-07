@@ -10,7 +10,6 @@ extern void      db2Error_d           (db2error sqlstate, const char* message, c
 extern void      db2RegisterCallback  (void* arg);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
 extern void      db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);
-extern char*     db2strdup            (const char* p);
 
 /** local prototypes */
        DB2ConnEntry*    db2AllocConnHdl      (DB2EnvEntry* envp,const char* srvname, char* user, char* password, char* jwt_token, const char* nls_lang);

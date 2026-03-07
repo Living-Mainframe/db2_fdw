@@ -14,7 +14,6 @@
 /** external prototypes */
 extern DB2FdwState* db2GetFdwState            (Oid foreigntableid, double* sample_percent, bool describe);
 extern char*        deparseWhereConditions    (PlannerInfo* root, RelOptInfo* baserel);
-extern void         db2free                   (void* p);
 extern void         classifyConditions        (PlannerInfo* root, RelOptInfo* baserel, List* input_conds, List** remote_conds, List** local_conds);
 extern void         estimate_path_cost_size   (PlannerInfo* root, RelOptInfo* foreignrel, List* param_join_conds, List* pathkeys, DB2FdwPathExtraData* fpextra, double* p_rows, int* p_width, int* p_disabled_nodes, Cost* p_startup_cost, Cost* p_total_cost);
 
@@ -64,7 +63,7 @@ static void db2PopulateFdwStateOld(PlannerInfo* root, RelOptInfo* baserel, Oid f
   fdwState->where_clause = deparseWhereConditions ( root, baserel );
 
   /* release DB2 session (will be cached) */
-  db2free (fdwState->session);
+  db2free (fdwState->session,"fdwState->session");
   fdwState->session = NULL;
   /* use a random "high" value for cost */
   fdwState->startup_cost = 10000.0;

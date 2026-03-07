@@ -13,7 +13,6 @@ extern DB2EnvEntry* rootenvEntry;          /* Linked list of handles for cached 
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
-extern void      db2free              (void* p);
 
 /** local prototypes */
        void             db2FreeEnvHdl        (DB2EnvEntry* envp, const char* nls_lang);

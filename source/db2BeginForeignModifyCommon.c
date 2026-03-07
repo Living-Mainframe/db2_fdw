@@ -15,7 +15,6 @@ extern regproc* output_funcs;
 /** external prototypes */
 extern DB2Session*     db2GetSession             (const char* connectstring, char* user, char* password, char* jwt_token, const char* nls_lang, int curlevel);
 extern void            db2PrepareQuery           (DB2Session* session, const char *query, DB2ResultColumn* db2ResultList, unsigned long prefetch, int fetchsize);
-extern void*           db2alloc                  (const char* type, size_t size);
 
 /** local prototypes */
 void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo, DB2FdwState* fdw_state, Plan* subplan);
@@ -34,7 +33,7 @@ void db2BeginForeignModifyCommon(ModifyTableState* mtstate, ResultRelInfo* rinfo
   db2PrepareQuery(fdw_state->session, fdw_state->query, fdw_state->resultList,fdw_state->prefetch,fdw_state->fetch_size);
 
   /* get the type output functions for the parameters */
-  output_funcs = (regproc*) db2alloc("output_funcs", fdw_state->db2Table->ncols * sizeof(regproc *));
+  output_funcs = (regproc*) db2alloc(fdw_state->db2Table->ncols * sizeof(regproc *), "output_funcs");
   for (param = fdw_state->paramList; param != NULL; param = param->next) {
     /* ignore output parameters */
     if (param->bindType == BIND_OUTPUT)
