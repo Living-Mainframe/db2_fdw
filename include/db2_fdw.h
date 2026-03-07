@@ -50,10 +50,8 @@
 #define JSONOID InvalidOid
 #endif
 #else 
-#ifndef SQL_H_SQLCLI1
 #include <sqlcli1.h>
 #include <postgres_ext.h>
-#endif /* SQL_H_SQLCLI1 */
 #endif /* POSTGRES_H */
 
 
@@ -189,11 +187,10 @@ typedef enum {
   DB2_LONGVARBINARY
 } nonSQLType;
 
-/** Options for case folding for names in IMPORT FOREIGN TABLE.
- */
+/* Options for case folding for names in IMPORT FOREIGN TABLE. */
 typedef enum { CASE_KEEP, CASE_LOWER, CASE_SMART } fold_t;
 
-#define REL_ALIAS_PREFIX    "r"
+#define REL_ALIAS_PREFIX            "r"
 #define SUBQUERY_REL_ALIAS_PREFIX	"s"
 #define SUBQUERY_COL_ALIAS_PREFIX	"c"
 
@@ -217,8 +214,8 @@ typedef enum { CASE_KEEP, CASE_LOWER, CASE_SMART } fold_t;
 #define DB2LERROR    21
 
 extern int  isLogLevel  (int level);
-extern void db2EntryExit(int level, int entry, const char* message, ...);
-extern void db2Debug    (int level, const char* message, ...);
+extern void db2EntryExit(int level, int entry, const char* message, ...) __attribute__ ((format (gnu_printf, 3, 0)));
+extern void db2Debug    (int level, const char* message, ...) __attribute__ ((format (gnu_printf, 2, 0)));
 
 #define db2IsLogEnabled(level) \
     isLogLevel(level)
