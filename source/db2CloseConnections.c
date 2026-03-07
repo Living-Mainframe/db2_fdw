@@ -9,7 +9,6 @@ extern DB2EnvEntry* rootenvEntry;          /* Linked list of handles for cached 
 extern char         db2Message[ERRBUFSIZE];/* contains DB2 error messages, set by db2CheckErr()             */
 
 /** external prototypes */
-extern int       isLogLevel           (int level);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 extern SQLRETURN db2CheckErr          (SQLRETURN status, SQLHANDLE handle, SQLSMALLINT handleType, int line, char* file);
@@ -112,7 +111,7 @@ int deleteconnEntry(DB2ConnEntry* start, DB2ConnEntry* node) {
       break;
     }
   }
-  if (isLogLevel(3)) {
+  if (db2IsLogEnabled(DB2DEBUG3)) {
     for (step = start; step != NULL; step = step->right) {
       db2Debug3("start:%x, step:%x, step->left: %x, step->right:%x",start,step,step->left,step->right);
     }

@@ -13,7 +13,6 @@
 extern DB2EnvEntry* rootenvEntry;          /* Linked list of handles for cached DB2 connections.            */
 
 /** external prototypes */
-extern int       isLogLevel           (int level);
 extern void      db2Error             (db2error sqlstate, const char* message);
 extern void      db2Error_d           (db2error sqlstate, const char* message, const char* detail, ...);
 
@@ -28,7 +27,7 @@ HdlEntry* db2AllocStmtHdl (SQLSMALLINT type, DB2ConnEntry* connp, db2error error
   SQLRETURN     rc      = 0;
 
   db2Entry1();
-  if (isLogLevel(5)) {
+  if (db2IsLogEnabled(DB2DEBUG5)) {
     DB2EnvEntry*  envstep = NULL;
     DB2ConnEntry* constep = NULL;
     HdlEntry*     hdlstep = NULL;

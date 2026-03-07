@@ -19,14 +19,11 @@ _Thread_local static int debug_depth = 0;
   (x==FDW_SERIALIZATION_FAILURE ? ERRCODE_T_R_SERIALIZATION_FAILURE : ERRCODE_FDW_ERROR))))))
 
 /** local prototype */
-int  isLogLevel  (int level);
 void db2Error    (db2error sqlstate, const char* message);
 void db2Error_d  (db2error sqlstate, const char* message, const char* detail, ...) __attribute__ ((format (gnu_printf, 2, 0)));
-void db2EntryExit(int level, int entry, const char* message, ...)__attribute__ ((format (gnu_printf, 3, 0)));
-void db2Debug    (int level, const char* message, ...)__attribute__ ((format (gnu_printf, 2, 0)));
 
-/** db2Error_d
- *    Report a PostgreSQL error with a detail message.
+/* db2Error_d
+ * Report a PostgreSQL error with a detail message.
  */
 void db2Error_d (db2error sqlstate, const char *message, const char *detail, ...) {
   char    cBuffer [4000];
@@ -39,8 +36,8 @@ void db2Error_d (db2error sqlstate, const char *message, const char *detail, ...
   va_end  (arg_marker);
 }
 
-/** db2error
- *   Report a PostgreSQL error without detail message.
+/* db2error
+ * Report a PostgreSQL error without detail message.
  */
 void db2Error (db2error sqlstate, const char *message) {
   /* use errcode_for_file_access() if the message contains %m */
@@ -52,31 +49,11 @@ void db2Error (db2error sqlstate, const char *message) {
 }
 
 int isLogLevel(int level) {
-  int dLevel = 0;
-  switch(level){
-    case 1:
-    dLevel = DEBUG1;
-    break;
-    case 2:
-    dLevel = DEBUG2;
-    break;
-    case 3:
-    dLevel = DEBUG3;
-    break;
-    case 4:
-    dLevel = DEBUG4;
-    break;
-    case 5:
-    default:
-    dLevel = DEBUG5;
-    break;
-  }
-  dLevel = (dLevel >= log_min_messages);
-  return dLevel;
+  return (level >= log_min_messages);
 }
 
 void db2EntryExit(int level, int entry, const char* message, ...) {
-  if (isLogLevel(level)) {
+  if (db2IsLogEnabled(level)) {
     char    cBuffer [4000];
     va_list arg_marker;
     va_start(arg_marker, message);
@@ -94,7 +71,7 @@ void db2EntryExit(int level, int entry, const char* message, ...) {
 }
 
 void db2Debug(int level, const char* message, ...) {
-  if (isLogLevel(level)) {
+  if (db2IsLogEnabled(level)) {
     char    cBuffer [4000];
     int     dLevel  = DEBUG5;
     int     offset  = (2*debug_depth);

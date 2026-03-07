@@ -202,40 +202,73 @@ typedef enum { CASE_KEEP, CASE_LOWER, CASE_SMART } fold_t;
 #define serializeInt(x)                makeConst(INT4OID, -1, InvalidOid, 4, Int32GetDatum((int32)(x)), false, true)
 #define serializeOid(x)                makeConst(OIDOID, -1, InvalidOid, 4, ObjectIdGetDatum(x), false, true)
 
+// keep the values in sync with the LogLevels defined in elog.h of PostgreSQL
+// output, that only appears in log
+#define DB2DEBUG5    10
+#define DB2DEBUG4    11
+#define DB2DEBUG3    12
+#define DB2DEBUG2    13
+#define DB2DEBUG1    14
+#define DB2LOG       15
+// output, that only appears not in log
+#define DB2LINFO     17
+#define DB2LNOTICE   18
+#define DB2LWARNING  20
+#define DB2LERROR    21
+
+extern int  isLogLevel  (int level);
 extern void db2EntryExit(int level, int entry, const char* message, ...);
 extern void db2Debug    (int level, const char* message, ...);
 
+#define db2IsLogEnabled(level) \
+    isLogLevel(level)
+
 #define db2Entry1(fmt, ...) \
-    db2EntryExit(1, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG1, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Entry2(fmt, ...) \
-    db2EntryExit(2, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG2, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Entry3(fmt, ...) \
-    db2EntryExit(3, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG3, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Entry4(fmt, ...) \
-    db2EntryExit(4, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG4, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Entry5(fmt, ...) \
-    db2EntryExit(5, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG5, 1, "> %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 #define db2Exit1(fmt, ...) \
-    db2EntryExit(1, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG1, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Exit2(fmt, ...) \
-    db2EntryExit(2, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG2, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Exit3(fmt, ...) \
-    db2EntryExit(3, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG3, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Exit4(fmt, ...) \
-    db2EntryExit(4, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG4, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Exit5(fmt, ...) \
-    db2EntryExit(5, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2EntryExit(DB2DEBUG5, 0, "< %s:%d:%s" fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 #define db2Debug1(fmt, ...) \
-    db2Debug(1, "1 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2Debug(DB2DEBUG1, "1 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Debug2(fmt, ...) \
-    db2Debug(2, "2 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2Debug(DB2DEBUG2, "2 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Debug3(fmt, ...) \
-    db2Debug(3, "3 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2Debug(DB2DEBUG3, "3 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Debug4(fmt, ...) \
-    db2Debug(4, "4 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2Debug(DB2DEBUG4, "4 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define db2Debug5(fmt, ...) \
-    db2Debug(5, "5 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    db2Debug(DB2DEBUG5, "5 %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
+#define db2Log(fmt, ...) \
+    db2Debug(DB2LOG, "l %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
+#define db2LogInfo(fmt, ...) \
+    db2Debug(DB2LINFO, "i %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
+#define db2LogNotice(fmt, ...) \
+    db2Debug(DB2LNOTICE, "n %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+
+#define db2LogWarn(fmt, ...) \
+    db2Debug(DB2LWARNING, "w %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+    
+#define db2LogError(fmt, ...) \
+    db2Debug(DB2LERROR, "e %s:%d:%s " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
 #endif
